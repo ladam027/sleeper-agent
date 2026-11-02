@@ -67,6 +67,7 @@ const MIGRATIONS = [
      status text not null default 'draft', created_by text, created_at text default current_timestamp);
    alter table agents add column project_id integer;
    update agents set tools = tools || ',list_projects,list_contacts' where name = 'quick' and tools not like '%list_projects%';`,
+  `update agents set tools = tools || ',canvas_upcoming,canvas_grades' where name = 'quick' and tools not like '%canvas_upcoming%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -91,7 +92,7 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
-  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder,list_projects,list_contacts', 'Pete')`).run();
+  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder,list_projects,list_contacts,canvas_upcoming,canvas_grades', 'Pete')`).run();
 
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);

@@ -10,6 +10,7 @@ import * as telegram from './telegram.js';
 import * as jobs from './jobs.js';
 import * as money from './money.js';
 import * as google from './google.js';
+import * as integrations from './integrations.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -68,6 +69,7 @@ async function api(req, url) {
     version: { ...VERSION, lastBackup: lastBackup() },
     vault: vault.status(),
     google: google.status(),
+    integrations: { defs: integrations.INTEGRATIONS, status: integrations.status(), anthropic: !!process.env.ANTHROPIC_API_KEY },
     phone: phone.status(),
     reminders: scheduler.upcoming(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
@@ -164,6 +166,11 @@ async function api(req, url) {
     if (id === 'draft-status') { if (!['sent', 'discarded'].includes(b.status)) throw new Error('status must be sent or discarded');
       db.prepare('update drafts set status = ? where id = ?').run(b.status, Number(b.id)); return { ok: true }; }
     if (id === 'goal') { if (!(b.goal > 0)) throw new Error('Goal must be positive'); set('monthly_income_goal', b.goal); return { ok: true }; }
+  }
+  if (route === 'integrations' && m === 'POST') {
+    if (action === 'test') return { result: await integrations.test(id) };
+    if (!hasSession(req)) throw new Error('Vault session expired. Unlock the vault (Vault page) to save credentials.');
+    return { result: integrations.save(id, await body(req)) };
   }
   if (route === 'google' && m === 'POST') {
     const { account } = await body(req);

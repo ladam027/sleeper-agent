@@ -23,5 +23,12 @@
 5. **Clients → Create client → Web application**. Authorized redirect URI: `https://sleeper-agent.tailcdfa9.ts.net/oauth/google`. Copy the client ID and secret into `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); Claude pushes it with `npm run deploy -- --env`.
 6. Dashboard → Settings → Google → **Connect James's Gmail** (sign in as James) and optionally **Connect my Google**.
 
+## Integrations (v4.2.0)
+- `src/integrations.js`: vault-backed services. Credentials are saved from the Integrations page (needs a vault passphrase session), read from the vault inside the tool at call time, and never returned; tool results also pass through `redact()`. A locked vault gives a plain "ask the owner to unlock" error.
+- **Canvas**: token + school address → `canvas_upcoming` (titles/courses/dates only, wrapped as untrusted, no descriptions) and `canvas_grades`. Pete has both.
+- **Kalshi** (read-only): key ID + private key (RSA-PSS SHA-256 or Ed25519 signature over timestamp+method+path, no query) → `kalshi_portfolio`, `kalshi_markets`. Host `external-api.kalshi.com/trade-api/v2`.
+- **Schwab**: stores app key/secret; OAuth + tools in Build 6.
+- Dashboard: Integrations tab (built-in services + vault-backed cards with Connect / Test / View in vault). Mobile bar hides Guide (link in Settings). 59 tests.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

@@ -5,6 +5,7 @@ import { notify } from './phone.js';
 import { addReminder, upcoming, cancelReminder, rezone } from './scheduler.js';
 import { upsertProject, moneySummary, logMoney, upsertContact, listContacts, saveDraft, STAGES, projectId, markDraftSent } from './money.js';
 import * as google from './google.js';
+import * as integ from './integrations.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -15,7 +16,8 @@ const tool = (name, description, properties, required, run, risk = 'low', hidden
 const str = (description) => ({ type: 'string', description });
 // Tools a created worker agent may be given (never create_agent, delegate, or the hidden internal ones).
 export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets',
-  'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email', 'read_email', 'calendar_events', 'calendar_add'];
+  'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email', 'read_email', 'calendar_events', 'calendar_add',
+  'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets'];
 
 export const TOOLS = {
   remember: tool('remember', 'Save or update a long-term memory about the owner, a project, a person, or a decision. Pass id to update. pinned=true puts it in every prompt (use for core facts only).',
@@ -142,6 +144,19 @@ export const TOOLS = {
   calendar_add: tool('calendar_add', "Add an event to the owner's Google Calendar. start/end are owner local time: YYYY-MM-DDTHH:MM, or YYYY-MM-DD for all-day. End defaults to 1 hour later.",
     { title: str('event title'), start: str('start'), end: str('end (optional)'), description: str('details'), location: str('where') }, ['title', 'start'],
     (input) => google.addEvent(input)),
+
+  canvas_upcoming: tool('canvas_upcoming', "The owner's upcoming Canvas assignments, to-dos and events (title, course, type, due date), soonest first. Use it to plan study time or set reminders for due work.", {}, [],
+    async () => `<untrusted_content source="Canvas (titles written by instructors)">\n${JSON.stringify(await integ.canvasUpcoming())}\n</untrusted_content>`),
+
+  canvas_grades: tool('canvas_grades', "The owner's current score and letter grade in each active Canvas course.", {}, [],
+    async () => JSON.stringify(await integ.canvasGrades())),
+
+  kalshi_portfolio: tool('kalshi_portfolio', "Read-only: the owner's Kalshi cash balance and open positions. Never imply a trade was placed; trading is not enabled.", {}, [],
+    async () => JSON.stringify(await integ.kalshiPortfolio())),
+
+  kalshi_markets: tool('kalshi_markets', 'Read-only: open Kalshi markets with current yes bid/ask (in cents), volume and close time. Filter by series_ticker or event_ticker, or pass search words to match titles.',
+    { series_ticker: str('e.g. KXFED'), event_ticker: str('event ticker'), search: str('words that must appear in the market title'), limit: { type: 'integer' } }, [],
+    async (input) => JSON.stringify(await integ.kalshiMarkets(input))),
 
   delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea.',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],
