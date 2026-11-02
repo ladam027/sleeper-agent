@@ -148,3 +148,11 @@ test('concise mode, effort and max reply length reach the API; a cut-off reply s
   assert.equal(calls[0].output_config, undefined, 'Haiku gets no effort parameter');
   assert.equal(calls[0].max_tokens, 1024);
 });
+
+test('agents know their display names and their teammates', async () => {
+  reset();
+  const calls = fake([text('hi')]);
+  await runAgent('orchestrator', 'who are you');
+  assert.match(calls[0].system, /Your name is James/);
+  assert.match(calls[0].system, /Pete, id quick/);
+});

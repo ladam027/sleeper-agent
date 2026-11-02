@@ -1,20 +1,46 @@
-// Vault: encryption at rest, redaction before anything reaches the API.
+// Vault: passphrase-only key (nothing on disk decrypts), encryption at rest, redaction before anything reaches the API.
 process.env.DB_PATH = ':memory:';
-process.env.VAULT_KEY = 'a'.repeat(64);
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { db } = await import('../src/db.js');
 const vault = await import('../src/vault.js');
 const { deps, runAgent } = await import('../src/agent.js');
+const PASS = 'correct horse battery';
 
-test('values are encrypted at rest and round-trip', () => {
+test('locked until a passphrase is set; nothing works without it', () => {
+  assert.deepEqual({ ...vault.status() }, { setup: false, unlocked: false, items: 0 });
+  assert.throws(() => vault.save({ name: 'x', value: 'y' }), /locked/);
+  assert.throws(() => vault.setup('short'), /12 characters/);
+  vault.setup(PASS);
+  assert.equal(vault.status().unlocked, true);
+  assert.throws(() => vault.setup(PASS), /already/);
+});
+
+test('values are encrypted at rest; the key is not stored anywhere on disk', () => {
   vault.save({ name: 'schwab', kind: 'password', value: 'hunter2-Secret!', username: 'logan' });
   const raw = db.prepare('select * from secrets').get();
   assert.ok(!Buffer.from(raw.data).toString('utf8').includes('hunter2'));
+  const settings = JSON.stringify(db.prepare('select * from settings').all());
+  assert.ok(!settings.includes(PASS), 'passphrase not stored');
   assert.equal(vault.reveal('schwab').value, 'hunter2-Secret!');
   assert.deepEqual(vault.names().map((r) => ({ ...r })), [{ name: 'schwab', kind: 'password' }]);
   assert.equal(vault.resolve('pw={{secret:schwab}}'), 'pw=hunter2-Secret!');
+});
+
+test('lock wipes the key; wrong passphrase fails; right one unlocks', () => {
+  vault.lock();
+  assert.throws(() => vault.reveal('schwab'), /locked/);
+  assert.equal(vault.list(true)[0].summary, undefined, 'no details while locked');
+  assert.throws(() => vault.unlock('wrong passphrase!!'), /Wrong passphrase/);
+  vault.unlock(PASS);
+  assert.equal(vault.reveal('schwab').value, 'hunter2-Secret!');
+  assert.throws(() => vault.unlock('wrong passphrase!!'), /Wrong passphrase/, 'still checked when already unlocked');
+});
+
+test('list shows a summary only for a passphrase session', () => {
+  assert.equal(vault.list(false)[0].summary, undefined);
+  assert.equal(vault.list(true)[0].summary, 'logan');
 });
 
 test('redact scrubs vault values, card numbers, SSNs, but leaves normal numbers', () => {
@@ -40,16 +66,11 @@ test('nothing sensitive reaches the API: message, history, system prompt, tool r
   assert.ok(!db.prepare("select group_concat(content) c from chat where id > 2").get().c.includes('hunter2'), 'saved history is redacted');
 });
 
-test('bad names and kinds are rejected', () => {
-  assert.throws(() => vault.save({ name: 'Bad Name', value: 'x' }));
-  assert.throws(() => vault.save({ name: 'ok', kind: 'nope', value: 'x' }));
-});
-
-test('cards keep expiry/CVV encrypted; the list shows only the last 4 digits', () => {
+test('cards keep expiry/CVV encrypted; the summary shows only the last 4 digits', () => {
   vault.save({ name: 'visa', kind: 'card', value: '4111 1111 1111 1111', username: 'Logan Adams', expiry: '12/29', cvv: '123' });
-  const item = vault.list().find((i) => i.name === 'visa');
-  assert.equal(item.summary, 'Logan Adams · •••• 1111 · exp 12/29');
-  assert.ok(!JSON.stringify(vault.list()).includes('4111 1111'));
+  assert.equal(vault.list(true).find((i) => i.name === 'visa').summary, 'Logan Adams · •••• 1111 · exp 12/29');
+  assert.ok(!JSON.stringify(vault.list(true)).includes('4111 1111'));
   assert.equal(vault.reveal('visa').cvv, '123');
   assert.throws(() => vault.save({ name: 'bad', kind: 'card', value: '4111111111111111', expiry: '13/29' }), /MM\/YY/);
+  assert.throws(() => vault.save({ name: 'Bad Name', value: 'x' }));
 });

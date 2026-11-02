@@ -15,7 +15,8 @@ Read `docs/PLAN.md` first. Work on exactly one build at a time (see §4 there). 
 5. Money and trading limits are enforced in code, not prompts.
 6. The dashboard binds to 127.0.0.1. Remote access is via Tailscale only.
 7. Everything sent to the API passes through `redact()` (src/vault.js). New code that builds prompts or tool results must go through `runAgent`/`exec` so this always applies. Secret values are resolved only inside tool executors via `vault.resolve()` and never returned to the model.
-8. Never lose owner data. `data/` is gitignored. Schema changes are new entries appended to `MIGRATIONS` in src/db.js (never edit, reorder, drop, or delete user tables/rows). Each migration runs after an automatic backup. Test any migration against an old database in `test/persist.test.js`.
+8. Claude Code must never access the owner's vault: never read/decrypt/unlock it, never call `/api/vault*` on the real install, never run JS in a dashboard page where the vault may be unlocked, never add code that logs, returns or transmits decrypted values outside the passphrase-session endpoints and tool executors. Test vault code only with throwaway DBs. Call out any change to `src/vault.js` to the owner. Reading memory is fine.
+9. Never lose owner data. `data/` is gitignored. Schema changes are new entries appended to `MIGRATIONS` in src/db.js (never edit, reorder, drop, or delete user tables/rows). Each migration runs after an automatic backup. Test any migration against an old database in `test/persist.test.js`.
 
 ## Conventions
 - Version (package.json, shown in Settings): major = build number, minor = update within that build. Bump the minor on every shipped change and add a line under "Updates" in that build's notes.

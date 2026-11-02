@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, randomBytes } from 'node:crypto';
 import { db, get, set, log, backup, lastBackup, SCHEMA_VERSION } from './db.js';
 import * as vault from './vault.js';
 import { summary, PRICES } from './budget.js';
@@ -36,6 +36,17 @@ async function body(req) {
 
 const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt'];
 
+// Vault sessions: issued only for the passphrase, kept in memory, 15 minutes sliding. The dashboard token
+// alone (which is on disk in .env) can list item names but never see or change vault contents.
+const sessions = new Map(), failures = [];
+const newSession = () => { const t = randomBytes(32).toString('hex'); sessions.set(t, Date.now() + 15 * 60e3); return t; };
+function hasSession(req) {
+  const t = req.headers['x-vault-session'], exp = t && sessions.get(t);
+  if (!exp || exp < Date.now() || !vault.ready()) { if (t) sessions.delete(t); return false; }
+  sessions.set(t, Date.now() + 15 * 60e3);
+  return true;
+}
+
 async function api(req, url) {
   const [, , route, id, action] = url.pathname.split('/'); // /api/<route>/<id>/<action>
   const m = req.method;
@@ -47,7 +58,7 @@ async function api(req, url) {
     costs: summary(),
     settings: Object.fromEntries(SETTINGS.map((k) => [k, get(k)])),
     version: { ...VERSION, lastBackup: lastBackup() },
-    vaultReady: vault.ready(),
+    vault: vault.status(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
@@ -70,6 +81,7 @@ async function api(req, url) {
     if (b.daily_budget_usd !== undefined) { if (!(b.daily_budget_usd >= 0 && b.daily_budget_usd <= 50)) throw new Error('Daily budget must be $0–50'); upd('daily_budget_usd', b.daily_budget_usd); }
     if (b.effort !== undefined) { if (!['low', 'medium', 'high'].includes(b.effort)) throw new Error('Effort must be low, medium or high'); upd('effort', b.effort); }
     if (b.concise !== undefined) upd('concise', b.concise ? 1 : 0);
+    if (b.display_name !== undefined) { const v = String(b.display_name).trim(); if (!/^[\p{L}\p{N} .'-]{1,24}$/u.test(v)) throw new Error('Name must be 1-24 letters, numbers or spaces'); upd('display_name', v); }
     if (b.max_tokens !== undefined) { if (!(b.max_tokens >= 512 && b.max_tokens <= 64000)) throw new Error('Max reply length must be 512–64000 tokens'); upd('max_tokens', Math.round(b.max_tokens)); }
     log('owner', 'settings', `${id}: ${Object.keys(b).join(', ')} updated`);
     return { ok: true };
@@ -81,8 +93,18 @@ async function api(req, url) {
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
     return { ok: true };
   }
+  if (route === 'vault-auth' && m === 'POST') {
+    if (id === 'lock') { vault.lock(); sessions.clear(); return { ok: true }; }
+    if (failures.filter((t) => Date.now() - t < 5 * 60e3).length >= 5) throw new Error('Too many wrong passphrases. Wait 5 minutes.');
+    const { passphrase } = await body(req);
+    try { id === 'setup' ? vault.setup(passphrase) : vault.unlock(passphrase); }
+    catch (e) { if (e.message === 'Wrong passphrase') { failures.push(Date.now()); log('owner', 'vault', 'wrong passphrase attempt'); } throw e; }
+    return { session: newSession() };
+  }
   if (route === 'vault') {
-    if (m === 'GET' && !id) return { ready: vault.ready(), items: vault.list() };
+    const ok = hasSession(req);
+    if (m === 'GET' && !id) return { status: vault.status(), session: ok, items: vault.list(ok) };
+    if (!ok) throw new Error('Vault session expired. Enter your passphrase again.');
     if (m === 'GET') return vault.reveal(decodeURIComponent(id)) || { error: 'not found' };
     if (m === 'POST') return vault.save(await body(req)), { ok: true };
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };

@@ -33,11 +33,11 @@ const nowLine = () => {
 // Stable across turns (only changes when pinned memories or agents change) so prompt caching hits.
 function system(a) {
   const pinned = db.prepare('select id, title, body from memory where pinned = 1 order by id').all();
-  const team = db.prepare('select name, purpose from agents where name != ?').all(a.name);
-  return [`${RULES}\n\nYou are "${a.name}": ${a.purpose}`,
+  const team = db.prepare('select name, display_name, purpose from agents where name != ?').all(a.name);
+  return [`${RULES}\n\nYour name is ${a.display_name || a.name} (internal id "${a.name}"). The owner may call you by name. Your role: ${a.purpose}`,
     a.concise && CONCISE,
     pinned.length && `Core facts about the owner:\n${pinned.map((m) => `- #${m.id} ${m.title}: ${m.body}`).join('\n')}`,
-    team.length && `Sub-agents you can delegate to:\n${team.map((t) => `- ${t.name}: ${t.purpose}`).join('\n')}`,
+    team.length && `Other agents (delegate by internal id):\n${team.map((t) => `- ${t.display_name ? `${t.display_name}, id ` : ''}${t.name}: ${t.purpose}`).join('\n')}`,
   ].filter(Boolean).join('\n\n');
 }
 // Everything sent to the API passes through redact(): vault values, card numbers and SSNs never leave this machine.

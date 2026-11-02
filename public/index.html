@@ -411,12 +411,21 @@ td.r, th.r { text-align: right; }
     <section class="content view-full" data-panel="vault" hidden>
       <div class="stack">
         <div class="card" id="vaultStatus"></div>
-        <div class="card">
-          <div class="card-h"><div><h2>Saved items</h2><div class="sub">Values stay encrypted on this machine. Your agent only sees the names.</div></div></div>
+        <div class="card" id="vaultAuth" hidden>
+          <form id="vaultAuthForm" style="max-width:420px">
+            <label class="f" for="vPass" id="vPassLabel">Passphrase</label>
+            <input id="vPass" type="password" required minlength="12" autocomplete="off">
+            <div id="vConfirmWrap" hidden><label class="f" for="vPass2">Confirm passphrase</label><input id="vPass2" type="password" autocomplete="off"></div>
+            <div class="help" id="vPassHelp"></div>
+            <div style="margin-top:var(--s4)"><button class="btn primary" id="vAuthBtn">Unlock</button></div>
+          </form>
+        </div>
+        <div class="card" id="vaultItemsCard">
+          <div class="card-h"><div><h2>Saved items</h2><div class="sub">Values stay encrypted on this machine. Your agents only see the names.</div></div><button class="btn sm right" id="vLock" hidden><svg class="i"><use href="#i-lock"/></svg>Lock vault</button></div>
           <div id="vaultList"></div>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="vaultFormCard">
         <div class="card-h"><h2>Add or update</h2></div>
         <form id="vaultForm" autocomplete="off">
           <label class="f" for="vName">Name</label><input id="vName" name="name" required pattern="[a-z0-9_-]{2,40}" placeholder="schwab-login" autocomplete="off">
@@ -528,16 +537,16 @@ td.r, th.r { text-align: right; }
           <ul>
             <li><b>Never</b> put these in chat or memory: passwords, full card numbers, SSN, account numbers, wallet seed phrases.</li>
             <li>The Anthropic API key and dashboard token stay in <code>.env</code>, not the vault. They're needed before the vault can open.</li>
-            <li>Back up <code>VAULT_KEY</code> from <code>.env</code> in your own password manager. Without it the vault can't be decrypted, even by you.</li>
+            <li>Keep your vault passphrase in your own password manager. Nobody can reset it, including you.</li>
           </ul>
         </div>
 
         <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span><div><h2>How the vault is protected</h2></div></div>
           <div class="tips">
-            <div><h3>Encryption</h3><p>Each item is locked with <b>AES-256-GCM</b> using a random 256-bit key (<code>VAULT_KEY</code>) that lives only in <code>.env</code>. Each save uses a fresh random nonce, and a tamper-check tag means altered data fails to open instead of decrypting to garbage. Only the item's <b>name and type</b> are stored in the clear, so the agent can list them.</p></div>
-            <div><h3>What it protects against</h3><p>The database file or a backup being copied, synced or committed: without the key it's unreadable. It does <b>not</b> protect against someone (or some program) using your logged-in Mac, because the key is on the same disk. Lock your Mac, and don't run software you don't trust.</p></div>
-            <div><h3>Who can see what</h3><p><b>Your agents:</b> names only, never values. Values are filled in on this machine only when a tool needs them. <b>Anthropic:</b> never receives vault values. <b>Claude Code</b> (the assistant that builds this app): runs as you on this Mac, so it technically could read <code>.env</code>. It's told not to, and you can block it in Claude Code's permissions.</p></div>
+            <div><h3>Encryption</h3><p>Each item is locked with <b>AES-256-GCM</b>. The 256-bit key is derived from <b>your passphrase</b> (scrypt, deliberately slow to guess) and exists only in the server's memory after you unlock. It's never written to disk. Each save uses a fresh random nonce, and a tamper-check tag means altered data fails to open. Only each item's <b>name and type</b> are stored in the clear, so agents can list them.</p></div>
+            <div><h3>Locked vs unlocked</h3><p>The vault locks whenever the server restarts (including after updates) or when you press <b>Lock vault</b>. While locked, card numbers and SSNs are still stripped from chat, but your <i>saved</i> values aren't, so unlock it after a restart. Viewing or editing items needs your passphrase again after 15 idle minutes. <b>Forget the passphrase and the vault can't be recovered.</b></p></div>
+            <div><h3>Who can see what</h3><p><b>Your agents:</b> names only, never values. <b>Anthropic:</b> never receives vault values. <b>Claude Code</b> (the assistant that builds this app) and anything else with file access: nothing on disk can decrypt the vault, and the dashboard token in <code>.env</code> can't view or change items. That takes your passphrase. Use your own browser (Safari/Chrome) for the vault, not the in-app preview pane.</p></div>
           </div>
         </div>
 
@@ -570,6 +579,10 @@ td.r, th.r { text-align: right; }
           <table id="about"></table>
           <p class="help" style="margin-top:var(--s3)">Your chats, memory and vault live in <code>data/agent.db</code>, which isn't tracked by git, so updates never replace it. Schema changes only ever add, and the database is backed up before every change and on every start (newest 10 kept in <code>data/backups/</code>).</p>
           <button class="btn sm" id="backupNow" style="margin-top:var(--s2)">Back up now</button>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-bot"/></svg></span><div><h2>Agent names</h2><div class="sub">Shown as "Name - Role". Agents know their own name, so you can say "ask Pete".</div></div></div>
+          <form id="namesForm"><div id="namesFields"></div><div style="margin-top:var(--s4)"><button class="btn primary sm">Save names</button></div></form>
         </div>
         <div class="card">
           <div class="card-h"><h2>Session</h2></div>
@@ -631,9 +644,13 @@ applyTheme(store.get('theme'));
 const backupLabel = (f, tz) => { const m = f?.match(/^agent-(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-\d+Z-(.+)\.db$/);
   return m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`).toLocaleString('en-US', { timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' · ' + m[5].replace(/-/g, ' ') : 'none yet'; };
 
+// Vault session lives only in this closure (not storage, not a global), and expires with the server's 15 minutes.
+const vaultSession = (() => { let t = null; return { get: () => t, set: (v) => { t = v; }, clear: () => { t = null; } }; })();
 async function call(path, method = 'GET', body) {
   let r;
-  try { r = await fetch('/api/' + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body && JSON.stringify(body) }); }
+  const headers = { authorization: 'Bearer ' + token, 'content-type': 'application/json' };
+  if (path.startsWith('vault') && vaultSession.get()) headers['x-vault-session'] = vaultSession.get();
+  try { r = await fetch('/api/' + path, { method, headers, body: body && JSON.stringify(body) }); }
   catch { $('#sys').innerHTML = '<span class="dot bad"></span><span>Server offline · run npm start</span>'; return { error: 'Server offline' }; }
   if (r.status === 401) { $('#app').hidden = true; $('#login').hidden = false; $('#tokenIn').focus(); return { error: 'locked' }; }
   $('#login').hidden = true; $('#app').hidden = false;
@@ -671,7 +688,9 @@ async function refresh() {
   $('#summary').innerHTML = `Your agents handled <b>${stats.tasks24h ?? 0} tasks</b> in the last 24 hours` + (approvals.length ? ` · <b>${approvals.length}</b> waiting on you` : '');
   $('#clock span').textContent = new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
   const errs = activity.filter((a) => (a.type === 'error' || a.type === 'blocked') && Date.now() - new Date(a.ts.replace(' ', 'T') + 'Z') < 3600e3).length;
+  const vaultLocked = s.vault?.setup && !s.vault.unlocked;
   $('#sys').innerHTML = halted ? '<span class="dot bad"></span><span>Halted · kill switch on</span>'
+    : vaultLocked ? '<span class="dot warn"></span><span>Vault locked · unlock to filter saved values</span>'
     : errs ? `<span class="dot warn"></span><span>${errs} issue${errs > 1 ? 's' : ''} in the last hour</span>` : '<span class="dot live"></span><span>All systems normal</span>';
   document.querySelectorAll('.halt').forEach((b) => { b.className = `btn ${halted ? 'solid-danger' : 'danger'} halt` + (b.id ? '' : ' block'); const t = b.querySelector('span'); if (t) t.textContent = halted ? 'Resume agents' : 'Kill switch'; });
   const nb = $('#navApprovals'); nb.hidden = !approvals.length; nb.textContent = approvals.length;
@@ -682,7 +701,7 @@ async function refresh() {
   const lastTask = activity.find((a) => a.type === 'task');
   $('#heroDot').className = 'dot ' + (halted ? 'bad' : busy.length ? 'live' : 'idle');
   $('#heroTag').textContent = halted ? 'Halted' : busy.length ? 'Agent · live' : 'Agent · standing by';
-  $('#heroLine').textContent = halted ? 'All agents are paused by the kill switch' : busy.length ? `${busy.map((a) => a.name).join(', ')} working on: ${lastTask?.detail || 'a task'}` : lastTask ? `Last task: ${lastTask.detail}` : 'Ready when you are';
+  $('#heroLine').textContent = halted ? 'All agents are paused by the kill switch' : busy.length ? `${busy.map((a) => a.display_name || roleOf(a.name)).join(', ')} working on: ${lastTask?.detail || 'a task'}` : lastTask ? `Last task: ${lastTask.detail}` : 'Ready when you are';
   $('#heroChips').innerHTML = [orch && `${orch.model}`, ...activity.filter((a) => a.type === 'tool').slice(0, 2).map((a) => a.detail.split(' ')[0])].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
   $('#tTasks').textContent = stats.tasks24h ?? 0;
   $('#tTools').textContent = stats.tools24h ?? 0;
@@ -704,7 +723,7 @@ async function refresh() {
 
   // Approvals
   $('#approvals').innerHTML = approvals.map((a) => `<div class="ap">
-      <div style="display:flex;align-items:center;gap:8px"><span class="ibox brand" style="width:28px;height:28px">${icon('shield', 'width:15px;height:15px')}</span><span style="font-size:13px;font-weight:500">${esc(a.agent)}</span><span class="pill warn" style="margin-left:auto">Pending · ${esc(ago(a.ts))}</span></div>
+      <div style="display:flex;align-items:center;gap:8px"><span class="ibox brand" style="width:28px;height:28px">${icon('shield', 'width:15px;height:15px')}</span><span style="font-size:13px;font-weight:500">${esc(agentLabel(a.agent))}</span><span class="pill warn" style="margin-left:auto">Pending · ${esc(ago(a.ts))}</span></div>
       <h4>${esc(a.tool.replace(/_/g, ' '))} <span class="muted" style="font-weight:400">#${a.id}</span></h4>
       <pre>${esc(JSON.stringify(JSON.parse(a.input), null, 2))}</pre>
       <div class="actions"><button class="btn primary sm" onclick="decide(${a.id}, true)">${icon('check')}Approve</button><button class="btn sm" onclick="decide(${a.id}, false)">${icon('x')}Decline</button></div>
@@ -715,7 +734,7 @@ async function refresh() {
   const STATUS = { running: ['ok', 'Working'], idle: ['', 'Idle'], killed: ['bad', 'Killed'] };
   if (!openAgent) $('#agents').innerHTML = agents.map((a) => { const sp = spentBy[a.name]?.usd || 0, p = pct(sp, a.daily_budget_usd), [cls, label] = STATUS[a.status] || ['', a.status];
     return `<div class="agent">
-      <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(a.name)}</div><div class="model">${esc(MODEL_NAME[a.model] || a.model)}</div></div>
+      <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(agentLabel(a.name))}</div><div class="model">${esc(MODEL_NAME[a.model] || a.model)}</div></div>
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
       <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
@@ -735,23 +754,25 @@ async function refresh() {
   // Activity
   $('#feed').innerHTML = activity.map((x) => `<div class="row"><span class="ibox t-${esc(x.type.split(':')[0])}">${icon(TYPE_ICON[x.type] || (x.type.startsWith('notify') ? 'bell' : 'zap'))}</span>
       <div class="body"><div><span class="title">${esc(TYPE_LABEL[x.type] || x.type)}</span> <span class="muted">${esc(x.detail)}</span></div>
-      <div class="meta">${icon('sparkles', 'width:12px;height:12px')}${esc(x.agent)} · ${esc(ago(x.ts))}</div></div></div>`).join('') || '<div class="empty">No activity yet. Send your agent a message to get started.</div>';
+      <div class="meta">${icon('sparkles', 'width:12px;height:12px')}${esc(agentLabel(x.agent))} · ${esc(ago(x.ts))}</div></div></div>`).join('') || '<div class="empty">No activity yet. Send your agent a message to get started.</div>';
 
   // Chat
   const pick = $('#agentPick');
-  if (pick.options.length !== agents.length + 1) pick.innerHTML = `<option value="auto">Auto</option>` + agents.map((a) => `<option value="${esc(a.name)}">${esc(a.name)} · ${esc(MODEL_NAME[a.model] || a.model)}</option>`).join('');
+  if (pick.options.length !== agents.length + 1) pick.innerHTML = `<option value="auto">Auto</option>` + agents.map((a) => `<option value="${esc(a.name)}">${esc(agentLabel(a.name))} · ${esc(MODEL_NAME[a.model] || a.model)}</option>`).join('');
   pick.value = agentName;
   if (view === 'guide') renderGuide();
   if (!sending) renderChat(chat);
 
   // Settings (don't clobber while editing)
   const f = $('#setForm');
+  const nf = $('#namesForm');
+  if (!nf.contains(document.activeElement)) $('#namesFields').innerHTML = agents.map((a) => `<label class="f" for="nm-${esc(a.name)}">${esc(roleOf(a.name))} <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)}</span></label><input id="nm-${esc(a.name)}" data-agent="${esc(a.name)}" value="${esc(a.display_name || '')}" maxlength="24" placeholder="Name">`).join('');
   if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
   if (view === 'costs') drawCosts();
   const V = s.version;
   if (V) $('#about').innerHTML = [['Build', `Build ${V.build} · update ${V.update}`], ['Version', 'v' + V.version], ['Commit', V.commit ? `${V.commit} (${V.commits} total)` : 'n/a'],
     ['Database schema', 'v' + V.schema], ['Last backup', backupLabel(V.lastBackup, tz)],
-    ['Vault', s.vaultReady ? 'Encrypted · unlocked' : 'Locked (no VAULT_KEY)']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
+    ['Vault', !s.vault?.setup ? 'No passphrase yet' : s.vault.unlocked ? `Unlocked · ${s.vault.items} items` : `Locked · ${s.vault.items} items`]].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
 }
 
 const SUGGEST = [['sparkles', "Here's who I am and what I'm working on…"], ['clock', 'Plan my day'], ['graph', 'What do you know about me?'], ['shield', 'Find the holes in this idea:']];
@@ -767,11 +788,15 @@ function renderChat(chat) {
     return;
   }
   box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`
-    + (c.role === 'assistant' && c.model ? `<div class="badge">${icon('zap', 'width:12px;height:12px')}<b>${esc(MODEL_NAME[c.model] || c.model)}</b>${c.usd != null ? money(c.usd) : ''}</div>` : '')).join('');
+    + (c.role === 'assistant' && c.model ? `<div class="badge">${icon('zap', 'width:12px;height:12px')}<b>${esc([byModel(c.model), MODEL_NAME[c.model] || c.model].filter(Boolean).join(' · '))}</b>${c.usd != null ? money(c.usd) : ''}</div>` : '')).join('');
   box.scrollTop = box.scrollHeight;
 }
 
 const isHaiku = (a) => a.model.startsWith('claude-haiku');
+// "James - Orchestrator". Falls back to the internal id for non-agents (owner, router).
+const roleOf = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+const agentLabel = (id) => { const a = state?.agents?.find((x) => x.name === id); return a ? (a.display_name ? `${a.display_name} - ${roleOf(a.name)}` : roleOf(a.name)) : id; };
+const byModel = (model) => { const m = state?.agents?.filter((a) => a.model === model) || []; return m.length === 1 ? m[0].display_name || roleOf(m[0].name) : ''; };
 let openAgent = null; // while a settings form is open, the 4s refresh leaves the agent list alone
 window.agentCfg = (name) => {
   document.querySelectorAll('#agents .cfg').forEach((f) => f.hidden = f.dataset.agent !== name);
@@ -796,7 +821,7 @@ document.querySelectorAll('.halt').forEach((b) => b.onclick = async () => {
   await call('settings', 'POST', { global_halt: on }); refresh();
 });
 $('#agentPick').onchange = (e) => { agentName = e.target.value; store.set('agent', agentName); lastChatKey = '';
-  $('#chatSub').textContent = agentName === 'auto' ? 'Cheapest model that can answer' : `Always uses ${agentName}`; refresh(); };
+  $('#chatSub').textContent = agentName === 'auto' ? 'Cheapest model that can answer' : `Always uses ${agentLabel(agentName)}`; refresh(); };
 
 const chatIn = $('#chatIn');
 chatIn.oninput = () => { chatIn.style.height = 'auto'; chatIn.style.height = Math.min(chatIn.scrollHeight, 160) + 'px'; };
@@ -815,6 +840,14 @@ $('#chatForm').onsubmit = async (e) => {
   refresh();
 };
 
+$('#namesForm').onsubmit = async (e) => {
+  e.preventDefault();
+  for (const i of $('#namesFields').querySelectorAll('input')) {
+    const a = state.agents.find((x) => x.name === i.dataset.agent);
+    if (i.value.trim() && i.value.trim() !== (a.display_name || '')) { const r = await call(`agents/${encodeURIComponent(a.name)}`, 'POST', { display_name: i.value.trim() }); if (r.error) return alert(r.error); }
+  }
+  document.activeElement?.blur(); refresh();
+};
 $('#setForm').onsubmit = async (e) => {
   e.preventDefault();
   store.set('theme', $('#sTheme').value); applyTheme($('#sTheme').value);
@@ -877,7 +910,7 @@ function drawCosts() {
     + days.map((d, i) => { const h = Math.max(2, d.usd / max * (H - pad - 10)); return `<rect class="bar" x="${i * bw + 4}" y="${H - pad - h}" width="${Math.max(2, bw - 6)}" height="${h}" rx="4"><title>${d.day}: ${money(d.usd)}</title></rect>`; }).join('')
     + days.filter((_, i) => i % Math.ceil(days.length / 6) === 0).map((d) => `<text x="${days.indexOf(d) * bw + 4}" y="${H - 6}">${d.day.slice(5)}</text>`).join('')
     : '<text x="50%" y="50%" text-anchor="middle">No spend yet</text>';
-  $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<tr><td>${esc(a.agent)}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No spend today.</td></tr>';
+  $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<tr><td>${esc(agentLabel(a.agent))}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No spend today.</td></tr>';
 }
 
 // ── Guide ──
@@ -896,32 +929,55 @@ function renderGuide() {
 const KIND_LABEL = { password: 'Login', card: 'Card', personal: 'Personal', api_key: 'API key', note: 'Note' };
 async function loadVault() {
   const v = await call('vault'); if (v.error) return;
-  $('#vaultStatus').innerHTML = v.ready
-    ? `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--ok)">${icon('lock')}</span><div><h2>Vault encrypted</h2><div class="sub">AES-256-GCM on this machine. Agents see names only. Anything matching a saved value, card number or SSN is stripped from messages before they reach Anthropic.</div></div></div>`
-    : `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--bad)">${icon('alert')}</span><div><h2>Vault locked</h2><div class="sub">Add VAULT_KEY (64 hex characters) to .env and restart the server.</div></div></div>`;
-  $('#vaultForm').querySelectorAll('input,select,textarea,button').forEach((el) => el.disabled = !v.ready);
+  const st = v.status, open = v.session;
+  if (!open) vaultSession.clear();
+  $('#vaultStatus').innerHTML = !st.setup
+    ? `<div class="card-h" style="margin:0"><span class="ibox brand">${icon('lock')}</span><div><h2>Create your vault passphrase</h2><div class="sub">The vault key is made from this passphrase and kept only in memory while the server runs. Nothing on disk can open the vault, so neither your agents, Anthropic, nor Claude Code can read it. <b>If you forget it, the vault can't be recovered.</b> Store it in your own password manager.</div></div></div>`
+    : !st.unlocked
+    ? `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--warn)">${icon('lock')}</span><div><h2>Vault locked</h2><div class="sub">Locked since the server last started. While locked, saved values can't be filtered from chat (card numbers and SSNs still are), and agents can't use saved logins. Unlock to turn filtering back on.</div></div></div>`
+    : `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--ok)">${icon('lock')}</span><div><h2>Vault unlocked</h2><div class="sub">AES-256-GCM, key held in memory only. Agents see names only, and saved values are stripped from everything sent to Anthropic.${open ? '' : ' Enter your passphrase to view or edit items.'}</div></div></div>`;
+  $('#vaultAuth').hidden = open;
+  $('#vConfirmWrap').hidden = st.setup;
+  $('#vPass2').required = !st.setup;
+  $('#vPassLabel').textContent = st.setup ? 'Passphrase' : 'New passphrase (12+ characters)';
+  $('#vPassHelp').textContent = st.setup ? 'Your session lasts 15 minutes of activity. Five wrong attempts lock entry for 5 minutes.' : 'Tip: four or more random words, e.g. "violet-canoe-pepper-orbit".';
+  $('#vAuthBtn').textContent = st.setup ? 'Unlock' : 'Create vault';
+  $('#vaultFormCard').hidden = !open;
+  $('#vLock').hidden = !st.unlocked;
   $('#vaultList').innerHTML = v.items.map((i) => `<div class="row" style="align-items:center" data-name="${esc(i.name)}">
       <span class="ibox brand">${icon(i.kind === 'card' ? 'wallet' : i.kind === 'personal' ? 'shield' : 'lock')}</span>
       <div class="body"><div class="title">${esc(i.name)} <span class="pill">${esc(KIND_LABEL[i.kind] || i.kind)}</span></div>
         <div class="meta">${esc(i.summary || 'updated ' + ago(i.updated_at))}</div>
         <div class="meta num secret" hidden></div></div>
-      <button class="btn sm icon" title="Reveal for 15 seconds" aria-label="Reveal ${esc(i.name)}" onclick="vaultReveal(this)">${icon('eye')}</button>
+      ${open ? `<button class="btn sm icon" title="Reveal for 15 seconds" aria-label="Reveal ${esc(i.name)}" onclick="vaultReveal(this)">${icon('eye')}</button>
       <button class="btn sm icon" title="Copy" aria-label="Copy ${esc(i.name)}" onclick="vaultCopy(this)">${icon('copy')}</button>
-      <button class="btn sm icon danger" title="Delete" aria-label="Delete ${esc(i.name)}" onclick="vaultDelete(this)">${icon('trash')}</button>
+      <button class="btn sm icon danger" title="Delete" aria-label="Delete ${esc(i.name)}" onclick="vaultDelete(this)">${icon('trash')}</button>` : ''}
     </div>`).join('') || `<div class="empty">${icon('lock', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing saved yet.</div>`;
 }
+$('#vaultAuthForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const setup = !$('#vConfirmWrap').hidden, pass = $('#vPass').value;
+  if (setup && pass !== $('#vPass2').value) return alert("Passphrases don't match");
+  const r = await call('vault-auth/' + (setup ? 'setup' : 'unlock'), 'POST', { passphrase: pass });
+  $('#vPass').value = $('#vPass2').value = '';
+  if (r.error) return alert(r.error);
+  vaultSession.set(r.session); loadVault(); refresh();
+};
+$('#vLock').onclick = async () => { await call('vault-auth/lock', 'POST'); vaultSession.clear(); loadVault(); refresh(); };
+const vaultErr = (r) => { if (r.error) { if (/session/i.test(r.error)) { vaultSession.clear(); loadVault(); } alert(r.error); return true; } };
 const vaultName = (btn) => btn.closest('[data-name]').dataset.name;
 window.vaultReveal = async (btn) => {
   const r = await call('vault/' + encodeURIComponent(vaultName(btn))), el = btn.closest('.row').querySelector('.secret');
-  if (r.error) return alert(r.error);
+  if (vaultErr(r)) return;
   el.textContent = [r.value, r.expiry && `exp ${r.expiry}`, r.cvv && `CVV ${r.cvv}`, r.notes].filter(Boolean).join('  ·  '); el.hidden = false;
   setTimeout(() => { el.hidden = true; el.textContent = ''; }, 15000);
 };
 window.vaultCopy = async (btn) => {
   const r = await call('vault/' + encodeURIComponent(vaultName(btn)));
+  if (vaultErr(r)) return;
   try { await navigator.clipboard.writeText(r.value); btn.innerHTML = icon('check'); setTimeout(() => btn.innerHTML = icon('copy'), 1500); } catch { alert('Clipboard blocked; use Reveal instead.'); }
 };
-window.vaultDelete = async (btn) => { if (confirm(`Delete ${vaultName(btn)} from the vault? This can't be undone.`)) { await call('vault/' + encodeURIComponent(vaultName(btn)), 'DELETE'); loadVault(); } };
+window.vaultDelete = async (btn) => { if (confirm(`Delete ${vaultName(btn)} from the vault? This can't be undone.`)) { if (!vaultErr(await call('vault/' + encodeURIComponent(vaultName(btn)), 'DELETE'))) loadVault(); } };
 // Fields per type: [name, label, input type, placeholder]. Everything except name/type is encrypted.
 const VAULT_FIELDS = {
   password: { ph: 'schwab-login', help: 'A website or app login.', fields: [['username', 'Username or email', 'text'], ['url', 'Website', 'text', 'https://'], ['value', 'Password', 'password'], ['notes', 'Notes: recovery codes, security answers', 'area']] },
@@ -941,7 +997,7 @@ $('#vKind').onchange = renderVaultFields; renderVaultFields();
 $('#vaultForm').onsubmit = async (e) => {
   e.preventDefault(); const f = e.target;
   const r = await call('vault', 'POST', Object.fromEntries(new FormData(f)));
-  if (r.error) return alert(r.error);
+  if (vaultErr(r)) return;
   f.reset(); renderVaultFields(); loadVault();
 };
 $('#backupNow').onclick = async () => { const r = await call('backup', 'POST'); if (r.error) alert(r.error); refresh(); };
