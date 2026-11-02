@@ -3,10 +3,11 @@
 #   First time:   npm run deploy -- root@1.2.3.4 --setup   (installs Node, Tailscale, firewall, systemd)
 #   Move data:    npm run deploy -- --move                  (stops the Mac server, copies .env + database, starts the VPS)
 #   Updates:      npm run deploy                            (code only, then restart)
+#   Secrets:      npm run deploy -- --env                   (also pushes your local .env; never touches data)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ARGS=()
-for a in "$@"; do case "$a" in --setup) SETUP=1 ;; --move) MOVE=1 ;; *) ARGS+=("$a") ;; esac; done
+for a in "$@"; do case "$a" in --setup) SETUP=1 ;; --move) MOVE=1 ;; --env) ENV=1 ;; --force) FORCE=1 ;; *) ARGS+=("$a") ;; esac; done
 HOST="${ARGS[0]:-$(cat .vps-host 2>/dev/null || true)}"
 [ -n "$HOST" ] || { echo "Usage: npm run deploy -- root@YOUR_SERVER_IP --setup"; exit 1; }
 echo "$HOST" > .vps-host
@@ -56,6 +57,10 @@ echo "→ Uploading code"
 rsync -az --delete --exclude node_modules --exclude data --exclude .git --exclude .env --exclude .vps-host --exclude .claude ./ "$HOST:$APP/"
 
 if [ -n "${MOVE:-}" ]; then
+  # Never overwrite live data on the server with an older copy from the Mac.
+  if [ -z "${FORCE:-}" ] && ssh "$HOST" "test -s $APP/data/agent.db"; then
+    echo "✗ The server already has data/agent.db (the live database). Refusing to overwrite it. Use --env to push secrets only."; exit 1
+  fi
   echo "→ Stopping the Mac server and snapshotting the database"
   PID=$(lsof -ti tcp:8787 -sTCP:LISTEN || true); [ -n "$PID" ] && kill $PID && sleep 1
   SNAP=$(mktemp -d)/agent.db
@@ -65,6 +70,8 @@ if [ -n "${MOVE:-}" ]; then
   rsync -az "$SNAP" "$HOST:$APP/data/agent.db"
   rm -f "$SNAP"
 fi
+
+if [ -n "${ENV:-}" ]; then echo "→ Pushing .env"; rsync -az .env "$HOST:$APP/.env"; fi
 
 echo "→ Installing and restarting"
 ssh "$HOST" "cd $APP && chown -R sleeper:sleeper $APP && chmod 600 $APP/.env 2>/dev/null; sudo -u sleeper -H /usr/local/bin/npm ci --omit=dev --silent && systemctl restart sleeper-agent && sleep 2 && systemctl is-active sleeper-agent && journalctl -u sleeper-agent -n 5 --no-pager -o cat"

@@ -507,7 +507,7 @@ td.r, th.r { text-align: right; }
           <div id="contacts"></div>
         </div>
         <div class="card">
-          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-mail"/></svg></span><div><h2>Email drafts</h2><div class="sub">Written by your agents, never sent automatically. Copy into your email, then mark sent.</div></div></div>
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-mail"/></svg></span><div><h2>Email drafts</h2><div class="sub">Written by your agents, never sent automatically. Send from James's Gmail with one click (you approve by clicking), or copy into your own email.</div></div></div>
           <div id="drafts"></div>
         </div>
       </div>
@@ -579,6 +579,15 @@ td.r, th.r { text-align: right; }
               <li><b>Phrases that go to James (Opus):</b> plan, research, analyze, build, draft, compare, strategy, business, invest, marketing, website, latest/news/price/search, critique, or anything over ~500 characters.</li>
               <li>Force a model any time with the picker above the chat.</li>
             </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-mail"/></svg></span><div><h2>Email &amp; calendar</h2><div class="sub">James has his own Gmail. Yours is optional and read-only.</div></div></div>
+          <div class="tips">
+            <div><h3>James's inbox</h3><p>James sends the drafts you approve from <b>his</b> address, never yours. "Send from James" on a draft is your approval; anything an agent tries to send waits in approvals. When a lead replies, they move to "replied" and you get a Telegram ping.</p></div>
+            <div><h3>Morning briefing</h3><p>Connect your Google (read-only email + calendar) and Pete sends a short Telegram briefing at your chosen time: today's events and only the emails that need you. Ask any time: "what's on my calendar Friday?", "add a study block tomorrow 3–5pm".</p></div>
+            <div><h3>Email is untrusted</h3><p>Anyone can email you, so email and calendar invites get the same treatment as web pages. After reading them, an agent's state-changing actions wait for your OK. Agents only see sender, subject and a short snippet, never full emails.</p></div>
           </div>
         </div>
 
@@ -732,6 +741,14 @@ td.r, th.r { text-align: right; }
           </form>
         </div>
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-mail"/></svg></span><div><h2>Google</h2><div class="sub">James's own Gmail, plus optional read-only access to yours</div></div></div>
+          <table id="googleStatus"></table>
+          <div style="display:flex;gap:var(--s2);margin-top:var(--s3);flex-wrap:wrap" id="googleBtns"></div>
+          <label class="f" for="digestTime">Morning briefing on Telegram</label>
+          <div style="display:flex;gap:var(--s2)"><input id="digestTime" type="time" style="max-width:160px"><button type="button" class="btn sm" id="digestSave">Save</button></div>
+          <div class="help">Today's calendar plus the emails that need you, summarized by Pete. Needs your Google connected.</div>
+        </div>
+        <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-bot"/></svg></span><div><h2>Agent names</h2><div class="sub">Shown as "Name - Role". Agents know their own name, so you can say "ask Pete".</div></div></div>
           <form id="namesForm"><div id="namesFields"></div><div style="margin-top:var(--s4)"><button class="btn primary sm">Save names</button></div></form>
         </div>
@@ -825,8 +842,8 @@ function show(v) {
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { email: 'mail', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -933,6 +950,17 @@ async function refresh() {
     $('#testCall').disabled = !P.calls;
   }
 
+  // Google card
+  const GS = s.google;
+  if (GS) {
+    $('#googleStatus').innerHTML = [['Setup', GS.configured ? 'Google app connected' : 'Not set up yet (see Guide → Google setup)'],
+      ["James's Gmail", GS.james || 'Not connected'], ['Your Gmail + Calendar', GS.owner || 'Not connected']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('')
+      + (GS.redirectUri ? `<tr><td class="muted">Redirect URI</td><td class="r" style="font-size:11.5px"><code>${esc(GS.redirectUri)}</code></td></tr>` : '');
+    $('#googleBtns').innerHTML = !GS.configured ? '' : [['james', "James's Gmail"], ['owner', 'my Google']].map(([a, l]) => (a === 'james' ? GS.james : GS.owner)
+      ? `<button type="button" class="btn sm danger" onclick="googleAct('disconnect','${a}')">Disconnect ${l}</button>` : `<button type="button" class="btn sm primary" onclick="googleAct('connect','${a}')">Connect ${l}</button>`).join('');
+    if (document.activeElement !== $('#digestTime')) $('#digestTime').value = s.settings.digest_time || '08:00';
+  }
+
   // Chat
   const pick = $('#agentPick');
   if (pick.options.length !== agents.length + 1) pick.innerHTML = `<option value="auto">Auto</option>` + agents.map((a) => `<option value="${esc(a.name)}">${esc(agentLabel(a.name))} · ${esc(MODEL_NAME[a.model] || a.model)}</option>`).join('');
@@ -1023,6 +1051,18 @@ $('#chatForm').onsubmit = async (e) => {
   refresh();
 };
 
+window.googleAct = async (action, account) => {
+  if (action === 'disconnect' && !confirm('Disconnect this Google account?')) return;
+  const r = await call('google/' + action, 'POST', { account }); if (r.error) return alert(r.error);
+  if (r.url) window.open(r.url, '_blank', 'noopener'); else refresh();
+};
+$('#digestSave').onclick = async () => { const r = await call('settings', 'POST', { digest_time: $('#digestTime').value }); if (r.error) alert(r.error); refresh(); };
+window.sendDraft = async (id) => {
+  const d = M.drafts.find((x) => x.id === id);
+  if (!confirm(`Send "${d.subject}" to ${d.to_addr || 'no recipient'} from James's Gmail?`)) return;
+  const r = await call('money/draft-send', 'POST', { id }); if (r.error) return alert(r.error);
+  loadMoney();
+};
 window.cancelRem = async (id) => { await call('reminders/' + id, 'DELETE'); refresh(); };
 $('#remForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -1182,7 +1222,7 @@ function renderClients() {
     </div>`).join('') || '<div class="empty">No contacts yet. Add one, or ask James to find leads for a project (Riley can research them).</div>';
   $('#drafts').innerHTML = M.drafts.map((d) => `<div class="ap" data-draft="${d.id}"><div style="display:flex;gap:8px;align-items:center"><b style="flex:1;min-width:0">${esc(d.subject)}</b><span class="pill">${esc(d.contact || d.to_addr || 'no recipient')}</span></div>
       <pre style="max-height:160px">${esc(d.body)}</pre>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="copyDraft(${d.id})">${icon('copy')}Copy</button><button class="btn sm" onclick="draftStatus(${d.id}, 'sent')">${icon('check')}Mark sent</button><button class="btn sm danger" onclick="draftStatus(${d.id}, 'discarded')">${icon('x')}Discard</button></div></div>`).join('') || '<div class="empty">No drafts. Ask James to draft outreach to a contact.</div>';
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${state?.google?.james ? `<button class="btn primary sm" onclick="sendDraft(${d.id})">${icon('send')}Send from James</button>` : ''}<button class="btn sm" onclick="copyDraft(${d.id})">${icon('copy')}Copy</button><button class="btn sm" onclick="draftStatus(${d.id}, 'sent')">${icon('check')}Mark sent</button><button class="btn sm danger" onclick="draftStatus(${d.id}, 'discarded')">${icon('x')}Discard</button></div></div>`).join('') || '<div class="empty">No drafts. Ask James to draft outreach to a contact.</div>';
 }
 window.editProject = (id) => {
   const p = M.projects.find((x) => x.id === id), f = $('#projectForm');

@@ -115,3 +115,11 @@ export function saveDraft({ contact_id, to, subject, body }, by = 'owner') {
   return `Saved draft #${r.lastInsertRowid}. The owner reviews and sends it.`;
 }
 export const listDrafts = () => db.prepare("select d.*, c.name contact from drafts d left join contacts c on c.id = d.contact_id where d.status = 'draft' order by d.id desc limit 50").all();
+
+// After an email goes out: draft marked sent, and a lead we wrote to becomes "contacted".
+export function markDraftSent(id) {
+  const d = db.prepare('select * from drafts where id = ?').get(id);
+  if (!d) return;
+  db.prepare("update drafts set status = 'sent' where id = ?").run(id);
+  if (d.contact_id) db.prepare("update contacts set stage = case when stage = 'lead' then 'contacted' else stage end, last_touch = current_timestamp, updated_at = current_timestamp where id = ?").run(d.contact_id);
+}

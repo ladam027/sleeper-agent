@@ -9,6 +9,7 @@ import * as scheduler from './scheduler.js';
 import * as telegram from './telegram.js';
 import * as jobs from './jobs.js';
 import * as money from './money.js';
+import * as google from './google.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -41,7 +42,7 @@ async function body(req) {
   return s ? JSON.parse(s) : {};
 }
 
-const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt'];
+const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time'];
 
 // Vault sessions: issued only for the passphrase, kept in memory, 15 minutes sliding. The dashboard token
 // alone (which is on disk in .env) can list item names but never see or change vault contents.
@@ -66,6 +67,7 @@ async function api(req, url) {
     settings: Object.fromEntries(SETTINGS.map((k) => [k, get(k)])),
     version: { ...VERSION, lastBackup: lastBackup() },
     vault: vault.status(),
+    google: google.status(),
     phone: phone.status(),
     reminders: scheduler.upcoming(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
@@ -108,6 +110,7 @@ async function api(req, url) {
     if (b.timezone) TOOLS.set_timezone.run({ timezone: b.timezone });
     if (b.global_daily_budget_usd >= 0) set('global_daily_budget_usd', b.global_daily_budget_usd);
     for (const k of ['quiet_start', 'quiet_end']) if (b[k] !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b[k])) throw new Error('Quiet hours must be HH:MM'); set(k, b[k]); }
+    if (b.digest_time !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b.digest_time)) throw new Error('Briefing time must be HH:MM'); set('digest_time', b.digest_time); }
     if (b.sms_pin) { phone.setPin(b.sms_pin); log('owner', 'settings', 'SMS PIN changed'); }
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
     return { ok: true };
@@ -151,9 +154,21 @@ async function api(req, url) {
     if (id === 'entry' && m === 'DELETE') { db.prepare('delete from ledger where id = ?').run(Number(b.id)); log('owner', 'money', `deleted entry #${b.id}`); return { ok: true }; }
     if (id === 'contact') return { result: money.upsertContact(b) };
     if (id === 'draft' && m === 'POST') return { result: money.saveDraft(b, 'owner') };
+    if (id === 'draft-send') { // the owner's own click is the approval
+      const d = db.prepare("select * from drafts where id = ? and status = 'draft'").get(Number(b.id));
+      if (!d) throw new Error('Draft not found or already sent');
+      await google.sendAsJames({ to: b.to || d.to_addr, subject: d.subject, body: d.body });
+      money.markDraftSent(d.id);
+      return { ok: true };
+    }
     if (id === 'draft-status') { if (!['sent', 'discarded'].includes(b.status)) throw new Error('status must be sent or discarded');
       db.prepare('update drafts set status = ? where id = ?').run(b.status, Number(b.id)); return { ok: true }; }
     if (id === 'goal') { if (!(b.goal > 0)) throw new Error('Goal must be positive'); set('monthly_income_goal', b.goal); return { ok: true }; }
+  }
+  if (route === 'google' && m === 'POST') {
+    const { account } = await body(req);
+    if (id === 'connect') return { url: google.authUrl(account) };
+    if (id === 'disconnect') return google.disconnect(account), { ok: true };
   }
   if (route === 'memory') {
     if (m === 'GET') return {
@@ -176,6 +191,13 @@ jobs.start();
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/oauth/google') { // Google redirects the browser here; the single-use state proves we started it
+    let msg;
+    try { const r = await google.finishAuth(url.searchParams.get('code'), url.searchParams.get('state')); msg = `Connected ${r.email}. You can close this tab.`; }
+    catch (e) { msg = url.searchParams.get('error') ? `Google sign-in was cancelled (${url.searchParams.get('error')}).` : e.message; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Google</title><body style="font:16px system-ui;padding:40px;max-width:520px;margin:auto"><h2>Sleeper Agent</h2><p>${msg.replace(/[<>&]/g, '')}</p><p><a href="/">Back to the dashboard</a></p>`);
+  }
   if (!url.pathname.startsWith('/api/')) {
     res.writeHead(200, { 'content-type': 'text/html' });
     return res.end(readFileSync(page));
