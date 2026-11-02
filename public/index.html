@@ -419,15 +419,12 @@ td.r, th.r { text-align: right; }
       <div class="card">
         <div class="card-h"><h2>Add or update</h2></div>
         <form id="vaultForm" autocomplete="off">
-          <label class="f" for="vName">Name</label><input id="vName" name="name" required pattern="[a-z0-9_-]{2,40}" placeholder="schwab-login">
+          <label class="f" for="vName">Name</label><input id="vName" name="name" required pattern="[a-z0-9_-]{2,40}" placeholder="schwab-login" autocomplete="off">
           <div class="help">Lowercase, numbers, - or _. Saving an existing name replaces it. Agents refer to it as <code>{{secret:name}}</code>.</div>
           <label class="f" for="vKind">Type</label>
           <select id="vKind" name="kind"><option value="password">Password / login</option><option value="card">Payment card</option><option value="personal">Personal info</option><option value="api_key">API key / token</option><option value="note">Secure note</option></select>
-          <label class="f" for="vUser">Username / email</label><input id="vUser" name="username" autocomplete="off">
-          <label class="f" for="vUrl">Website</label><input id="vUrl" name="url" placeholder="https://" autocomplete="off">
-          <label class="f" for="vValue">Secret value</label><input id="vValue" name="value" type="password" required autocomplete="new-password">
-          <div class="help">Password, card number, SSN, address, key…</div>
-          <label class="f" for="vNotes">Notes</label><textarea id="vNotes" name="notes" rows="2"></textarea>
+          <div class="help" id="vKindHelp"></div>
+          <div id="vFields"></div>
           <div style="margin-top:var(--s5)"><button class="btn primary"><svg class="i"><use href="#i-lock"/></svg>Save to vault</button></div>
         </form>
       </div>
@@ -499,10 +496,10 @@ td.r, th.r { text-align: right; }
             <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-lock"/></svg></span><div><h2>Memory vs Vault</h2></div></div>
             <p style="margin-top:0">Ask yourself: does the agent need to <b>know</b> it, or only <b>use</b> it?</p>
             <ul>
-              <li><b>Memory</b> (agent reads it, and it's sent to Anthropic): name, job, city, birth year, goals, projects, which bank or broker you use.</li>
-              <li><b>Vault</b> (never leaves this machine): passwords, API keys, card numbers, account numbers, SSN, full address, exact date of birth.</li>
-              <li>Don't vault something you want the agent to know. Vault values are replaced with <code>{{secret:name}}</code> everywhere before sending, including in memory.</li>
-              <li>Card numbers and SSNs are stripped from chat automatically even if you never saved them.</li>
+              <li><b>Memory</b> (agent reads it, and it's sent to Anthropic): name, job, city, birth <i>year</i>, goals, projects, allergies, which bank or broker you use.</li>
+              <li><b>Vault</b> (encrypted, never sent): anything that would let someone log in as you, pay as you, or steal your identity.</li>
+              <li><b>Don't vault what the agent should know.</b> Every vault value is swapped for <code>{{secret:name}}</code> before sending, even inside memory. Vault "Logan Adams" and your name disappears from everything the agent sees.</li>
+              <li>Card numbers and SSNs are stripped from chat automatically, even if you never saved them.</li>
             </ul>
           </div>
           <div class="card">
@@ -513,6 +510,34 @@ td.r, th.r { text-align: right; }
               <li>The dashboard only listens on this computer. Phone access comes in Build 2 via Tailscale.</li>
               <li>Your chats, memory and vault live in <code>data/agent.db</code>. Updates never replace it, and it's backed up on every start.</li>
             </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-lock"/></svg></span><div><h2>What to put in the Vault, and how</h2><div class="sub">One item per secret. Name it so you and the agent can tell what it is: lowercase-with-dashes, service first.</div></div></div>
+          <table>
+            <thead><tr><th>Type</th><th>Use it for</th><th>Name it like</th><th>Fill in</th></tr></thead>
+            <tbody>
+              <tr><td><b>Password / login</b></td><td class="muted">Website and app logins: Schwab, Kalshi, email, social accounts, bank websites</td><td><code>schwab-login</code></td><td class="muted">Username/email, website, password. Notes: recovery codes, security answers</td></tr>
+              <tr><td><b>Payment card</b></td><td class="muted">Debit/credit cards. Use <b>virtual cards</b> with limits for anything the agent may pay with</td><td><code>visa-chase</code>, <code>virtual-ads</code></td><td class="muted">Name on card, number, expiry, CVV. Notes: billing ZIP</td></tr>
+              <tr><td><b>Personal info</b></td><td class="muted">Identity facts: SSN, passport #, driver's license #, full home address, exact date of birth, bank account # and routing # (two items)</td><td><code>ssn</code>, <code>home-address</code>, <code>dob</code>, <code>chase-account-number</code></td><td class="muted">Just the value. One fact per item, so each can be used on its own</td></tr>
+              <tr><td><b>API key / token</b></td><td class="muted">Keys for services the agent will connect to later: Twilio, ElevenLabs, Schwab app secret, Kalshi key</td><td><code>twilio-auth-token</code></td><td class="muted">Service, key. Notes: scopes, expiry date</td></tr>
+              <tr><td><b>Secure note</b></td><td class="muted">Anything free-form: 2FA backup codes, wifi passwords, crypto wallet recovery phrase</td><td><code>google-backup-codes</code></td><td class="muted">The note text</td></tr>
+            </tbody>
+          </table>
+          <ul>
+            <li><b>Never</b> put these in chat or memory: passwords, full card numbers, SSN, account numbers, wallet seed phrases.</li>
+            <li>The Anthropic API key and dashboard token stay in <code>.env</code>, not the vault. They're needed before the vault can open.</li>
+            <li>Back up <code>VAULT_KEY</code> from <code>.env</code> in your own password manager. Without it the vault can't be decrypted, even by you.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span><div><h2>How the vault is protected</h2></div></div>
+          <div class="tips">
+            <div><h3>Encryption</h3><p>Each item is locked with <b>AES-256-GCM</b> using a random 256-bit key (<code>VAULT_KEY</code>) that lives only in <code>.env</code>. Each save uses a fresh random nonce, and a tamper-check tag means altered data fails to open instead of decrypting to garbage. Only the item's <b>name and type</b> are stored in the clear, so the agent can list them.</p></div>
+            <div><h3>What it protects against</h3><p>The database file or a backup being copied, synced or committed: without the key it's unreadable. It does <b>not</b> protect against someone (or some program) using your logged-in Mac, because the key is on the same disk. Lock your Mac, and don't run software you don't trust.</p></div>
+            <div><h3>Who can see what</h3><p><b>Your agents:</b> names only, never values. Values are filled in on this machine only when a tool needs them. <b>Anthropic:</b> never receives vault values. <b>Claude Code</b> (the assistant that builds this app): runs as you on this Mac, so it technically could read <code>.env</code>. It's told not to, and you can block it in Claude Code's permissions.</p></div>
           </div>
         </div>
 
@@ -878,7 +903,7 @@ async function loadVault() {
   $('#vaultList').innerHTML = v.items.map((i) => `<div class="row" style="align-items:center" data-name="${esc(i.name)}">
       <span class="ibox brand">${icon(i.kind === 'card' ? 'wallet' : i.kind === 'personal' ? 'shield' : 'lock')}</span>
       <div class="body"><div class="title">${esc(i.name)} <span class="pill">${esc(KIND_LABEL[i.kind] || i.kind)}</span></div>
-        <div class="meta">${esc([i.username, i.url].filter(Boolean).join(' · ') || 'updated ' + ago(i.updated_at))}</div>
+        <div class="meta">${esc(i.summary || 'updated ' + ago(i.updated_at))}</div>
         <div class="meta num secret" hidden></div></div>
       <button class="btn sm icon" title="Reveal for 15 seconds" aria-label="Reveal ${esc(i.name)}" onclick="vaultReveal(this)">${icon('eye')}</button>
       <button class="btn sm icon" title="Copy" aria-label="Copy ${esc(i.name)}" onclick="vaultCopy(this)">${icon('copy')}</button>
@@ -889,7 +914,7 @@ const vaultName = (btn) => btn.closest('[data-name]').dataset.name;
 window.vaultReveal = async (btn) => {
   const r = await call('vault/' + encodeURIComponent(vaultName(btn))), el = btn.closest('.row').querySelector('.secret');
   if (r.error) return alert(r.error);
-  el.textContent = r.value + (r.notes ? `  ·  ${r.notes}` : ''); el.hidden = false;
+  el.textContent = [r.value, r.expiry && `exp ${r.expiry}`, r.cvv && `CVV ${r.cvv}`, r.notes].filter(Boolean).join('  ·  '); el.hidden = false;
   setTimeout(() => { el.hidden = true; el.textContent = ''; }, 15000);
 };
 window.vaultCopy = async (btn) => {
@@ -897,11 +922,27 @@ window.vaultCopy = async (btn) => {
   try { await navigator.clipboard.writeText(r.value); btn.innerHTML = icon('check'); setTimeout(() => btn.innerHTML = icon('copy'), 1500); } catch { alert('Clipboard blocked; use Reveal instead.'); }
 };
 window.vaultDelete = async (btn) => { if (confirm(`Delete ${vaultName(btn)} from the vault? This can't be undone.`)) { await call('vault/' + encodeURIComponent(vaultName(btn)), 'DELETE'); loadVault(); } };
+// Fields per type: [name, label, input type, placeholder]. Everything except name/type is encrypted.
+const VAULT_FIELDS = {
+  password: { ph: 'schwab-login', help: 'A website or app login.', fields: [['username', 'Username or email', 'text'], ['url', 'Website', 'text', 'https://'], ['value', 'Password', 'password'], ['notes', 'Notes: recovery codes, security answers', 'area']] },
+  card: { ph: 'visa-chase', help: 'A debit or credit card. Prefer virtual cards with spending limits for anything the agent will use.', fields: [['username', 'Name on card', 'text'], ['value', 'Card number', 'password'], ['expiry', 'Expiry (MM/YY)', 'text', '12/29'], ['cvv', 'Security code (CVV)', 'password'], ['notes', 'Notes: billing ZIP, bank phone number', 'area']] },
+  personal: { ph: 'ssn', help: 'One sensitive fact per item, e.g. SSN, passport, full address, date of birth.', fields: [['value', 'Value', 'password'], ['notes', 'Notes', 'area']] },
+  api_key: { ph: 'twilio-auth-token', help: 'A key or token for a service the agent will connect to.', fields: [['url', 'Service', 'text', 'e.g. Twilio, or the dashboard URL'], ['value', 'Key or token', 'password'], ['notes', 'Notes: scopes, expiry date, where it is used', 'area']] },
+  note: { ph: 'recovery-codes', help: 'Free-form private text: recovery codes, wifi passwords, safe combinations.', fields: [['value', 'Note', 'area']] },
+};
+function renderVaultFields() {
+  const k = VAULT_FIELDS[$('#vKind').value];
+  $('#vName').placeholder = k.ph; $('#vKindHelp').textContent = k.help;
+  $('#vFields').innerHTML = k.fields.map(([n, label, type, ph = '']) => `<label class="f" for="vf-${n}">${esc(label)}</label>`
+    + (type === 'area' ? `<textarea id="vf-${n}" name="${n}" rows="${n === 'value' ? 5 : 2}" ${n === 'value' ? 'required' : ''} autocomplete="off"></textarea>`
+      : `<input id="vf-${n}" name="${n}" type="${type}" placeholder="${esc(ph)}" ${n === 'value' ? 'required' : ''} autocomplete="${type === 'password' ? 'new-password' : 'off'}">`)).join('');
+}
+$('#vKind').onchange = renderVaultFields; renderVaultFields();
 $('#vaultForm').onsubmit = async (e) => {
   e.preventDefault(); const f = e.target;
   const r = await call('vault', 'POST', Object.fromEntries(new FormData(f)));
   if (r.error) return alert(r.error);
-  f.reset(); loadVault();
+  f.reset(); renderVaultFields(); loadVault();
 };
 $('#backupNow').onclick = async () => { const r = await call('backup', 'POST'); if (r.error) alert(r.error); refresh(); };
 

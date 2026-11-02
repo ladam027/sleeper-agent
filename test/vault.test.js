@@ -44,3 +44,12 @@ test('bad names and kinds are rejected', () => {
   assert.throws(() => vault.save({ name: 'Bad Name', value: 'x' }));
   assert.throws(() => vault.save({ name: 'ok', kind: 'nope', value: 'x' }));
 });
+
+test('cards keep expiry/CVV encrypted; the list shows only the last 4 digits', () => {
+  vault.save({ name: 'visa', kind: 'card', value: '4111 1111 1111 1111', username: 'Logan Adams', expiry: '12/29', cvv: '123' });
+  const item = vault.list().find((i) => i.name === 'visa');
+  assert.equal(item.summary, 'Logan Adams · •••• 1111 · exp 12/29');
+  assert.ok(!JSON.stringify(vault.list()).includes('4111 1111'));
+  assert.equal(vault.reveal('visa').cvv, '123');
+  assert.throws(() => vault.save({ name: 'bad', kind: 'card', value: '4111111111111111', expiry: '13/29' }), /MM\/YY/);
+});

@@ -28,11 +28,12 @@ const values = () => cache ??= !KEY ? [] : db.prepare('select * from secrets').a
   .map((r) => ({ name: r.name, value: decrypt(r).value })).filter((s) => s.value?.length >= 4)
   .sort((a, b) => b.value.length - a.value.length);
 
-export function save({ name, kind = 'password', value, username = '', url = '', notes = '' }) {
+export function save({ name, kind = 'password', value, username = '', url = '', notes = '', expiry = '', cvv = '' }) {
   if (!/^[a-z0-9_-]{2,40}$/.test(name || '')) throw new Error('Name must be 2-40 chars: lowercase letters, numbers, - or _');
   if (!KINDS.includes(kind)) throw new Error(`Kind must be one of ${KINDS.join(', ')}`);
   if (!value) throw new Error('Value is required');
-  const { iv, tag, data } = encrypt({ value, username, url, notes });
+  if (kind === 'card' && expiry && !/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) throw new Error('Expiry must be MM/YY');
+  const { iv, tag, data } = encrypt({ value, username, url, notes, expiry, cvv });
   db.prepare(`insert into secrets (name, kind, iv, tag, data) values (?, ?, ?, ?, ?)
     on conflict(name) do update set kind = excluded.kind, iv = excluded.iv, tag = excluded.tag, data = excluded.data, updated_at = current_timestamp`)
     .run(name, kind, iv, tag, data);
@@ -40,10 +41,12 @@ export function save({ name, kind = 'password', value, username = '', url = '', 
   log('owner', 'vault', `saved ${name}`); // name only, never the value
 }
 
-// For the dashboard (owner only). Usernames/urls are shown, values are not.
+// For the dashboard (owner only): a safe one-line summary per item, never the value itself.
 export const list = () => db.prepare('select * from secrets order by kind, name').all().map((r) => {
-  const { username, url } = KEY ? decrypt(r) : {};
-  return { name: r.name, kind: r.kind, username, url, updated_at: r.updated_at };
+  const d = KEY ? decrypt(r) : {};
+  const summary = r.kind === 'card' ? [d.username, d.value && `•••• ${d.value.replace(/\D/g, '').slice(-4)}`, d.expiry && `exp ${d.expiry}`]
+    : r.kind === 'password' ? [d.username, d.url] : r.kind === 'api_key' ? [d.url] : [];
+  return { name: r.name, kind: r.kind, summary: summary.filter(Boolean).join(' · '), updated_at: r.updated_at };
 });
 export function reveal(name) {
   const r = db.prepare('select * from secrets where name = ?').get(name);
