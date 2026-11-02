@@ -171,7 +171,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
-@media (max-width: 900px) { #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
+@media (max-width: 900px) { #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
 .agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
@@ -251,9 +251,9 @@ td.r, th.r { text-align: right; }
 @media (max-width: 1000px) { .hero { grid-template-columns: auto minmax(0, 1fr); } .tiles { grid-column: 1 / -1; } .tile { flex: 1; min-width: 0; } }
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
-  .side { position: fixed; inset: auto 0 0 0; height: auto; z-index: 10; flex-direction: row; justify-content: space-around; padding: 6px var(--s2) calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); }
+  .side { position: fixed; inset: auto 0 0 0; height: auto; z-index: 10; flex-direction: row; justify-content: space-around; gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); }
   .side .logo, .side .navlabel, .side-foot { display: none; }
-  .nav { flex-direction: column; gap: 2px; justify-content: center; min-height: 52px; font-size: 11px; padding: 0 var(--s2); width: auto; flex: 1; text-align: center; }
+  .nav { flex-direction: column; gap: 2px; justify-content: center; min-height: 52px; font-size: 10.5px; padding: 0 2px; width: auto; flex: 1 1 0; min-width: 0; text-align: center; letter-spacing: -.01em; }
   .nav .count { position: absolute; margin: -30px 0 0 22px; }
   .nav { position: relative; }
   .main { padding-bottom: 76px; }
@@ -288,7 +288,8 @@ td.r, th.r { text-align: right; }
     <button class="nav" data-view="overview" aria-current="page"><svg class="i"><use href="#i-grid"/></svg>Overview<span class="count" id="navApprovals" hidden></span></button>
     <button class="nav" data-view="memory"><svg class="i"><use href="#i-graph"/></svg>Memory</button>
     <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
-    <button class="nav" data-view="costs"><svg class="i"><use href="#i-wallet"/></svg>Costs</button>
+    <button class="nav" data-view="money"><svg class="i"><use href="#i-wallet"/></svg>Money</button>
+    <button class="nav" data-view="clients"><svg class="i"><use href="#i-users"/></svg>Clients</button>
     <div class="navlabel">Manage</div>
     <button class="nav" data-view="guide"><svg class="i"><use href="#i-book"/></svg>Guide</button>
     <button class="nav" data-view="settings"><svg class="i"><use href="#i-sliders"/></svg>Settings</button>
@@ -453,8 +454,85 @@ td.r, th.r { text-align: right; }
       </div>
     </section>
 
+    <!-- Money -->
+    <section class="content" data-panel="money" hidden style="grid-template-columns:1fr;padding-bottom:0">
+      <div class="stack">
+        <div class="kpis" id="moneyKpis"></div>
+        <div class="card">
+          <div class="card-h"><div><h2>Projects</h2><div class="sub">Progress, this month's money, and return on everything spent (including AI)</div></div><button class="btn sm right" id="newProjectBtn"><svg class="i"><use href="#i-plus"/></svg>New project</button></div>
+          <form id="projectForm" class="ap" hidden style="margin-bottom:var(--s4);display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:var(--s2);align-items:end">
+            <input type="hidden" name="id">
+            <div><label class="f" style="margin-top:0">Name</label><input name="name" required placeholder="Etsy digital prints"></div>
+            <div><label class="f" style="margin-top:0">Monthly target ($)</label><input name="monthly_target" type="number" min="0" step="10"></div>
+            <div><label class="f" style="margin-top:0">What success looks like</label><input name="goal" placeholder="50 sales a month"></div>
+            <div style="display:flex;gap:6px"><button class="btn primary">Save</button><button type="button" class="btn" id="projectCancel">Cancel</button></div>
+            <div class="pedit" style="grid-column:1/-1;display:grid;grid-template-columns:1fr 2fr;gap:var(--s3)" hidden>
+              <div><label class="f" style="margin-top:0">Status</label><select name="status"><option>idea</option><option>active</option><option>paused</option><option>done</option><option>dropped</option></select></div>
+              <div><label class="f" style="margin-top:0">Progress <span class="num" id="progOut"></span></label><input name="progress" type="range" min="0" max="100" step="5" style="padding:0"></div>
+            </div>
+          </form>
+          <div id="projects" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s3)"></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><div><h2>Income vs spending</h2><div class="sub">Last 6 months · spending includes AI and phone</div></div></div>
+            <svg id="monthChart" style="width:100%;height:220px;display:block" role="img" aria-label="Monthly income and spending"></svg>
+            <div class="legend"><span><i style="background:var(--ok)"></i>Income</span><span><i style="background:var(--bad)"></i>Expenses</span><span><i style="background:var(--brand)"></i>AI &amp; phone</span></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><div><h2>Log money</h2><div class="sub">Or tell James: "I made $40 from Etsy today"</div></div></div>
+            <form id="entryForm" style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s2) var(--s3)">
+              <div><label class="f" style="margin-top:0">Type</label><select name="type"><option value="1">Income</option><option value="-1">Expense</option></select></div>
+              <div><label class="f" style="margin-top:0">Amount ($)</label><input name="amount" type="number" min="0.01" step="0.01" required></div>
+              <div><label class="f" style="margin-top:0">Project</label><select name="project" id="entryProject"></select></div>
+              <div><label class="f" style="margin-top:0">Date</label><input name="day" type="date"></div>
+              <div><label class="f" style="margin-top:0">Category</label><input name="category" placeholder="sales, ads, tools…"></div>
+              <div><label class="f" style="margin-top:0">Note</label><input name="note"></div>
+              <div style="grid-column:1/-1"><button class="btn primary">Add</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><h2>Recent money</h2></div></div>
+          <table><thead><tr><th>Date</th><th>What</th><th>Project</th><th class="r">Amount</th><th></th></tr></thead><tbody id="ledger"></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Clients -->
+    <section class="content" data-panel="clients" hidden style="grid-template-columns:minmax(0,1fr) 360px">
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><div><h2>Clients &amp; outreach</h2><div class="sub">Follow-ups due soonest first. James and Pete can add and update these too.</div></div></div>
+          <div id="contacts"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-mail"/></svg></span><div><h2>Email drafts</h2><div class="sub">Written by your agents, never sent automatically. Copy into your email, then mark sent.</div></div></div>
+          <div id="drafts"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2 id="contactTitle">Add contact</h2><button type="button" class="btn sm right" id="contactNew" hidden>New</button></div>
+        <form id="contactForm">
+          <input type="hidden" name="id">
+          <label class="f">Name</label><input name="name" required>
+          <label class="f">Company</label><input name="company">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
+            <div><label class="f">Email</label><input name="email" type="email"></div>
+            <div><label class="f">Phone</label><input name="phone"></div>
+            <div><label class="f">Stage</label><select name="stage" id="contactStage"></select></div>
+            <div><label class="f">Project</label><select name="project" id="contactProject"></select></div>
+            <div><label class="f">Next step</label><input name="next_action" placeholder="Send samples"></div>
+            <div><label class="f">By</label><input name="next_date" type="date"></div>
+          </div>
+          <label class="f">Notes</label><textarea name="notes" rows="3"></textarea>
+          <div style="margin-top:var(--s4)"><button class="btn primary">Save contact</button></div>
+        </form>
+      </div>
+    </section>
+
     <!-- Costs -->
-    <section class="content view-full" data-panel="costs" hidden>
+    <section class="content view-full" data-panel="money" hidden>
       <div class="card">
         <div class="card-h"><div><h2>Daily API spend</h2><div class="sub">Last 30 days</div></div><span class="pill brand right num" id="costMax"></span></div>
         <svg id="costChart" role="img" aria-label="Daily spend bar chart"></svg>
@@ -501,6 +579,15 @@ td.r, th.r { text-align: right; }
               <li><b>Phrases that go to James (Opus):</b> plan, research, analyze, build, draft, compare, strategy, business, invest, marketing, website, latest/news/price/search, critique, or anything over ~500 characters.</li>
               <li>Force a model any time with the picker above the chat.</li>
             </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-wallet"/></svg></span><div><h2>Money &amp; clients</h2><div class="sub">The Money and Clients tabs</div></div></div>
+          <div class="tips">
+            <div><h3>Projects</h3><p>Each way you're trying to make money is a project, with a progress bar, a monthly target and ROI. ROI counts expenses <b>and</b> the AI spend of any agent assigned to that project, so you see what an idea really costs. "Create a project for math tutoring, target $600 a month."</p></div>
+            <div><h3>Log money in plain words</h3><p>"I made $40 from Etsy today", "spent $15 on Etsy ads". The <b>Monthly goal</b> card tracks net income against your $1,000 target (change it by telling James).</p></div>
+            <div><h3>Clients &amp; drafts</h3><p>Leads move through stages (lead → contacted → replied → meeting → client). Overdue follow-ups show in red. Agents can write outreach as <b>drafts only</b>: copy one into your email, then mark it sent. Sending from James's own inbox comes with Gmail setup.</p></div>
           </div>
         </div>
 
@@ -688,6 +775,8 @@ td.r, th.r { text-align: right; }
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
   <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -729,14 +818,15 @@ function show(v) {
   document.querySelectorAll('.nav').forEach((b) => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== v);
   if (v === 'memory') loadMemory();
-  if (v === 'costs') drawCosts();
+  if (v === 'money') { drawCosts(); loadMoney(); }
+  if (v === 'clients') loadMoney();
   if (v === 'vault') loadVault();
   if (v === 'guide') renderGuide();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -855,7 +945,8 @@ async function refresh() {
   const nf = $('#namesForm');
   if (!nf.contains(document.activeElement)) $('#namesFields').innerHTML = agents.map((a) => `<label class="f" for="nm-${esc(a.name)}">${esc(roleOf(a.name))} <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)}</span></label><input id="nm-${esc(a.name)}" data-agent="${esc(a.name)}" value="${esc(a.display_name || '')}" maxlength="24" placeholder="Name">`).join('');
   if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
-  if (view === 'costs') drawCosts();
+  if (view === 'money') drawCosts();
+  if (view === 'money' || view === 'clients') loadMoney();
   const V = s.version;
   if (V) $('#about').innerHTML = [['Build', `Build ${V.build} · update ${V.update}`], ['Version', 'v' + V.version], ['Commit', V.commit ? `${V.commit} (${V.commits} total)` : 'n/a'],
     ['Database schema', 'v' + V.schema], ['Last backup', backupLabel(V.lastBackup, tz)],
@@ -1037,6 +1128,99 @@ function renderGuide() {
   if (!gp.children.length) { gp.innerHTML = GUIDE_PROMPTS.map((t) => `<button type="button">${esc(t)}</button>`).join('');
     gp.querySelectorAll('button').forEach((b) => b.onclick = () => { show('overview'); chatIn.value = b.textContent; chatIn.focus(); chatIn.oninput(); }); }
 }
+
+// ── Money & clients ──
+let M = null, editingProject = null;
+const usd = (n) => (n < 0 ? '-' : '') + '$' + Math.abs(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const STAGE_CLS = { lead: '', contacted: 'brand', replied: 'brand', meeting: 'warn', client: 'ok', lost: 'bad' };
+async function loadMoney() {
+  const r = await call('money'); if (r.error) return;
+  M = r; renderMoney(); renderClients();
+}
+function projectOptions(sel, current) {
+  sel.innerHTML = '<option value="">None</option>' + M.projects.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  if (current != null) sel.value = current;
+}
+function renderMoney() {
+  const t = M.totals, g = pct(t.net, M.goal);
+  $('#moneyKpis').innerHTML = [
+    ['wallet', 'Income this month', usd(t.income), `${M.projects.filter((p) => p.status === 'active').length} active projects`],
+    ['trend', 'Spent this month', usd(t.expenses + t.aiAndPhone), `${usd(t.expenses)} expenses · ${usd(t.aiAndPhone)} AI & phone`],
+    ['zap', 'Net this month', usd(t.net), t.net >= 0 ? 'in the green' : 'spending more than earning'],
+    ['shield', 'Monthly goal', `${Math.round(g)}%`, `${usd(t.net)} of ${usd(M.goal)} extra income`],
+  ].map(([i, k, v, sub], n) => `<div class="card kpi"><div class="k"><span class="ibox brand">${icon(i)}</span>${k}</div><div class="v num" style="${n === 2 ? `color:var(--${t.net >= 0 ? 'ok' : 'bad'})` : ''}">${v}</div><div class="s">${esc(sub)}</div>${n === 3 ? `<div class="progress ${g >= 100 ? '' : ''}"><i style="width:${g}%;background:var(--ok)"></i></div>` : ''}</div>`).join('');
+
+  if (!editingProject) $('#projects').innerHTML = M.projects.map((p) => { const tgt = p.monthly_target ? pct(p.month.income, p.monthly_target) : null;
+    return `<div class="agent" style="margin:0"><div class="agent-h"><div style="min-width:0"><div class="name">${esc(p.name)}</div><div class="model">${esc(p.goal || 'No goal set')}</div></div><span class="pill ${p.status === 'active' ? 'ok' : p.status === 'dropped' ? 'bad' : ''} right">${esc(p.status)}</span></div>
+      <div class="pl" style="display:flex;justify-content:space-between;font-size:12px;margin:var(--s3) 0 4px"><span>Progress</span><span class="num">${p.progress}%</span></div><div class="progress"><i style="width:${p.progress}%"></i></div>
+      ${tgt != null ? `<div class="pl" style="display:flex;justify-content:space-between;font-size:12px;margin:var(--s2) 0 4px"><span>This month vs target</span><span class="num">${usd(p.month.income)} / ${usd(p.monthly_target)}</span></div><div class="progress"><i style="width:${tgt}%;background:var(--ok)"></i></div>` : ''}
+      <div class="tags" style="margin-top:var(--s3)"><span class="pill">net ${usd(p.month.net)} this month</span>${p.month.api ? `<span class="pill">AI ${usd(p.month.api)}</span>` : ''}<span class="pill ${p.all.roi == null ? '' : p.all.roi >= 0 ? 'ok' : 'bad'}">ROI ${p.all.roi == null ? '—' : Math.round(p.all.roi * 100) + '%'}</span></div>
+      <div class="actions"><button class="btn sm" onclick="editProject(${p.id})">${icon('sliders')}Edit</button></div></div>`; }).join('') || '<div class="empty">No projects yet. Add one, or tell James about an idea you want to try.</div>';
+
+  projectOptions($('#entryProject'), $('#entryProject').value);
+  $('#ledger').innerHTML = M.recent.map((e) => `<tr><td class="num muted">${esc(e.day.slice(5))}</td><td>${esc(e.note || e.category || (e.amount > 0 ? 'Income' : 'Expense'))}${e.category && e.note ? ` <span class="pill">${esc(e.category)}</span>` : ''}</td><td class="muted">${esc(e.project || '—')}</td>
+    <td class="r num" style="color:var(--${e.amount > 0 ? 'ok' : 'bad'})">${e.amount > 0 ? '+' : ''}${usd(e.amount)}</td><td class="r"><button class="btn sm icon" aria-label="Delete entry" onclick="delEntry(${e.id})">${icon('x')}</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Nothing logged yet.</td></tr>';
+
+  const ms = M.months.length ? M.months : [{ m: M.month, income: 0, expenses: 0, aiAndPhone: 0 }], svg = $('#monthChart'), W = svg.clientWidth || 500, H = 220, pad = 24;
+  const max = Math.max(1, ...ms.flatMap((x) => [x.income, x.expenses + x.aiAndPhone])), gw = (W - 10) / ms.length, bw = Math.min(28, gw / 3);
+  svg.innerHTML = ms.map((x, i) => { const x0 = 10 + i * gw + (gw - bw * 2 - 4) / 2, hi = x.income / max * (H - pad - 10), he = x.expenses / max * (H - pad - 10), ha = x.aiAndPhone / max * (H - pad - 10);
+    return `<rect x="${x0}" y="${H - pad - hi}" width="${bw}" height="${Math.max(1, hi)}" rx="3" fill="var(--ok)"><title>${x.m} income ${usd(x.income)}</title></rect>
+      <rect x="${x0 + bw + 4}" y="${H - pad - he - ha}" width="${bw}" height="${Math.max(1, he)}" rx="3" fill="var(--bad)"><title>${x.m} expenses ${usd(x.expenses)}</title></rect>
+      <rect x="${x0 + bw + 4}" y="${H - pad - ha}" width="${bw}" height="${Math.max(1, ha)}" rx="3" fill="var(--brand)"><title>${x.m} AI &amp; phone ${usd(x.aiAndPhone)}</title></rect>
+      <text x="${x0 + bw}" y="${H - 6}" text-anchor="middle" style="fill:var(--ink-2);font-size:11px">${x.m.slice(5)}/${x.m.slice(2, 4)}</text>`; }).join('');
+}
+function renderClients() {
+  const cf = $('#contactForm');
+  $('#contactStage').innerHTML = M.stages.map((st) => `<option>${st}</option>`).join('');
+  if (!cf.contains(document.activeElement)) projectOptions($('#contactProject'), $('#contactProject').value);
+  const today = new Date().toISOString().slice(0, 10);
+  $('#contacts').innerHTML = M.contacts.map((c) => `<div class="row" style="align-items:center">
+      <span class="ibox brand">${icon('users')}</span>
+      <div class="body" style="cursor:pointer" onclick="editContact(${c.id})"><div class="title">${esc(c.name)}${c.company ? ` <span class="muted" style="font-weight:400">· ${esc(c.company)}</span>` : ''}</div>
+        <div class="meta">${c.next_action ? `${esc(c.next_action)}${c.next_date ? ` · <b style="color:var(--${c.next_date < today ? 'bad' : 'ink-2'})">${esc(c.next_date)}</b>` : ''}` : 'No next step'}${c.project ? ` · ${esc(c.project)}` : ''}</div></div>
+      <select aria-label="Stage for ${esc(c.name)}" onchange="setStage(${c.id}, this.value)" style="width:auto;padding:4px 8px;font-size:12.5px">${M.stages.map((st) => `<option ${st === c.stage ? 'selected' : ''}>${st}</option>`).join('')}</select>
+    </div>`).join('') || '<div class="empty">No contacts yet. Add one, or ask James to find leads for a project (Riley can research them).</div>';
+  $('#drafts').innerHTML = M.drafts.map((d) => `<div class="ap" data-draft="${d.id}"><div style="display:flex;gap:8px;align-items:center"><b style="flex:1;min-width:0">${esc(d.subject)}</b><span class="pill">${esc(d.contact || d.to_addr || 'no recipient')}</span></div>
+      <pre style="max-height:160px">${esc(d.body)}</pre>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="copyDraft(${d.id})">${icon('copy')}Copy</button><button class="btn sm" onclick="draftStatus(${d.id}, 'sent')">${icon('check')}Mark sent</button><button class="btn sm danger" onclick="draftStatus(${d.id}, 'discarded')">${icon('x')}Discard</button></div></div>`).join('') || '<div class="empty">No drafts. Ask James to draft outreach to a contact.</div>';
+}
+window.editProject = (id) => {
+  const p = M.projects.find((x) => x.id === id), f = $('#projectForm');
+  editingProject = id; f.hidden = false; f.querySelector('.pedit').hidden = false;
+  for (const k of ['id', 'name', 'monthly_target', 'goal', 'status', 'progress']) f[k].value = p[k] ?? '';
+  $('#progOut').textContent = p.progress + '%'; f.scrollIntoView({ block: 'nearest' });
+};
+$('#newProjectBtn').onclick = () => { const f = $('#projectForm'); f.reset(); f.id.value = ''; f.hidden = false; f.querySelector('.pedit').hidden = true; editingProject = 'new'; f.name.focus(); };
+$('#projectCancel').onclick = () => { $('#projectForm').hidden = true; editingProject = null; renderMoney(); };
+$('#projectForm').progress.oninput = (e) => { $('#progOut').textContent = e.target.value + '%'; };
+$('#projectForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target, b = { name: f.name.value, goal: f.goal.value, monthly_target: f.monthly_target.value ? +f.monthly_target.value : null };
+  if (f.id.value) Object.assign(b, { id: +f.id.value, status: f.status.value, progress: +f.progress.value });
+  const r = await call('money/project', 'POST', b); if (r.error) return alert(r.error);
+  f.hidden = true; editingProject = null; loadMoney();
+};
+$('#entryForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const r = await call('money/entry', 'POST', { amount: +f.amount.value * +f.type.value, project: f.project.value || null, day: f.day.value || undefined, category: f.category.value, note: f.note.value });
+  if (r.error) return alert(r.error);
+  f.reset(); loadMoney();
+};
+window.delEntry = async (id) => { if (confirm('Delete this entry?')) { await call('money/entry', 'DELETE', { id }); loadMoney(); } };
+window.setStage = async (id, stage) => { const r = await call('money/contact', 'POST', { id, stage }); if (r.error) alert(r.error); loadMoney(); };
+window.editContact = (id) => {
+  const c = M.contacts.find((x) => x.id === id), f = $('#contactForm');
+  for (const k of ['id', 'name', 'company', 'email', 'phone', 'stage', 'next_action', 'next_date', 'notes']) f[k].value = c[k] ?? '';
+  f.project.value = c.project_id ?? ''; $('#contactTitle').textContent = 'Edit contact'; $('#contactNew').hidden = false;
+};
+$('#contactNew').onclick = () => { $('#contactForm').reset(); $('#contactForm').id.value = ''; $('#contactTitle').textContent = 'Add contact'; $('#contactNew').hidden = true; };
+$('#contactForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target, b = Object.fromEntries(new FormData(f));
+  b.id = b.id ? +b.id : undefined; b.project = b.project || null; b.next_date = b.next_date || null;
+  const r = await call('money/contact', 'POST', b); if (r.error) return alert(r.error);
+  $('#contactNew').onclick(); loadMoney();
+};
+window.copyDraft = async (id) => { const d = M.drafts.find((x) => x.id === id); try { await navigator.clipboard.writeText(`To: ${d.to_addr || ''}\nSubject: ${d.subject}\n\n${d.body}`); alert('Copied.'); } catch { alert('Clipboard blocked; select the text instead.'); } };
+window.draftStatus = async (id, status) => { await call('money/draft-status', 'POST', { id, status }); loadMoney(); };
 
 // ── Vault ──
 const KIND_LABEL = { password: 'Login', card: 'Card', personal: 'Personal', api_key: 'API key', note: 'Note' };

@@ -55,6 +55,18 @@ const MIGRATIONS = [
   `update reminders set channel = 'message' where channel = 'sms';`,
   `alter table agents add column web integer not null default 0;
    update agents set tools = tools || ',trip_kill_switch' where name = 'security' and tools not like '%trip_kill_switch%';`,
+  `create table if not exists projects (id integer primary key, name text not null unique, status text not null default 'active',
+     progress integer not null default 0, goal text default '', monthly_target real, notes text default '',
+     created_at text default current_timestamp, updated_at text default current_timestamp);
+   create table if not exists ledger (id integer primary key, day text not null, project_id integer, amount real not null,
+     category text default '', note text default '', created_by text, created_at text default current_timestamp);
+   create table if not exists contacts (id integer primary key, name text not null, company text default '', email text default '',
+     phone text default '', stage text not null default 'lead', project_id integer, next_action text default '', next_date text,
+     notes text default '', last_touch text, created_at text default current_timestamp, updated_at text default current_timestamp);
+   create table if not exists drafts (id integer primary key, contact_id integer, to_addr text, subject text, body text,
+     status text not null default 'draft', created_by text, created_at text default current_timestamp);
+   alter table agents add column project_id integer;
+   update agents set tools = tools || ',list_projects,list_contacts' where name = 'quick' and tools not like '%list_projects%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -79,7 +91,7 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
-  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder', 'Pete')`).run();
+  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder,list_projects,list_contacts', 'Pete')`).run();
 
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);

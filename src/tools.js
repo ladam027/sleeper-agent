@@ -3,6 +3,7 @@ import { PRICES } from './budget.js';
 import { names as secretNames } from './vault.js';
 import { notify } from './phone.js';
 import { addReminder, upcoming, cancelReminder, rezone } from './scheduler.js';
+import { upsertProject, moneySummary, logMoney, upsertContact, listContacts, saveDraft, STAGES, projectId } from './money.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -12,7 +13,8 @@ const tool = (name, description, properties, required, run, risk = 'low', hidden
 
 const str = (description) => ({ type: 'string', description });
 // Tools a created worker agent may be given (never create_agent, delegate, or the hidden internal ones).
-export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets'];
+export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets',
+  'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email'];
 
 export const TOOLS = {
   remember: tool('remember', 'Save or update a long-term memory about the owner, a project, a person, or a decision. Pass id to update. pinned=true puts it in every prompt (use for core facts only).',
@@ -84,6 +86,32 @@ export const TOOLS = {
     { reason: str('one short phrase') }, ['reason'],
     ({ reason }, ctx) => { ctx.escalated = reason; return 'Handing off to the orchestrator.'; }),
 
+  project: tool('project', "Create or update one of the owner's money-making projects. Pass id to update. progress is 0-100; monthly_target is the revenue goal in USD per month.",
+    { id: { type: 'integer' }, name: str('short name'), status: { type: 'string', enum: ['idea', 'active', 'paused', 'done', 'dropped'] },
+      progress: { type: 'integer' }, goal: str('what done/success looks like'), monthly_target: { type: 'number' }, notes: str('details') }, [],
+    (input) => upsertProject(input)),
+
+  list_projects: tool('list_projects', 'List projects with progress, this month\'s income/expenses/AI cost, and all-time ROI, plus overall totals vs the monthly income goal.', {}, [],
+    () => { const s = moneySummary(); return JSON.stringify({ month: s.month, goal: s.goal, totals: s.totals,
+      projects: s.projects.map(({ id, name, status, progress, goal, monthly_target, month, all }) => ({ id, name, status, progress, goal, monthly_target, month, all })) }); }),
+
+  log_money: tool('log_money', 'Record income (positive amount) or an expense (negative amount) in USD, optionally for a project (name or id).',
+    { amount: { type: 'number' }, project: str('project name or id'), category: str('e.g. sales, ads, tools, fees'), note: str('what it was'), day: str('YYYY-MM-DD, default today') }, ['amount'],
+    (input, ctx) => logMoney(input, ctx.agent)),
+
+  contact: tool('contact', 'Add or update a client/lead in the CRM. Pass id to update. Use stage to track outreach progress and next_action/next_date for the follow-up.',
+    { id: { type: 'integer' }, name: str('person'), company: str('company'), email: str('email'), phone: str('phone'),
+      stage: { type: 'string', enum: STAGES }, project: str('project name or id'), next_action: str('next step'), next_date: str('YYYY-MM-DD'), notes: str('notes') }, [],
+    (input) => upsertContact(input)),
+
+  list_contacts: tool('list_contacts', 'List CRM contacts, optionally filtered by stage or project. Follow-ups due soonest first.',
+    { stage: { type: 'string', enum: STAGES }, project: str('project name or id') }, [],
+    (input) => JSON.stringify(listContacts(input).map(({ id, name, company, email, stage, project, next_action, next_date }) => ({ id, name, company, email, stage, project, next_action, next_date })))),
+
+  draft_email: tool('draft_email', 'Write an outreach or follow-up email as a DRAFT for the owner to review. Nothing is sent. Keep it short, specific and personal; no hype.',
+    { contact_id: { type: 'integer' }, to: str('email address if no contact'), subject: str('subject'), body: str('plain-text body, signed as the owner') }, ['subject', 'body'],
+    (input, ctx) => saveDraft(input, ctx.agent)),
+
   delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea.',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],
     async ({ agent, task }, ctx) => {
@@ -100,15 +128,15 @@ export const TOOLS = {
     { name: str('lowercase-slug'), model: { type: 'string', enum: Object.keys(PRICES) }, purpose: str('what it does'),
       daily_budget_usd: { type: 'number' }, effort: { type: 'string', enum: ['low', 'medium', 'high'] },
       tools: { type: 'array', items: { type: 'string', enum: WORKER_TOOLS }, description: 'tools it may use (default: recall only)' },
-      web: { type: 'boolean', description: 'allow web search/fetch' } },
+      web: { type: 'boolean', description: 'allow web search/fetch' }, project: str('project name or id this agent works for (its AI spend counts against that project)') },
     ['name', 'model', 'purpose', 'daily_budget_usd'],
-    ({ name, model, purpose, daily_budget_usd, effort = 'low', tools = ['recall'], web = false }) => {
+    ({ name, model, purpose, daily_budget_usd, effort = 'low', tools = ['recall'], web = false, project }) => {
       if (!/^[a-z0-9-]{2,32}$/.test(name)) return 'Refused: name must be a lowercase slug';
       if (!PRICES[model]) return `Refused: unknown model ${model}`;
       const bad = tools.filter((t) => !WORKER_TOOLS.includes(t));
       if (bad.length) return `Refused: tools not allowed for workers: ${bad.join(', ')}`;
-      db.prepare('insert into agents (name, model, effort, purpose, daily_budget_usd, tools, web) values (?, ?, ?, ?, ?, ?, ?)')
-        .run(name, model, effort, purpose, Math.min(daily_budget_usd, 5), tools.join(','), web ? 1 : 0);
+      db.prepare('insert into agents (name, model, effort, purpose, daily_budget_usd, tools, web, project_id) values (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(name, model, effort, purpose, Math.min(daily_budget_usd, 5), tools.join(','), web ? 1 : 0, projectId(project));
       return `Created agent ${name}`;
     }, 'high'),
 

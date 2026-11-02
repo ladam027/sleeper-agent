@@ -8,6 +8,7 @@ import * as phone from './phone.js';
 import * as scheduler from './scheduler.js';
 import * as telegram from './telegram.js';
 import * as jobs from './jobs.js';
+import * as money from './money.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -94,6 +95,7 @@ async function api(req, url) {
       upd('tools', b.tools.join(','));
     }
     if (b.web !== undefined) upd('web', b.web ? 1 : 0);
+    if (b.project !== undefined) upd('project_id', money.projectId(b.project));
     if (b.display_name !== undefined) { const v = String(b.display_name).trim(); if (!/^[\p{L}\p{N} .'-]{1,24}$/u.test(v)) throw new Error('Name must be 1-24 letters, numbers or spaces'); upd('display_name', v); }
     if (b.max_tokens !== undefined) { if (!(b.max_tokens >= 512 && b.max_tokens <= 64000)) throw new Error('Max reply length must be 512–64000 tokens'); upd('max_tokens', Math.round(b.max_tokens)); }
     log('owner', 'settings', `${id}: ${Object.keys(b).join(', ')} updated`);
@@ -138,6 +140,18 @@ async function api(req, url) {
   if (route === 'reminders') {
     if (m === 'POST') return { result: scheduler.addReminder(await body(req), 'owner') };
     if (m === 'DELETE') return { result: scheduler.cancelReminder(Number(id)) };
+  }
+  if (route === 'money') {
+    if (m === 'GET') return { ...money.moneySummary(), contacts: money.listContacts(), drafts: money.listDrafts(), stages: money.STAGES };
+    const b = await body(req);
+    if (id === 'project') return { result: money.upsertProject(b) };
+    if (id === 'entry' && m === 'POST') return { result: money.logMoney(b, 'owner') };
+    if (id === 'entry' && m === 'DELETE') { db.prepare('delete from ledger where id = ?').run(Number(b.id)); log('owner', 'money', `deleted entry #${b.id}`); return { ok: true }; }
+    if (id === 'contact') return { result: money.upsertContact(b) };
+    if (id === 'draft' && m === 'POST') return { result: money.saveDraft(b, 'owner') };
+    if (id === 'draft-status') { if (!['sent', 'discarded'].includes(b.status)) throw new Error('status must be sent or discarded');
+      db.prepare('update drafts set status = ? where id = ?').run(b.status, Number(b.id)); return { ok: true }; }
+    if (id === 'goal') { if (!(b.goal > 0)) throw new Error('Goal must be positive'); set('monthly_income_goal', b.goal); return { ok: true }; }
   }
   if (route === 'memory') {
     if (m === 'GET') return {

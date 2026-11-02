@@ -70,7 +70,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - `researcher`: Claude web search/fetch tools with `max_uses` caps.
 - Nightly memory consolidation (dedupe, merge, prune) on Haiku via the Batch API (50% off).
 
-### Build 4: Money cockpit
+### Build 4: Money cockpit (part 1 ✅, part 2 needs Google/GitHub accounts)
 - Projects table with progress bars, revenue/expense entries, **real-time cost vs ROI** per project (API spend is already tagged per agent).
 - Client outreach CRM (contacts, stage, last touch, next action) and cold-email drafts (you approve before sending).
 - Gmail: daily digest from your inbox (read-only), outreach from the agent's own inbox.
