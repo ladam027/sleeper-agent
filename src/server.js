@@ -4,6 +4,9 @@ import { execFileSync } from 'node:child_process';
 import { timingSafeEqual, randomBytes } from 'node:crypto';
 import { db, get, set, log, backup, lastBackup, SCHEMA_VERSION } from './db.js';
 import * as vault from './vault.js';
+import * as phone from './phone.js';
+import * as scheduler from './scheduler.js';
+import { handleSms } from './sms.js';
 import { summary, PRICES } from './budget.js';
 import { TOOLS } from './tools.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -13,6 +16,7 @@ const TOKEN = process.env.DASHBOARD_TOKEN;
 if (!TOKEN || TOKEN.length < 16) throw new Error('Set DASHBOARD_TOKEN (16+ chars) in .env');
 const HOST = process.env.HOST || '127.0.0.1'; // keep local; reach it remotely through Tailscale, not the open internet
 const PORT = Number(process.env.PORT || 8787);
+const HOOK_PORT = Number(process.env.HOOK_PORT || 8788); // the ONLY port to expose publicly (Twilio webhooks)
 const page = new URL('../public/index.html', import.meta.url);
 
 // Version shown in Settings. Major = build number (PLAN.md §4), minor = update within that build.
@@ -28,10 +32,10 @@ const authed = (req) => {
   return got.length === want.length && timingSafeEqual(got, want);
 };
 
-async function body(req) {
+async function body(req, raw = false) {
   let s = '';
   for await (const chunk of req) { s += chunk; if (s.length > 1e6) throw new Error('body too large'); }
-  return s ? JSON.parse(s) : {};
+  return raw ? s : s ? JSON.parse(s) : {};
 }
 
 const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt'];
@@ -59,6 +63,8 @@ async function api(req, url) {
     settings: Object.fromEntries(SETTINGS.map((k) => [k, get(k)])),
     version: { ...VERSION, lastBackup: lastBackup() },
     vault: vault.status(),
+    phone: phone.status(),
+    reminders: scheduler.upcoming(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
@@ -90,6 +96,8 @@ async function api(req, url) {
     const b = await body(req);
     if (b.timezone) TOOLS.set_timezone.run({ timezone: b.timezone });
     if (b.global_daily_budget_usd >= 0) set('global_daily_budget_usd', b.global_daily_budget_usd);
+    for (const k of ['quiet_start', 'quiet_end']) if (b[k] !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b[k])) throw new Error('Quiet hours must be HH:MM'); set(k, b[k]); }
+    if (b.sms_pin) { phone.setPin(b.sms_pin); log('owner', 'settings', 'SMS PIN changed'); }
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
     return { ok: true };
   }
@@ -110,6 +118,16 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'phone' && m === 'POST' && id === 'test') {
+    const { kind } = await body(req);
+    if (kind === 'call') await phone.call('This is Sleeper Agent. Your phone alerts are working.');
+    else await phone.sms('Sleeper Agent: texts are working. Reply to this number to talk to James.');
+    return { ok: true };
+  }
+  if (route === 'reminders') {
+    if (m === 'POST') return { result: scheduler.addReminder(await body(req), 'owner') };
+    if (m === 'DELETE') return { result: scheduler.cancelReminder(Number(id)) };
+  }
   if (route === 'memory') {
     if (m === 'GET') return {
       nodes: db.prepare('select * from memory order by id').all(),
@@ -124,6 +142,21 @@ async function api(req, url) {
   }
   return { error: 'not found' };
 }
+
+// ── Public webhook listener: Twilio inbound texts only. Signature + owner number required. ──
+createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://x');
+  res.writeHead(200, { 'content-type': 'text/xml' });
+  res.end('<Response/>'); // answer Twilio immediately (15s timeout); the reply goes out as a separate text
+  if (req.method !== 'POST' || url.pathname !== '/twilio/sms') return;
+  try {
+    const params = Object.fromEntries(new URLSearchParams(await body(req, true)));
+    const ok = !!process.env.PUBLIC_URL && phone.validSignature(process.env.PUBLIC_URL.replace(/\/$/, '') + req.url, params, req.headers['x-twilio-signature']);
+    await handleSms(params, ok);
+  } catch (e) { log('phone', 'error', e.message); }
+}).listen(HOOK_PORT, HOST, () => console.log(`Twilio webhook listener: http://${HOST}:${HOOK_PORT}/twilio/sms`));
+
+scheduler.start();
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

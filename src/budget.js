@@ -28,6 +28,10 @@ export function record(agentName, model, usage) {
   return usd;
 }
 
+// Non-token spend (texts, calls) goes in the same ledger so the cost tracker and global cap see it.
+export const recordUsd = (agentName, item, usd) =>
+  db.prepare('insert into costs (day, agent, model, usd) values (?, ?, ?, ?)').run(today(), agentName, item, usd);
+
 const spent = (where, ...args) =>
   db.prepare(`select coalesce(sum(usd), 0) s from costs where day = ? ${where}`).get(today(), ...args).s;
 

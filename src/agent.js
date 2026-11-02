@@ -3,6 +3,7 @@ import { db, get, log, agent, setStatus } from './db.js';
 import { MAX_STEPS, blocked, record } from './budget.js';
 import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
+import { notify } from './phone.js';
 
 export const deps = { client: null }; // tests swap in a fake
 const client = () => (deps.client ??= new Anthropic());
@@ -65,6 +66,8 @@ async function exec(use, ctx, allowed) {
     const { lastInsertRowid: id } = db.prepare('insert into approvals (agent, tool, input) values (?, ?, ?)')
       .run(ctx.agent, use.name, JSON.stringify(use.input));
     log(ctx.agent, 'approval', `#${id} ${use.name} waiting for owner`);
+    notify('high', `Approval #${id}: ${ctx.agent} wants to ${use.name.replace(/_/g, ' ')} ${JSON.stringify(use.input).slice(0, 160)}. Reply Y ${id} <PIN> or N ${id} <PIN>, or use the dashboard.`, { agent: ctx.agent })
+      .catch(() => {}); // never block the agent on the phone
     return { content: `Queued for owner approval as #${id}. It has NOT run. Tell the owner; do not retry.` };
   }
   try { return { content: redact(String(await t.run(use.input, ctx))) }; }

@@ -1,6 +1,8 @@
 import { db, set, log } from './db.js';
 import { PRICES } from './budget.js';
 import { names as secretNames } from './vault.js';
+import { notify } from './phone.js';
+import { addReminder, upcoming, cancelReminder, rezone } from './scheduler.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -53,15 +55,24 @@ export const TOOLS = {
     ({ timezone }) => {
       new Intl.DateTimeFormat('en-US', { timeZone: timezone }); // throws RangeError on bad names
       set('timezone', timezone);
+      rezone();
       return `Timezone set to ${timezone}`;
     }),
 
-  notify_owner: tool('notify_owner', 'Send the owner an update. urgency: low (dashboard only), high (text, Build 2), critical (phone call, Build 2).',
-    { message: str('what to tell them'), urgency: { type: 'string', enum: ['low', 'high', 'critical'] } }, ['message', 'urgency'],
-    ({ message, urgency }, ctx) => {
-      log(ctx.agent, `notify:${urgency}`, message); // Build 2 routes high/critical to Twilio SMS/call
-      return 'Delivered to dashboard';
-    }),
+  notify_owner: tool('notify_owner', 'Tell the owner something now. urgency: low = dashboard only; high = text message; critical = phone call + text (only for urgent, important things; calls become texts during quiet hours). Keep it short.',
+    { message: str('what to tell them, under 300 characters'), urgency: { type: 'string', enum: ['low', 'high', 'critical'] } }, ['message', 'urgency'],
+    ({ message, urgency }, ctx) => notify(urgency, message, { agent: ctx.agent })),
+
+  set_reminder: tool('set_reminder', "Schedule a reminder or alarm for the owner. 'when' is the owner's local time as YYYY-MM-DDTHH:MM (use the [Now: ...] line to resolve 'tomorrow', 'in 2 hours'). channel: dashboard, sms (text), or call (an alarm; rings even in quiet hours because the owner asked for it). repeat: none, daily, weekdays, weekly.",
+    { message: str('what to remind them'), when: str('YYYY-MM-DDTHH:MM owner local time'), channel: { type: 'string', enum: ['dashboard', 'sms', 'call'] },
+      repeat: { type: 'string', enum: ['none', 'daily', 'weekdays', 'weekly'] } }, ['message', 'when'],
+    (input, ctx) => addReminder(input, ctx.agent)),
+
+  list_reminders: tool('list_reminders', "List the owner's upcoming reminders and alarms.", {}, [],
+    () => JSON.stringify(upcoming().map(({ id, message, local_time, channel, repeat }) => ({ id, message, local_time, channel, repeat })))),
+
+  cancel_reminder: tool('cancel_reminder', 'Cancel an upcoming reminder by id (use list_reminders first).', { id: { type: 'integer' } }, ['id'],
+    ({ id }) => cancelReminder(id)),
 
   list_secrets: tool('list_secrets', "List the names and kinds of the owner's vault entries (passwords, cards, personal info). You never get the values; reference one as {{secret:name}}.",
     {}, [], () => JSON.stringify(secretNames())),

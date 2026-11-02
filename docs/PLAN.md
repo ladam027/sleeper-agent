@@ -51,10 +51,10 @@ Webhooks (Twilio, Gmail) ──┘      │
 
 Each build is usable alone and ends with passing tests plus a short demo.
 
-### Build 1: Core spine ✅ (this session)
+### Build 1: Core spine ✅
 Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, step limit, kill switch (global and per agent), restart, approval queue gated in code, activity feed, time and timezone awareness (DST-correct), dashboard (chat, approvals, agents, activity, memory graph you can click and edit, cost chart, settings), token auth, tests.
 
-### Build 2: Reach me (phone + deploy)
+### Build 2: Reach me (phone + deploy) ✅ (code done; Twilio/Tailscale setup is manual, see docs/builds/BUILD-2.md)
 - Deploy to the VPS with systemd, Tailscale, nightly SQLite backup (`sqlite3 .backup` to a cloud bucket).
 - Twilio SMS in/out (webhook signature validation, only accept your number), `notify_owner` high → SMS, critical → call.
 - **Approve/deny by SMS reply** ("Y 12") for low-value approvals. High-value ones still need the dashboard or a PIN, because caller ID can be spoofed.

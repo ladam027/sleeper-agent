@@ -171,6 +171,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
+@media (max-width: 900px) { #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
 .agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
@@ -356,6 +357,18 @@ td.r, th.r { text-align: right; }
         </div>
 
         <div class="card">
+          <div class="card-h"><div><h2>Reminders &amp; alarms</h2><div class="sub">Ask James or Pete ("remind me at 5 to…", "wake me at 6:30 weekdays"), or add one here</div></div></div>
+          <form id="remForm" style="display:grid;grid-template-columns:2fr 1.3fr 1fr 1fr auto;gap:var(--s2);align-items:end;margin-bottom:var(--s4)">
+            <div><label class="f" for="remMsg" style="margin-top:0">Reminder</label><input id="remMsg" name="message" required placeholder="Call the dentist"></div>
+            <div><label class="f" for="remWhen" style="margin-top:0">When (your time)</label><input id="remWhen" name="when" type="datetime-local" required></div>
+            <div><label class="f" for="remCh" style="margin-top:0">How</label><select id="remCh" name="channel"><option value="dashboard">Dashboard</option><option value="sms">Text</option><option value="call">Call (alarm)</option></select></div>
+            <div><label class="f" for="remRep" style="margin-top:0">Repeat</label><select id="remRep" name="repeat"><option value="none">Once</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option></select></div>
+            <button class="btn primary">Add</button>
+          </form>
+          <div id="reminders"></div>
+        </div>
+
+        <div class="card">
           <div class="card-h"><div><h2>Agent activity</h2><div class="sub"><span class="dot live"></span>Live · everything your agents do</div></div></div>
           <div id="feed"></div>
         </div>
@@ -523,6 +536,20 @@ td.r, th.r { text-align: right; }
         </div>
 
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Texts, calls &amp; reminders</h2><div class="sub">Needs the Twilio setup in Settings → Phone &amp; alerts</div></div></div>
+          <div class="tips">
+            <div><h3>Text James</h3><p>Text your Twilio number like you'd text a person. Simple questions go to Pete, bigger ones to James, and the reply comes back by text (kept under ~300 characters). Only texts from <b>your</b> number, signed by Twilio, are accepted.</p></div>
+            <div><h3>Approve by text</h3><p>Every approval is texted to you. Reply <code>Y 12 1234</code> to approve #12 or <code>N 12 1234</code> to deny, with your PIN at the end. No PIN, no approval, because phone numbers can be spoofed.</p></div>
+            <div><h3>Reminders &amp; alarms</h3><p>"Remind me to call mom at 5" (dashboard), "text me at 9 to submit the form", "wake me at 6:30 on weekdays" (a <b>call</b>, which rings even in quiet hours because you asked). Times follow your timezone, including DST and travel.</p></div>
+          </div>
+          <ul>
+            <li><b>When agents reach you:</b> low = dashboard only. High = text. Critical = call + text, and only for urgent things. During quiet hours (Settings) calls become texts.</li>
+            <li><b>Cost:</b> about 1¢ per text and 2¢ per short call, counted in the Costs tab. Caps of 30 texts and 5 calls per day stop runaway loops.</li>
+            <li><b>Texts not arriving?</b> US carriers block app texts until Twilio's <b>A2P 10DLC</b> registration is approved (1–3 weeks). Calls work right away.</li>
+          </ul>
+        </div>
+
+        <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-lock"/></svg></span><div><h2>What to put in the Vault, and how</h2><div class="sub">One item per secret. Name it so you and the agent can tell what it is: lowercase-with-dashes, service first.</div></div></div>
           <table>
             <thead><tr><th>Type</th><th>Use it for</th><th>Name it like</th><th>Fill in</th></tr></thead>
@@ -581,6 +608,20 @@ td.r, th.r { text-align: right; }
           <button class="btn sm" id="backupNow" style="margin-top:var(--s2)">Back up now</button>
         </div>
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Phone &amp; alerts</h2><div class="sub">Texts and calls via Twilio</div></div></div>
+          <table id="phoneStatus"></table>
+          <form id="phoneForm" style="margin-top:var(--s3)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
+              <div><label class="f" for="qStart" style="margin-top:0">No calls from</label><input id="qStart" name="quiet_start" type="time"></div>
+              <div><label class="f" for="qEnd" style="margin-top:0">until</label><input id="qEnd" name="quiet_end" type="time"></div>
+            </div>
+            <div class="help">During quiet hours agents text instead of calling. Alarms you set still ring.</div>
+            <label class="f" for="smsPin">SMS approval PIN</label><input id="smsPin" name="sms_pin" inputmode="numeric" pattern="\d{4,8}" placeholder="4–8 digits" autocomplete="off">
+            <div class="help" id="pinHelp">Approve by text with "Y 12 &lt;PIN&gt;". Stored hashed. Leave blank to keep the current PIN.</div>
+            <div style="display:flex;gap:var(--s2);margin-top:var(--s4);flex-wrap:wrap"><button class="btn primary sm">Save</button><button type="button" class="btn sm" id="testSms">Send test text</button><button type="button" class="btn sm" id="testCall">Test call</button></div>
+          </form>
+        </div>
+        <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-bot"/></svg></span><div><h2>Agent names</h2><div class="sub">Shown as "Name - Role". Agents know their own name, so you can say "ask Pete".</div></div></div>
           <form id="namesForm"><div id="namesFields"></div><div style="margin-top:var(--s4)"><button class="btn primary sm">Save names</button></div></form>
         </div>
@@ -623,6 +664,7 @@ td.r, th.r { text-align: right; }
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
   <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
   <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -670,8 +712,8 @@ function show(v) {
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { sms: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { 'sms:out': 'Texted you', 'call:out': 'Called you', 'sms:in': 'Text from you', 'sms:blocked': 'Blocked text', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -752,9 +794,26 @@ async function refresh() {
     </div>`; }).join('');
 
   // Activity
-  $('#feed').innerHTML = activity.map((x) => `<div class="row"><span class="ibox t-${esc(x.type.split(':')[0])}">${icon(TYPE_ICON[x.type] || (x.type.startsWith('notify') ? 'bell' : 'zap'))}</span>
+  $('#feed').innerHTML = activity.map((x) => `<div class="row"><span class="ibox t-${esc(x.type.split(':')[0])}">${icon(TYPE_ICON[x.type] || TYPE_ICON[x.type.split(':')[0]] || 'zap')}</span>
       <div class="body"><div><span class="title">${esc(TYPE_LABEL[x.type] || x.type)}</span> <span class="muted">${esc(x.detail)}</span></div>
       <div class="meta">${icon('sparkles', 'width:12px;height:12px')}${esc(agentLabel(x.agent))} · ${esc(ago(x.ts))}</div></div></div>`).join('') || '<div class="empty">No activity yet. Send your agent a message to get started.</div>';
+
+  // Reminders
+  const REM_CH = { dashboard: ['bell', 'Dashboard'], sms: ['message', 'Text'], call: ['phone', 'Call'] };
+  $('#reminders').innerHTML = (s.reminders || []).map((r) => { const when = new Date(r.due_at).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `<div class="row" style="align-items:center"><span class="ibox brand">${icon(REM_CH[r.channel][0])}</span><div class="body"><div class="title">${esc(r.message)}</div>
+      <div class="meta num">${esc(when)} · ${REM_CH[r.channel][1]}${r.repeat !== 'none' ? ' · repeats ' + esc(r.repeat) : ''}</div></div>
+      <button class="btn sm icon" aria-label="Cancel reminder" title="Cancel" onclick="cancelRem(${r.id})">${icon('x')}</button></div>`; }).join('') || '<div class="empty">No upcoming reminders.</div>';
+
+  // Phone settings
+  const P = s.phone;
+  if (P) {
+    $('#phoneStatus').innerHTML = [['Twilio', P.configured ? `Connected · texts to ${P.owner}` : 'Not set up (add Twilio lines to .env)'], ['Inbound texts', P.publicUrl ? 'Webhook URL set' : 'Off (needs PUBLIC_URL + Tailscale Funnel)'],
+      ['Today', `${P.sentToday.sms}/${P.caps.sms} texts · ${P.sentToday.call}/${P.caps.call} calls`], ['SMS PIN', P.pinSet ? 'Set' : 'Not set']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
+    const pf = $('#phoneForm');
+    if (!pf.contains(document.activeElement)) { pf.quiet_start.value = P.quietStart; pf.quiet_end.value = P.quietEnd; }
+    $('#testSms').disabled = $('#testCall').disabled = !P.configured;
+  }
 
   // Chat
   const pick = $('#agentPick');
@@ -840,6 +899,20 @@ $('#chatForm').onsubmit = async (e) => {
   refresh();
 };
 
+window.cancelRem = async (id) => { await call('reminders/' + id, 'DELETE'); refresh(); };
+$('#remForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await call('reminders', 'POST', Object.fromEntries(new FormData(e.target)));
+  if (r.error) return alert(r.error);
+  e.target.reset(); refresh();
+};
+$('#phoneForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const r = await call('settings', 'POST', { quiet_start: f.quiet_start.value, quiet_end: f.quiet_end.value, ...(f.sms_pin.value ? { sms_pin: f.sms_pin.value } : {}) });
+  if (r.error) return alert(r.error);
+  f.sms_pin.value = ''; document.activeElement?.blur(); refresh();
+};
+for (const [btn, kind] of [['#testSms', 'sms'], ['#testCall', 'call']]) $(btn).onclick = async () => { const r = await call('phone/test', 'POST', { kind }); alert(r.error || (kind === 'sms' ? 'Test text sent.' : 'Calling you now.')); refresh(); };
 $('#namesForm').onsubmit = async (e) => {
   e.preventDefault();
   for (const i of $('#namesFields').querySelectorAll('input')) {

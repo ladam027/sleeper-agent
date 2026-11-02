@@ -47,6 +47,11 @@ const MIGRATIONS = [
   `alter table agents add column display_name text;
    update agents set display_name = 'James' where name = 'orchestrator';
    update agents set display_name = 'Pete' where name = 'quick';`,
+  `create table if not exists reminders (id integer primary key, message text not null, local_time text not null, due_at text not null,
+     channel text not null default 'dashboard', repeat text not null default 'none', status text not null default 'pending',
+     created_by text, created_at text default current_timestamp);
+   create index if not exists reminders_due on reminders (status, due_at);
+   update agents set tools = tools || ',set_reminder,list_reminders,cancel_reminder' where name = 'quick' and tools not like '%set_reminder%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -62,7 +67,7 @@ if (current < MIGRATIONS.length) {
   }
 }
 
-const defaults = { timezone: 'America/Chicago', global_halt: '0', global_daily_budget_usd: '5' };
+const defaults = { timezone: 'America/Chicago', global_halt: '0', global_daily_budget_usd: '5', quiet_start: '00:00', quiet_end: '07:00' };
 for (const [k, v] of Object.entries(defaults))
   db.prepare('insert or ignore into settings values (?, ?)').run(k, v);
 
@@ -71,7 +76,7 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
-  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets', 'Pete')`).run();
+  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder', 'Pete')`).run();
 
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;
 export const set = (k, v) => db.prepare('insert or replace into settings values (?, ?)').run(k, String(v));
