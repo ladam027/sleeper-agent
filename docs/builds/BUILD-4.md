@@ -35,5 +35,8 @@
 - Reminders store `delivered_at` + `result` (e.g. "messaged on Telegram"); `list_reminders` returns recently delivered ones, so agents can confirm delivery instead of guessing.
 - Telegram replies have markdown stripped.
 
+## 4.4.0
+- Presence-aware alerts: the page reports `x-owner-active` (visible tab + input in the last 2 min). While the owner is at the desk, `notify` high skips Telegram (pop-up notice on the dashboard instead) and critical calls without the text. A Telegram message in the last 15 min means "on the phone" and wins. Owner-set reminders (`explicit`) always deliver as chosen. Dashboard pop-ups for new alerts and approvals.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

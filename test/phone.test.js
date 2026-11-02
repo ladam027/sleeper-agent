@@ -209,3 +209,26 @@ test('ultra concise style reaches the model for James and Pete by default', asyn
   assert.match(calls[0].system, /ULTRA CONCISE/);
   assert.match(calls[0].system, /Never mention what you fixed/);
 });
+
+test('no Telegram while the owner is active on the dashboard, unless they are working from the phone', async () => {
+  reset();
+  set('quiet_start', '00:00'); set('quiet_end', '00:00');
+  set('dashboard_active_at', Date.now()); set('last_owner_channel', 'dashboard'); set('last_owner_channel_at', Date.now());
+  assert.match(await phone.notify('high', 'research finished'), /dashboard \(the owner is active there/);
+  assert.equal(sent.length, 0);
+  await phone.notify('critical', 'server down');
+  assert.deepEqual(kinds(), ['call'], 'urgent call still rings, but no text');
+
+  sent = [];
+  phone.ownerUsed('telegram'); // owner just messaged the bot: they're on the phone
+  await phone.notify('high', 'research finished');
+  assert.deepEqual(kinds(), ['sendMessage']);
+
+  sent = []; set('last_owner_channel', 'dashboard');
+  await phone.notify('high', 'reminder you set', { explicit: true });
+  assert.deepEqual(kinds(), ['sendMessage'], "the owner's own reminders always go out as chosen");
+
+  sent = []; set('dashboard_active_at', Date.now() - 10 * 60e3); // walked away
+  await phone.notify('high', 'task done');
+  assert.deepEqual(kinds(), ['sendMessage']);
+});

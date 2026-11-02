@@ -190,6 +190,10 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s var(--ease); }
 .msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: var(--sunken); border-bottom-left-radius: 4px; }
+.toasts { position: fixed; top: 16px; right: 16px; z-index: 50; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 32px)); }
+.toast { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 30px rgb(0 0 0 / .18); animation: rise .25s var(--ease); font-size: 13.5px; }
+.toast.warn { border-color: var(--warn); } .toast.bad { border-color: var(--bad); }
+.toast button { margin-left: auto; border: 0; background: none; color: var(--ink-2); cursor: pointer; padding: 0 2px; }
 .badge { align-self: flex-start; margin: -6px 0 0 4px; font-size: 11px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
 .badge b { font-weight: 600; color: var(--brand); }
 .guide h3 { font-size: 15px; margin: 0 0 var(--s2); }
@@ -281,6 +285,7 @@ td.r, th.r { text-align: right; }
   </div>
 </div>
 
+<div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="app" id="app" hidden>
   <aside class="side" aria-label="Main navigation">
     <div class="logo"><span class="mark"><svg class="i"><use href="#i-sparkles"/></svg></span>Sleeper Agent</div>
@@ -673,6 +678,7 @@ td.r, th.r { text-align: right; }
           </div>
           <ul>
             <li><b>When agents reach you:</b> low = dashboard only. High = Telegram. Critical = phone call + Telegram, only for urgent things. During quiet hours, calls become messages.</li>
+            <li><b>At your desk, no texts:</b> while you're actively using the dashboard (tab open, typed or clicked in the last 2 minutes), alerts and approvals pop up on screen instead of going to Telegram. If you messaged the bot in the last 15 minutes, you're "on your phone" and updates go to Telegram. Reminders you set and urgent calls always go out as you chose.</li>
             <li><b>Cost:</b> Telegram is free. Calls are about 1¢ each (Telnyx), counted in the Costs tab. Caps of 100 messages and 5 calls a day stop runaway loops.</li>
             <li><b>Calling James</b> by phone, and James calling other people, come in Build 7 (voice agent).</li>
           </ul>
@@ -833,11 +839,16 @@ applyTheme(store.get('theme'));
 const backupLabel = (f, tz) => { const m = f?.match(/^agent-(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-\d+Z-(.+)\.db$/);
   return m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`).toLocaleString('en-US', { timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' · ' + m[5].replace(/-/g, ' ') : 'none yet'; };
 
+// "Owner is at the desk": tab visible and real input in the last 2 minutes. While true, alerts show here instead of Telegram.
+let lastInput = Date.now();
+for (const ev of ['keydown', 'pointerdown', 'pointermove', 'scroll', 'touchstart']) addEventListener(ev, () => { lastInput = Date.now(); }, { passive: true, capture: true });
+const ownerActive = () => document.visibilityState === 'visible' && Date.now() - lastInput < 120e3;
+
 // Vault session lives only in this closure (not storage, not a global), and expires with the server's 15 minutes.
 const vaultSession = (() => { let t = null; return { get: () => t, set: (v) => { t = v; }, clear: () => { t = null; } }; })();
 async function call(path, method = 'GET', body) {
   let r;
-  const headers = { authorization: 'Bearer ' + token, 'content-type': 'application/json' };
+  const headers = { authorization: 'Bearer ' + token, 'content-type': 'application/json', 'x-owner-active': ownerActive() ? '1' : '0' };
   if ((path.startsWith('vault') || path.startsWith('integrations')) && vaultSession.get()) headers['x-vault-session'] = vaultSession.get();
   try { r = await fetch('/api/' + path, { method, headers, body: body && JSON.stringify(body) }); }
   catch { $('#sys').innerHTML = '<span class="dot bad"></span><span>Server offline · run npm start</span>'; return { error: 'Server offline' }; }
@@ -944,6 +955,13 @@ async function refresh() {
       </form>
     </div>`; }).join('');
 
+  // Pop-up notices for new alerts and approvals (what would have gone to your phone if you weren't here)
+  const newest = activity[0]?.id || 0;
+  if (lastToastId === null) lastToastId = newest;
+  for (const x of activity.filter((a) => a.id > lastToastId && (/^notify:(high|critical)$/.test(a.type) || (a.type === 'approval' && /waiting/.test(a.detail)))).reverse().slice(-3))
+    toast(x.type === 'approval' ? `Needs your approval: ${x.detail}` : x.detail, x.type === 'notify:critical' ? 'bad' : x.type === 'approval' ? 'warn' : '', x.type === 'approval');
+  lastToastId = Math.max(lastToastId, newest);
+
   // Activity
   $('#feed').innerHTML = activity.map((x) => `<div class="row"><span class="ibox t-${esc(x.type.split(':')[0])}">${icon(TYPE_ICON[x.type] || TYPE_ICON[x.type.split(':')[0]] || 'zap')}</span>
       <div class="body"><div><span class="title">${esc(TYPE_LABEL[x.type] || x.type)}</span> <span class="muted">${esc(x.detail)}</span></div>
@@ -1041,6 +1059,15 @@ window.agentSave = async (e) => {
   if (r.error) return alert(r.error);
   agentCfg(null);
 };
+let lastToastId = null;
+function toast(text, cls = '', sticky = false) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + cls;
+  el.innerHTML = `${icon(cls === 'warn' ? 'shield' : cls === 'bad' ? 'alert' : 'bell')}<div>${esc(String(text).slice(0, 300))}</div><button aria-label="Dismiss">${icon('x', 'width:14px;height:14px')}</button>`;
+  el.querySelector('button').onclick = () => el.remove();
+  $('#toasts').prepend(el);
+  if (!sticky) setTimeout(() => el.remove(), 12000);
+}
 window.decide = async (id, approve) => { await call('approvals/' + id, 'POST', { approve }); refresh(); };
 window.agentAct = async (name, action) => {
   if (action === 'kill' && !confirm(`Kill ${name}? It stops immediately and stays stopped until you restart it.`)) return;

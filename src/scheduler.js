@@ -67,7 +67,7 @@ export async function tick(now = new Date()) {
     for (const r of db.prepare("select * from reminders where status = 'pending' and due_at <= ?").all(now.toISOString())) {
       const late = now - new Date(r.due_at) > 10 * 60e3 ? ' (late: the server was off)' : '';
       const urgency = { dashboard: 'low', message: 'high', call: 'critical' }[r.channel];
-      const result = await notify(urgency, `Reminder: ${r.message}${late}`, { agent: 'scheduler', alarm: r.channel === 'call' });
+      const result = await notify(urgency, `Reminder: ${r.message}${late}`, { agent: 'scheduler', alarm: r.channel === 'call', explicit: r.channel !== 'dashboard' });
       db.prepare('update reminders set delivered_at = ?, result = ? where id = ?').run(now.toISOString(), result, r.id); // so agents can say whether it went through
       if (r.repeat === 'none') db.prepare("update reminders set status = 'done' where id = ?").run(r.id);
       else {

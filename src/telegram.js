@@ -39,6 +39,7 @@ export async function handleUpdate(update) {
   const ap = phone.parseApproval(text);
   const barePin = /^\d{4,8}$/.test(text);
   // Never write a PIN to the activity log; everything else is logged vault-redacted.
+  phone.ownerUsed('telegram');
   log('phone', 'msg:in', ap ? `${ap.approve ? 'Y' : 'N'} #${ap.id} [PIN hidden]` : barePin ? '[number hidden]' : redact(text).slice(0, 200));
   if (text === '/start' || text === '/help') return phone.message(HELP);
   if (barePin) return phone.message(phone.pinSet() ? 'To approve, send Y <request number> <PIN> (or N to deny). The request number is in the approval message.' : NO_PIN);

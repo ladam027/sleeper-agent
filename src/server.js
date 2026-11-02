@@ -56,7 +56,10 @@ function hasSession(req) {
   return true;
 }
 
+let lastActiveWrite = 0;
 async function api(req, url) {
+  // The page reports real use (visible tab + recent input); used to keep alerts off the phone while the owner is at the desk.
+  if (req.headers['x-owner-active'] === '1' && Date.now() - lastActiveWrite > 20e3) { lastActiveWrite = Date.now(); set('dashboard_active_at', lastActiveWrite); }
   const [, , route, id, action] = url.pathname.split('/'); // /api/<route>/<id>/<action>
   const m = req.method;
 
@@ -82,6 +85,7 @@ async function api(req, url) {
   if (route === 'chat' && m === 'POST') {
     const { agent = 'auto', text } = await body(req);
     if (!text?.trim()) throw new Error('text required');
+    phone.ownerUsed('dashboard'); set('dashboard_active_at', lastActiveWrite = Date.now());
     return { reply: await (agent === 'auto' ? auto(text.slice(0, 20000)) : runAgent(agent, text.slice(0, 20000))) };
   }
   if (route === 'approvals' && m === 'POST') {

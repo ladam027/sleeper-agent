@@ -60,18 +60,33 @@ export function inQuietHours(date = new Date()) {
   return qs <= qe ? now >= qs && now < qe : now >= qs || now < qe;
 }
 
+// Where is the owner? Active on the dashboard = tab visible + input in the last 2 min (reported by the page).
+// Working from the phone = messaged the bot in the last 15 min, which wins over an open dashboard.
+export const DASHBOARD_ACTIVE_MS = 2 * 60e3, PHONE_RECENT_MS = 15 * 60e3;
+export function ownerOnDashboard(now = Date.now()) {
+  const onDash = now - Number(get('dashboard_active_at') || 0) < DASHBOARD_ACTIVE_MS;
+  const onPhone = get('last_owner_channel') === 'telegram' && now - Number(get('last_owner_channel_at') || 0) < PHONE_RECENT_MS;
+  return onDash && !onPhone;
+}
+export const ownerUsed = (channel) => { set('last_owner_channel', channel); set('last_owner_channel_at', Date.now()); };
+
 // low → dashboard; high → Telegram; critical → call + Telegram. Agent-initiated calls become messages during quiet hours.
+// While the owner is active on the dashboard, Telegram messages are skipped: the dashboard shows the alert instead.
 // opts.alarm: the owner set this call themselves, so it rings regardless of quiet hours.
+// opts.explicit: the owner chose this delivery (their own reminders), so it always goes out as chosen.
 export async function notify(urgency, text, opts = {}) {
   log(opts.agent || 'phone', `notify:${urgency}`, text);
   if (urgency === 'low') return 'Shown on the dashboard';
+  const atDesk = !opts.explicit && ownerOnDashboard();
+  if (atDesk && urgency === 'high') return 'Shown on the dashboard (the owner is active there right now)';
   const out = [];
   if (urgency === 'critical') {
     if (!callsReady()) out.push('calls not set up');
     else if (!opts.alarm && inQuietHours()) out.push('quiet hours, so no call');
     else try { await call(text); out.push('called'); } catch (e) { log('phone', 'error', e.message); out.push(`call failed: ${e.message}`); }
   }
-  if (telegramReady()) try { await message(text); out.push('messaged on Telegram'); } catch (e) { log('phone', 'error', e.message); out.push(`message failed: ${e.message}`); }
+  if (atDesk) out.push('shown on the dashboard (owner is active there)');
+  else if (telegramReady()) try { await message(text); out.push('messaged on Telegram'); } catch (e) { log('phone', 'error', e.message); out.push(`message failed: ${e.message}`); }
   else out.push('shown on the dashboard (Telegram not set up)');
   return `Owner ${out.join(', ')}`;
 }
