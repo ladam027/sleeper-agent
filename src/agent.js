@@ -86,6 +86,9 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   const tools = [...allowed].map((k) => TOOLS[k].def);
   const ctx = { agent: name, depth, run: runAgent };
   const messages = depth ? [] : history(thread);
+  // Frozen for the whole run: tools can change pinned memories or the vault mid-run, and Opus 5.5 rejects
+  // earlier thinking blocks if the system prompt changes under them. Changes apply from the next message.
+  const sys = systemFor(a);
   let spent = 0;
   push(messages, 'user', `${nowLine()}\n${text}`);
 
@@ -95,7 +98,7 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
       if (why) { log(name, 'blocked', why); return `Stopped: ${why}`; }
       const res = await client().messages.create({
         model: a.model, max_tokens: 16000, cache_control: { type: 'ephemeral' },
-        system: systemFor(a), tools, messages,
+        system: sys, tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       }, { signal: ctrl.signal });
       const usd = record(name, a.model, res.usage);

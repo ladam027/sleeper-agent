@@ -117,3 +117,14 @@ test('auto mode: simple question stays on Haiku, heavy request goes to Opus, esc
   assert.equal(rows.filter((r) => r.role === 'assistant').at(-1).model, 'claude-opus-5-5', 'one shared thread, records who answered');
   assert.equal(rows.length, 6, 'escalated attempt is not saved twice');
 });
+
+test('system prompt stays identical within a run even when a tool edits a pinned memory', async () => {
+  reset();
+  const calls = fake([toolUse('remember', { title: 'Owner profile', body: 'Logan, 18', pinned: true }), text('saved')]);
+  assert.equal(await runAgent('orchestrator', 'here is my profile'), 'saved');
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].system, calls[1].system, 'changing it mid-run invalidates Opus thinking blocks (400)');
+  const next = fake([text('hi')]);
+  await runAgent('orchestrator', 'hello');
+  assert.match(next[0].system, /Logan, 18/, 'the new pinned fact applies from the next message');
+});
