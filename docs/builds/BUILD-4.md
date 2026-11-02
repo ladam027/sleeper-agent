@@ -30,5 +30,10 @@
 - **Schwab**: stores app key/secret; OAuth + tools in Build 6.
 - Dashboard: Integrations tab (built-in services + vault-backed cards with Connect / Test / View in vault). Mobile bar hides Guide (link in Settings). 59 tests.
 
+## 4.3.0
+- Reply style per agent: ultra concise (new, default for James and Pete: 3–4 sentences, no behind-the-scenes recaps), concise, full. `agents.concise` 0/1/2.
+- Reminders store `delivered_at` + `result` (e.g. "messaged on Telegram"); `list_reminders` returns recently delivered ones, so agents can confirm delivery instead of guessing.
+- Telegram replies have markdown stripped.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

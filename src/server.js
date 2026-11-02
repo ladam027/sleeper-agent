@@ -94,7 +94,7 @@ async function api(req, url) {
     const b = await body(req), upd = (col, v) => db.prepare(`update agents set ${col} = ? where name = ?`).run(v, id);
     if (b.daily_budget_usd !== undefined) { if (!(b.daily_budget_usd >= 0 && b.daily_budget_usd <= 50)) throw new Error('Daily budget must be $0–50'); upd('daily_budget_usd', b.daily_budget_usd); }
     if (b.effort !== undefined) { if (!['low', 'medium', 'high'].includes(b.effort)) throw new Error('Effort must be low, medium or high'); upd('effort', b.effort); }
-    if (b.concise !== undefined) upd('concise', b.concise ? 1 : 0);
+    if (b.concise !== undefined) upd('concise', b.concise === true ? 1 : [0, 1, 2].includes(Number(b.concise)) ? Number(b.concise) : 0);
     if (b.tools !== undefined) {
       if (!Array.isArray(b.tools) || b.tools.some((t) => !TOOLS[t])) throw new Error('Unknown tool');
       if (id !== 'orchestrator' && b.tools.some((t) => ['create_agent', 'delegate', 'apply_memory_cleanup'].includes(t))) throw new Error('Only the orchestrator may create agents or delegate');

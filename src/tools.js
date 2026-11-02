@@ -2,7 +2,7 @@ import { db, get, set, log } from './db.js';
 import { PRICES } from './budget.js';
 import { names as secretNames } from './vault.js';
 import { notify } from './phone.js';
-import { addReminder, upcoming, cancelReminder, rezone } from './scheduler.js';
+import { addReminder, upcoming, cancelReminder, rezone, recentlyDelivered } from './scheduler.js';
 import { upsertProject, moneySummary, logMoney, upsertContact, listContacts, saveDraft, STAGES, projectId, markDraftSent } from './money.js';
 import * as google from './google.js';
 import * as integ from './integrations.js';
@@ -76,8 +76,10 @@ export const TOOLS = {
       repeat: { type: 'string', enum: ['none', 'daily', 'weekdays', 'weekly'] } }, ['message', 'when'],
     (input, ctx) => addReminder(input, ctx.agent)),
 
-  list_reminders: tool('list_reminders', "List the owner's upcoming reminders and alarms.", {}, [],
-    () => JSON.stringify(upcoming().map(({ id, message, local_time, channel, repeat }) => ({ id, message, local_time, channel, repeat })))),
+  list_reminders: tool('list_reminders', "The owner's upcoming reminders/alarms, plus those delivered in the last 48 hours with the delivery result (e.g. messaged on Telegram, called). Use it to answer whether a reminder went through.", {}, [],
+    () => { const tz = get('timezone'), at = (iso) => new Date(iso).toLocaleString('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', minute: '2-digit' });
+      return JSON.stringify({ upcoming: upcoming().map(({ id, message, local_time, channel, repeat }) => ({ id, message, local_time, channel, repeat })),
+        recently_delivered: recentlyDelivered().map(({ id, message, channel, delivered_at, result }) => ({ id, message, channel, delivered: at(delivered_at), result })) }); }),
 
   cancel_reminder: tool('cancel_reminder', 'Cancel an upcoming reminder by id (use list_reminders first).', { id: { type: 'integer' } }, ['id'],
     ({ id }) => cancelReminder(id)),

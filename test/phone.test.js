@@ -184,3 +184,28 @@ test('PINs never reach the activity log or the model; helpful replies when no PI
   const logged = db.prepare("select group_concat(detail, ' | ') d from activity where type = 'msg:in'").get().d;
   assert.ok(!logged.includes('7777'), `PIN leaked into the log: ${logged}`);
 });
+
+test('delivered reminders record the result so agents can say whether they went through', async () => {
+  reset();
+  const { TOOLS } = await import('../src/tools.js');
+  const future = sched.localNow('America/Los_Angeles').slice(0, 10) + 'T23:59';
+  sched.addReminder({ message: 'call Raincross Pub', when: future, channel: 'message' });
+  db.exec("update reminders set due_at = '2000-01-01T00:00:00.000Z'");
+  await sched.tick();
+  const out = JSON.parse(TOOLS.list_reminders.run({}));
+  assert.equal(out.upcoming.length, 0);
+  assert.equal(out.recently_delivered[0].message, 'call Raincross Pub');
+  assert.match(out.recently_delivered[0].result, /messaged on Telegram/);
+});
+
+test('Telegram replies have markdown stripped', () => {
+  assert.equal(tg.plain('**Fixes:** done\n## Next\nRun `npm test`'), 'Fixes: done\nNext\nRun npm test');
+});
+
+test('ultra concise style reaches the model for James and Pete by default', async () => {
+  const calls = [];
+  agentMod.deps.client = { messages: { create: async (p) => (calls.push(p), { stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: 'ok' }] }) } };
+  await agentMod.runAgent('quick', 'hi');
+  assert.match(calls[0].system, /ULTRA CONCISE/);
+  assert.match(calls[0].system, /Never mention what you fixed/);
+});

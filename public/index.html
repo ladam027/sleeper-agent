@@ -636,7 +636,7 @@ td.r, th.r { text-align: right; }
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sliders"/></svg></span><div><h2>Agent settings</h2><div class="sub">Overview → Agents → Settings on any agent card</div></div></div>
           <div class="tips">
             <div><h3>Effort (Opus only)</h3><p>How hard the model thinks before answering. Thinking is billed as output at $20/M on Opus, so this is the biggest cost dial. <b>Low</b> for routine work and chatting. <b>Medium</b> (default) for most tasks. <b>High</b> only for plans or decisions where a better answer is worth paying for. Simple questions go to Haiku on Auto anyway, and it doesn't think.</p></div>
-            <div><h3>Concise replies (on by default)</h3><p>The answer comes first. Questions and lookups get at most ~3 sentences, with no preamble, recap or "let me know if…". Plans, drafts, analyses and lists are still complete, just without filler. Turn it off for an agent whose job is writing long content.</p></div>
+            <div><h3>Reply style</h3><p><b>Ultra concise</b> (James and Pete by default): 3–4 sentences, just the answer and anything you need to do, never a list of what the agent fixed or checked behind the scenes. <b>Concise</b>: answer first, deliverables complete without filler. <b>Full</b>: for agents whose job is long writing. Any style still gives a full draft or plan when you ask for one.</p></div>
             <div><h3>Max reply length</h3><p>A hard ceiling on output per step, so a rambling reply can't run up the bill. On Opus it <b>includes thinking</b>, so keep it at <b>8k or more</b>. If a reply is cut off, it says so and tells you which setting to raise. <b>1k</b> is plenty for Quick.</p></div>
           </div>
           <p class="help" style="margin-top:var(--s3)">Settings apply from the next message. Check the effect on the Costs tab after a day or two.</p>
@@ -929,7 +929,7 @@ async function refresh() {
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
       <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
-      <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${a.concise ? 'concise' : 'full replies'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
+      <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${['full replies', 'concise', 'ultra concise'][Number(a.concise)] || 'concise'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
       <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
       <form class="cfg" data-agent="${esc(a.name)}" hidden onsubmit="agentSave(event)">
         <div><label class="f">Effort</label><select name="effort" ${isHaiku(a) ? 'disabled' : ''}>${['low', 'medium', 'high'].map((e) => `<option ${(a.effort || 'medium') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
@@ -937,7 +937,7 @@ async function refresh() {
         <div><label class="f">Max reply length</label><select name="max_tokens">${[1024, 2048, 4096, 8000, 16000, 32000].map((t) => `<option value="${t}" ${(a.max_tokens || 16000) === t ? 'selected' : ''}>${t >= 1000 ? Math.round(t / 1000) + 'k' : t} tokens</option>`).join('')}</select>
           <div class="help">${isHaiku(a) ? '1k is plenty for quick answers.' : 'Includes thinking. Keep 8k+ for Opus.'}</div></div>
         <div><label class="f">Daily budget (USD)</label><input name="daily_budget_usd" type="number" min="0" max="50" step="0.25" value="${a.daily_budget_usd}"></div>
-        <div style="display:flex;align-items:flex-end"><label style="display:flex;gap:8px;align-items:center;font-size:13px;min-height:40px"><input type="checkbox" name="concise" style="width:auto" ${a.concise ? 'checked' : ''}> Concise replies</label></div>
+        <div><label class="f">Reply style</label><select name="concise">${[[2, 'Ultra concise (3–4 sentences)'], [1, 'Concise'], [0, 'Full']].map(([v, l]) => `<option value="${v}" ${Number(a.concise) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
         ${a.name === 'orchestrator' ? '<div class="full help">James has every tool except internal ones. Risky ones still need your approval.</div>' : `<div class="full"><label class="f">Tools it may use</label><div style="display:flex;flex-wrap:wrap;gap:6px 14px">${toolChoices(a).map(([t, on]) => `<label style="display:flex;gap:6px;align-items:center;font-size:12.5px" title="${esc(state.tools[t]?.description || '')}"><input type="checkbox" name="tool" value="${esc(t)}" style="width:auto" ${on ? 'checked' : ''}>${esc(t.replace(/_/g, ' '))}</label>`).join('')}</div></div>
         <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" name="web" style="width:auto" ${a.web ? 'checked' : ''}> Web search &amp; page reading (about 1¢ per search; anything it reads is treated as untrusted)</label></div>`}
         <div class="full" style="display:flex;gap:var(--s2)"><button class="btn primary sm">Save</button><button type="button" class="btn sm" onclick="agentCfg(null)">Cancel</button></div>
@@ -1037,7 +1037,7 @@ window.agentSave = async (e) => {
   const perms = f.dataset.agent === 'orchestrator' ? {} : { tools: [...f.querySelectorAll('[name=tool]:checked')].map((c) => c.value), web: f.web.checked };
   const r = await call(`agents/${encodeURIComponent(f.dataset.agent)}`, 'POST', { ...perms,
     ...(f.effort.disabled ? {} : { effort: f.effort.value }), max_tokens: +f.max_tokens.value,
-    daily_budget_usd: +f.daily_budget_usd.value, concise: f.concise.checked });
+    daily_budget_usd: +f.daily_budget_usd.value, concise: +f.concise.value });
   if (r.error) return alert(r.error);
   agentCfg(null);
 };

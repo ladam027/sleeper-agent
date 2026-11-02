@@ -14,6 +14,9 @@ export function startPairing() {
 }
 export function unpair() { set('telegram_chat_id', ''); log('owner', 'settings', 'Telegram unpaired'); }
 
+// Telegram shows markdown literally; models still use it sometimes.
+export const plain = (t) => String(t).replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1').replace(/^#{1,6}\s+/gm, '').replace(/`([^`]+)`/g, '$1');
+
 const HELP = "I'm your Sleeper Agent. Message me like a person: questions go to Pete, bigger jobs to James.\nWhen I ask for approval I'll send a request number. Reply Y <number> <PIN> to approve or N <number> <PIN> to deny. Set your PIN on the dashboard: Settings → Phone & alerts.";
 const NO_PIN = 'No approval PIN is set yet. Set one on the dashboard under Settings → Phone & alerts (not in the Vault), then reply Y <request number> <PIN>.';
 
@@ -46,7 +49,7 @@ export async function handleUpdate(update) {
     return phone.message(result === null ? `Approval #${ap.id} isn't pending.` : `#${ap.id} ${ap.approve ? 'approved' : 'denied'}: ${result}`);
   }
   phone.telegram('sendChatAction', { chat_id: chat, action: 'typing' }).catch(() => {});
-  return phone.message(await auto(`[Sent from Telegram on the owner's phone. Keep the reply short and plain text, no markdown.]\n${text}`));
+  return phone.message(plain(await auto(`[Sent from Telegram on the owner's phone. Keep the reply short and plain text, no markdown.]\n${text}`)));
 }
 
 export async function poll() {

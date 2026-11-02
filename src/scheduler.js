@@ -43,6 +43,8 @@ export function addReminder({ message, when, channel = 'dashboard', repeat = 'no
   return `Reminder #${id} set for ${pretty(due, tz)} via ${channel}${repeat !== 'none' ? `, repeating ${repeat}` : ''}`;
 }
 export const upcoming = () => db.prepare("select * from reminders where status = 'pending' order by due_at limit 50").all();
+export const recentlyDelivered = (hours = 48) => db.prepare("select * from reminders where delivered_at >= ? order by delivered_at desc limit 20")
+  .all(new Date(Date.now() - hours * 3600e3).toISOString());
 export function cancelReminder(id) {
   const r = db.prepare("update reminders set status = 'cancelled' where id = ? and status = 'pending'").run(id);
   if (!r.changes) return `No pending reminder #${id}`;
@@ -65,7 +67,8 @@ export async function tick(now = new Date()) {
     for (const r of db.prepare("select * from reminders where status = 'pending' and due_at <= ?").all(now.toISOString())) {
       const late = now - new Date(r.due_at) > 10 * 60e3 ? ' (late: the server was off)' : '';
       const urgency = { dashboard: 'low', message: 'high', call: 'critical' }[r.channel];
-      await notify(urgency, `Reminder: ${r.message}${late}`, { agent: 'scheduler', alarm: r.channel === 'call' });
+      const result = await notify(urgency, `Reminder: ${r.message}${late}`, { agent: 'scheduler', alarm: r.channel === 'call' });
+      db.prepare('update reminders set delivered_at = ?, result = ? where id = ?').run(now.toISOString(), result, r.id); // so agents can say whether it went through
       if (r.repeat === 'none') db.prepare("update reminders set status = 'done' where id = ?").run(r.id);
       else {
         let next = nextLocal(r.local_time, r.repeat);

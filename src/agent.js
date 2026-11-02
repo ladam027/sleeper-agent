@@ -30,6 +30,8 @@ Security rules (enforced in code too):
 
 Working style: be brief. Use recall before answering questions about the owner or their projects; use remember for anything durable you learn. Spend tokens like they are the owner's money, because they are.`;
 
+// concise: 0 = full, 1 = concise, 2 = ultra concise
+const ULTRA = `Reply style: ULTRA CONCISE. At most 3-4 short sentences in total: the answer, plus anything the owner must do or decide. Never mention what you fixed, checked, retried, saved, or did behind the scenes, and never apologize for or recap earlier mistakes, unless the owner asks. No headings, bold, or bullet lists. If the owner explicitly asks for a draft, plan, list, or details, give exactly that and nothing else.`;
 const CONCISE = `Reply style: concise. Lead with the answer. For questions, lookups and confirmations use at most 3 short sentences or a few bullets: no preamble, no restating the question, no recap, no offers of further help. When the owner asks for detail, or the task is a deliverable (a plan, draft, analysis, list, or code), be complete, but still without filler.`;
 export const DEFAULT_MAX_TOKENS = 16000;
 
@@ -45,7 +47,7 @@ function system(a) {
   const pinned = db.prepare('select id, title, body from memory where pinned = 1 order by id').all();
   const team = db.prepare('select name, display_name, purpose from agents where name != ?').all(a.name);
   return [`${RULES}\n\nYour name is ${a.display_name || a.name} (internal id "${a.name}"). The owner may call you by name. Your role: ${a.purpose}`,
-    a.concise && CONCISE,
+    a.concise === 2 ? ULTRA : a.concise ? CONCISE : null,
     pinned.length && `Core facts about the owner:\n${pinned.map((m) => `- #${m.id} ${m.title}: ${m.body}`).join('\n')}`,
     team.length && `Other agents (delegate by internal id):\n${team.map((t) => `- ${t.display_name ? `${t.display_name}, id ` : ''}${t.name}: ${t.purpose}`).join('\n')}`,
   ].filter(Boolean).join('\n\n');
