@@ -23,7 +23,8 @@ id sleeper >/dev/null 2>&1 || useradd --system --create-home --home-dir /opt/sle
 if ! /usr/local/bin/node -v 2>/dev/null | grep -qE '^v(2[6-9]|[3-9][0-9])'; then
   BASE=https://nodejs.org/dist/latest-v26.x
   curl -fsSL "$BASE/SHASUMS256.txt" -o /tmp/SHASUMS256.txt
-  TAR=$(grep -o 'node-v[0-9.]*-linux-x64.tar.xz' /tmp/SHASUMS256.txt | head -1)
+  case "$(uname -m)" in aarch64|arm64) ARCH=arm64 ;; x86_64) ARCH=x64 ;; *) echo "Unsupported CPU $(uname -m)"; exit 1 ;; esac
+  TAR=$(grep -o "node-v[0-9.]*-linux-$ARCH.tar.xz" /tmp/SHASUMS256.txt | head -1)
   curl -fsSL "$BASE/$TAR" -o "/tmp/$TAR"
   (cd /tmp && grep " $TAR\$" SHASUMS256.txt | sha256sum -c -)
   tar -xJf "/tmp/$TAR" -C /usr/local --strip-components=1
