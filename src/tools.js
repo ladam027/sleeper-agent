@@ -24,16 +24,20 @@ export const TOOLS = {
       return `Saved memory #${r.lastInsertRowid}`;
     }),
 
-  recall: tool('recall', 'Search long-term memory. Use before answering anything about the owner, their projects, or past decisions.',
-    { query: str('keywords') }, ['query'],
-    ({ query }) => {
+  recall: tool('recall', 'Search long-term memory. Use before answering anything about the owner, their projects, or past decisions. Leave query empty to list everything saved.',
+    { query: str('keywords, or empty for everything') }, [],
+    ({ query = '' }) => {
       // ponytail: LIKE scan per word; switch to FTS5/embeddings when memory passes a few thousand rows.
-      const words = query.split(/\s+/).filter(Boolean).slice(0, 6);
-      if (!words.length) return '[]';
-      const where = words.map(() => "(title || ' ' || body || ' ' || tags) like ?").join(' or ');
-      const rows = db.prepare(`select id, kind, title, body, tags from memory where ${where} order by updated_at desc limit 10`)
-        .all(...words.map((w) => `%${w}%`));
-      return JSON.stringify(rows);
+      const cols = 'id, kind, title, body, tags, pinned';
+      const words = query.split(/\s+/).filter((w) => w.length > 1).slice(0, 8);
+      const where = words.map(() => "(title || ' ' || body || ' ' || tags || ' ' || kind) like ?").join(' or ');
+      const hits = words.length ? db.prepare(`select ${cols} from memory where ${where} order by pinned desc, updated_at desc limit 15`)
+        .all(...words.map((w) => `%${w}%`)) : [];
+      if (hits.length) return JSON.stringify(hits);
+      // Keyword search misses synonyms ("owner" vs "user"), so never report empty while memories exist.
+      const total = db.prepare('select count(*) n from memory').get().n;
+      const recent = db.prepare(`select ${cols} from memory order by pinned desc, updated_at desc limit 30`).all();
+      return JSON.stringify({ note: total ? `${words.length ? 'No keyword match. ' : ''}Showing ${recent.length} of ${total} memories, most important first.` : 'Memory is empty.', memories: recent });
     }),
 
   link_memory: tool('link_memory', 'Connect two memories (e.g. person -> works_on -> project). Builds the memory graph.',

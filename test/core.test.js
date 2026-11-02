@@ -82,3 +82,14 @@ test('sub-agents cannot use orchestrator-only tools', async () => {
   assert.ok(!calls[0].tools.some((t) => t.name === 'create_agent'));
   assert.equal(db.prepare("select count(*) n from approvals").get().n, 0);
 });
+
+test('recall never reports empty when memories exist (synonyms, empty query)', async () => {
+  reset();
+  const { TOOLS } = await import('../src/tools.js');
+  db.prepare("insert into memory (kind, title, body) values ('person', 'Me - The User', 'Logan Adams')").run();
+  assert.match(TOOLS.recall.run({ query: 'owner name' }), /Logan Adams/);
+  assert.match(TOOLS.recall.run({ query: 'person' }), /Logan Adams/);
+  assert.match(TOOLS.recall.run({}), /Logan Adams/);
+  db.exec('delete from memory');
+  assert.match(TOOLS.recall.run({ query: 'x' }), /Memory is empty/);
+});
