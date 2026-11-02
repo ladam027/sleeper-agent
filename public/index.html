@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sleeper Agent</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --dim:#69707d; --line:#e3e6eb; --accent:#4f46e5; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0e1013; --card:#171a1f; --ink:#e7e9ee; --dim:#8b93a1; --line:#262a31; --accent:#818cf8; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; } }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; }
+  .stat { color:var(--dim); } .stat b { color:var(--ink); font-variant-numeric:tabular-nums; }
+  nav { display:flex; gap:4px; margin-left:auto; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 12px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.danger { color:var(--bad); } button.halt-on { background:var(--bad); color:#fff; border-color:var(--bad); }
+  main { padding:16px 20px; display:grid; gap:16px; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; padding:12px 16px; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; min-width:0; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); margin:0 0 10px; }
+  .col { display:flex; flex-direction:column; gap:16px; min-width:0; }
+  #msgs { height:52vh; overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; }
+  .msg { padding:8px 12px; border-radius:10px; max-width:85%; white-space:pre-wrap; overflow-wrap:anywhere; }
+  .user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .assistant { align-self:flex-start; background:var(--bg); border:1px solid var(--line); }
+  .sys { align-self:center; color:var(--dim); font-size:12px; }
+  form.row { display:flex; gap:8px; margin-top:10px; }
+  input, textarea, select { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; width:100%; }
+  textarea { resize:vertical; min-height:42px; }
+  .item { display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .item:first-of-type { border-top:0; }
+  .grow { flex:1; min-width:0; overflow-wrap:anywhere; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
+  .running { color:var(--ok); border-color:var(--ok); } .killed { color:var(--bad); border-color:var(--bad); }
+  #feed { max-height:38vh; overflow:auto; font-size:12.5px; }
+  #feed .item { align-items:flex-start; }
+  .t { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .empty { color:var(--dim); }
+  .wide { grid-column:1 / -1; }
+  svg text { fill:var(--ink); font-size:11px; }
+  #graph { width:100%; height:60vh; background:var(--bg); border-radius:8px; touch-action:none; }
+  .bar { fill:var(--accent); }
+  label { display:block; color:var(--dim); font-size:12px; margin:8px 0 3px; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sleeper Agent</h1>
+  <span class="stat">Today <b id="today">$0</b></span>
+  <span class="stat">Month <b id="month">$0</b></span>
+  <span class="stat" id="clock"></span>
+  <nav>
+    <button data-tab="home" class="on">Home</button>
+    <button data-tab="memory">Memory</button>
+    <button data-tab="costs">Costs</button>
+    <button data-tab="settings">Settings</button>
+    <button id="halt" title="Stops every agent from making API calls">Kill switch</button>
+  </nav>
+</header>
+
+<main id="tab-home">
+  <section class="card">
+    <h2>Chat — <select id="agentPick" style="width:auto"></select></h2>
+    <div id="msgs"></div>
+    <form class="row" id="chatForm"><textarea id="chatIn" placeholder="Message your agent… (Enter to send)"></textarea><button>Send</button></form>
+  </section>
+  <div class="col">
+    <section class="card"><h2>Needs your approval</h2><div id="approvals"></div></section>
+    <section class="card"><h2>Agents</h2><div id="agents"></div></section>
+    <section class="card"><h2>Activity</h2><div id="feed"></div></section>
+  </div>
+</main>
+
+<main id="tab-memory" hidden>
+  <section class="card"><h2>Memory graph — click a node to edit, drag to move</h2><svg id="graph"></svg></section>
+  <section class="card">
+    <h2>Edit memory</h2>
+    <form id="memForm">
+      <input type="hidden" name="id">
+      <label>Title</label><input name="title" required>
+      <label>Body</label><textarea name="body" rows="6"></textarea>
+      <label>Kind</label><select name="kind"><option>note</option><option>person</option><option>project</option><option>preference</option><option>fact</option><option>decision</option></select>
+      <label>Tags</label><input name="tags">
+      <label><input type="checkbox" name="pinned" style="width:auto"> Pinned (included in every prompt)</label>
+      <div class="row" style="display:flex;gap:8px;margin-top:10px"><button>Save</button><button type="button" id="memNew">New</button><button type="button" class="danger" id="memDel">Delete</button></div>
+    </form>
+    <label>Search</label><input id="memSearch" placeholder="filter…">
+    <div id="memList"></div>
+  </section>
+</main>
+
+<main id="tab-costs" hidden>
+  <section class="card wide"><h2>Daily API spend (last 30 days)</h2><svg id="costChart" width="100%" height="220"></svg></section>
+  <section class="card wide"><h2>Today by agent</h2><div id="byAgent"></div></section>
+</main>
+
+<main id="tab-settings" hidden>
+  <section class="card wide">
+    <h2>Settings</h2>
+    <form id="setForm" style="max-width:420px">
+      <label>Your timezone (IANA, e.g. America/Denver)</label><input name="timezone">
+      <label>Global daily API budget (USD)</label><input name="global_daily_budget_usd" type="number" step="0.5" min="0">
+      <div style="margin-top:12px"><button>Save</button></div>
+    </form>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const money = (n) => '$' + Number(n || 0).toFixed(n < 1 ? 4 : 2);
+let token = localStorage.getItem('token') || '';
+let state = null, agentName = 'orchestrator';
+
+async function call(path, method = 'GET', body) {
+  const r = await fetch('/api/' + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+  if (r.status === 401) { token = prompt('Dashboard token (DASHBOARD_TOKEN from .env):') || ''; localStorage.setItem('token', token); return call(path, method, body); }
+  return r.json();
+}
+
+document.querySelectorAll('nav [data-tab]').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav [data-tab]').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main').forEach((m) => m.hidden = m.id !== 'tab-' + b.dataset.tab);
+  if (b.dataset.tab === 'memory') loadMemory();
+  if (b.dataset.tab === 'costs') drawCosts();
+});
+
+async function refresh() {
+  state = await call('state?agent=' + encodeURIComponent(agentName));
+  if (state.error) return;
+  const { costs, agents, approvals, activity, settings, chat } = state;
+  $('#today').textContent = money(costs.today); $('#month').textContent = money(costs.month);
+  $('#clock').textContent = new Date().toLocaleString('en-US', { timeZone: settings.timezone, hour: 'numeric', minute: '2-digit', weekday: 'short', timeZoneName: 'short' });
+  const halted = settings.global_halt === '1';
+  $('#halt').className = halted ? 'halt-on' : 'danger'; $('#halt').textContent = halted ? 'HALTED — resume' : 'Kill switch';
+
+  const pick = $('#agentPick');
+  if (pick.options.length !== agents.length) pick.innerHTML = agents.map((a) => `<option ${a.name === agentName ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+
+  const box = $('#msgs'), atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content)}</div>`).join('') || '<div class="empty">Say hi. Tell it about yourself and your projects; it will remember.</div>';
+  if (atBottom) box.scrollTop = box.scrollHeight;
+
+  $('#approvals').innerHTML = approvals.map((a) => `<div class="item"><div class="grow"><b>#${a.id} ${esc(a.tool)}</b> <span class="pill">${esc(a.agent)}</span><br><code>${esc(a.input)}</code></div>
+    <button onclick="decide(${a.id}, true)">Approve</button><button class="danger" onclick="decide(${a.id}, false)">Deny</button></div>`).join('') || '<div class="empty">Nothing waiting.</div>';
+
+  const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x.usd]));
+  $('#agents').innerHTML = agents.map((a) => `<div class="item"><div class="grow"><b>${esc(a.name)}</b> <span class="pill ${a.status}">${a.status}</span><br>
+    <span class="t">${esc(a.model)} · ${money(spentBy[a.name])} of ${money(a.daily_budget_usd)} today</span></div>
+    <button onclick="agentAct('${esc(a.name)}','restart')">Restart</button><button class="danger" onclick="agentAct('${esc(a.name)}','kill')">Kill</button></div>`).join('');
+
+  $('#feed').innerHTML = activity.map((x) => `<div class="item"><span class="t">${esc(x.ts.slice(11, 16))}</span><span class="pill">${esc(x.agent)}</span><span class="pill">${esc(x.type)}</span><span class="grow">${esc(x.detail)}</span></div>`).join('') || '<div class="empty">No activity yet.</div>';
+
+  const f = $('#setForm');
+  if (document.activeElement?.form !== f) { f.timezone.value = settings.timezone; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; }
+}
+
+window.decide = async (id, approve) => { await call('approvals/' + id, 'POST', { approve }); refresh(); };
+window.agentAct = async (name, action) => { await call(`agents/${encodeURIComponent(name)}/${action}`, 'POST'); refresh(); };
+$('#halt').onclick = async () => { await call('settings', 'POST', { global_halt: state.settings.global_halt !== '1' }); refresh(); };
+$('#agentPick').onchange = (e) => { agentName = e.target.value; refresh(); };
+
+$('#chatIn').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } };
+$('#chatForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#chatIn').value.trim(); if (!text) return;
+  $('#chatIn').value = '';
+  $('#msgs').insertAdjacentHTML('beforeend', `<div class="msg user">${esc(text)}</div><div class="msg sys" id="thinking">working…</div>`);
+  $('#msgs').scrollTop = 1e9;
+  const r = await call('chat', 'POST', { agent: agentName, text });
+  if (r.error) alert(r.error);
+  await refresh(); $('#msgs').scrollTop = 1e9;
+};
+
+$('#setForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value) });
+  if (r.error) alert(r.error); refresh();
+};
+
+// ---- Memory graph: tiny force layout, no library ----
+let mem = { nodes: [], links: [] }, pos = {};
+const COLORS = { person:'#e11d48', project:'#4f46e5', preference:'#0891b2', fact:'#65a30d', decision:'#d97706', note:'#6b7280' };
+async function loadMemory() { mem = await call('memory'); renderList(); layout(); }
+function layout() {
+  const svg = $('#graph'), W = svg.clientWidth || 800, H = svg.clientHeight || 500;
+  mem.nodes.forEach((n) => pos[n.id] ??= { x: W / 2 + (Math.random() - .5) * W * .6, y: H / 2 + (Math.random() - .5) * H * .6 });
+  for (let it = 0; it < 200; it++) { // ponytail: O(n²) repulsion; fine to ~500 memories, use d3-force beyond that
+    for (const a of mem.nodes) for (const b of mem.nodes) if (a.id < b.id) {
+      const p = pos[a.id], q = pos[b.id], dx = p.x - q.x || .1, dy = p.y - q.y || .1, d2 = dx * dx + dy * dy, f = 800 / d2;
+      p.x += dx * f; p.y += dy * f; q.x -= dx * f; q.y -= dy * f;
+    }
+    for (const l of mem.links) { const p = pos[l.src], q = pos[l.dst]; if (!p || !q) continue; const dx = q.x - p.x, dy = q.y - p.y; p.x += dx * .02; p.y += dy * .02; q.x -= dx * .02; q.y -= dy * .02; }
+    for (const n of mem.nodes) { const p = pos[n.id]; p.x += (W / 2 - p.x) * .01; p.y += (H / 2 - p.y) * .01; p.x = Math.max(20, Math.min(W - 20, p.x)); p.y = Math.max(20, Math.min(H - 20, p.y)); }
+  }
+  draw();
+}
+function draw() {
+  const svg = $('#graph');
+  svg.innerHTML = mem.links.filter((l) => pos[l.src] && pos[l.dst]).map((l) => { const p = pos[l.src], q = pos[l.dst];
+    return `<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="currentColor" opacity=".25"/><text x="${(p.x + q.x) / 2}" y="${(p.y + q.y) / 2}" opacity=".6">${esc(l.label)}</text>`; }).join('')
+    + mem.nodes.map((n) => `<g data-id="${n.id}" style="cursor:pointer"><circle cx="${pos[n.id].x}" cy="${pos[n.id].y}" r="${n.pinned ? 11 : 8}" fill="${COLORS[n.kind] || COLORS.note}"/><text x="${pos[n.id].x + 13}" y="${pos[n.id].y + 4}">${esc(n.title.slice(0, 28))}</text></g>`).join('')
+    || '<text x="20" y="30">No memories yet. Chat with your agent or add one on the right.</text>';
+}
+let drag = null, moved = false;
+$('#graph').onpointerdown = (e) => { const g = e.target.closest('g'); if (g) { drag = +g.dataset.id; moved = false; e.target.setPointerCapture(e.pointerId); } };
+$('#graph').onpointermove = (e) => { if (drag == null) return; const r = $('#graph').getBoundingClientRect(); pos[drag] = { x: e.clientX - r.left, y: e.clientY - r.top }; moved = true; draw(); };
+$('#graph').onpointerup = () => { if (drag != null && !moved) editMem(mem.nodes.find((n) => n.id === drag)); drag = null; };
+function renderList() {
+  const q = $('#memSearch').value.toLowerCase();
+  $('#memList').innerHTML = mem.nodes.filter((n) => (n.title + n.body + n.tags).toLowerCase().includes(q))
+    .map((n) => `<div class="item" style="cursor:pointer" onclick="editMem(mem.nodes.find(x=>x.id===${n.id}))"><span class="pill">${esc(n.kind)}</span><span class="grow">${esc(n.title)}</span></div>`).join('');
+}
+window.editMem = (n) => { const f = $('#memForm'); f.reset(); if (!n) return; for (const k of ['id', 'title', 'body', 'kind', 'tags']) f[k].value = n[k] ?? ''; f.pinned.checked = !!n.pinned; };
+$('#memSearch').oninput = renderList;
+$('#memNew').onclick = () => editMem(null);
+$('#memForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  await call('memory', 'POST', { id: f.id.value ? +f.id.value : undefined, title: f.title.value, body: f.body.value, kind: f.kind.value, tags: f.tags.value, pinned: f.pinned.checked });
+  f.reset(); loadMemory();
+};
+$('#memDel').onclick = async () => { const id = $('#memForm').id.value; if (id && confirm('Delete this memory?')) { await call('memory/' + id, 'DELETE'); editMem(null); loadMemory(); } };
+
+function drawCosts() {
+  const days = [...state.costs.daily].reverse(), svg = $('#costChart'), W = svg.clientWidth || 600, H = 200, max = Math.max(.01, ...days.map((d) => d.usd)), bw = W / Math.max(days.length, 1);
+  svg.innerHTML = days.map((d, i) => { const h = d.usd / max * (H - 30); return `<rect class="bar" x="${i * bw + 2}" y="${H - h}" width="${bw - 4}" height="${h}" rx="3"><title>${d.day}: ${money(d.usd)}</title></rect>`; }).join('')
+    + `<text x="4" y="12">max ${money(max)}/day</text>` || '';
+  if (!days.length) svg.innerHTML = '<text x="10" y="30">No spend yet.</text>';
+  $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<div class="item"><span class="grow">${esc(a.agent)}</span><span>${a.calls} calls</span><b>${money(a.usd)}</b></div>`).join('') || '<div class="empty">No spend today.</div>';
+}
+
+refresh(); setInterval(refresh, 4000);
+</script>
+</body>
+</html>
