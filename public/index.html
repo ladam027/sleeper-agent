@@ -4,241 +4,684 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sleeper Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#15181d; --dim:#69707d; --line:#e3e6eb; --accent:#4f46e5; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#0e1013; --card:#171a1f; --ink:#e7e9ee; --dim:#8b93a1; --line:#262a31; --accent:#818cf8; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; } }
-  * { box-sizing:border-box; }
-  body { margin:0; font:14px/1.45 system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--ink); }
-  header { display:flex; align-items:center; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
-  header h1 { font-size:16px; margin:0; }
-  .stat { color:var(--dim); } .stat b { color:var(--ink); font-variant-numeric:tabular-nums; }
-  nav { display:flex; gap:4px; margin-left:auto; }
-  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 12px; cursor:pointer; }
-  button:hover { border-color:var(--accent); }
-  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-  button.danger { color:var(--bad); } button.halt-on { background:var(--bad); color:#fff; border-color:var(--bad); }
-  main { padding:16px 20px; display:grid; gap:16px; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); }
-  @media (max-width: 900px) { main { grid-template-columns:1fr; padding:12px 16px; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; min-width:0; }
-  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); margin:0 0 10px; }
-  .col { display:flex; flex-direction:column; gap:16px; min-width:0; }
-  #msgs { height:52vh; overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; }
-  .msg { padding:8px 12px; border-radius:10px; max-width:85%; white-space:pre-wrap; overflow-wrap:anywhere; }
-  .user { align-self:flex-end; background:var(--accent); color:#fff; }
-  .assistant { align-self:flex-start; background:var(--bg); border:1px solid var(--line); }
-  .sys { align-self:center; color:var(--dim); font-size:12px; }
-  form.row { display:flex; gap:8px; margin-top:10px; }
-  input, textarea, select { font:inherit; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:7px 10px; width:100%; }
-  textarea { resize:vertical; min-height:42px; }
-  .item { display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line); flex-wrap:wrap; }
-  .item:first-of-type { border-top:0; }
-  .grow { flex:1; min-width:0; overflow-wrap:anywhere; }
-  .pill { font-size:11px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--dim); }
-  .running { color:var(--ok); border-color:var(--ok); } .killed { color:var(--bad); border-color:var(--bad); }
-  #feed { max-height:38vh; overflow:auto; font-size:12.5px; }
-  #feed .item { align-items:flex-start; }
-  .t { color:var(--dim); font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .empty { color:var(--dim); }
-  .wide { grid-column:1 / -1; }
-  svg text { fill:var(--ink); font-size:11px; }
-  #graph { width:100%; height:60vh; background:var(--bg); border-radius:8px; touch-action:none; }
-  .bar { fill:var(--accent); }
-  label { display:block; color:var(--dim); font-size:12px; margin:8px 0 3px; }
-  [hidden] { display:none !important; }
+/* ── Tokens: primitive → semantic. Components only use semantic tokens. See docs/DESIGN.md ── */
+:root {
+  --violet-50:#f3f0ff; --violet-100:#e9e3ff; --violet-400:#8b72ff; --violet-500:#6d4aff; --violet-600:#5a37ef;
+  --night-900:#140f2e; --night-700:#2a1f66; --night-600:#3b2a8c;
+  --gray-0:#ffffff; --gray-25:#fafafe; --gray-50:#f4f3fb; --gray-100:#eceaf5; --gray-200:#e3e0ef; --gray-500:#5d5a74; --gray-900:#17152b;
+  --green-600:#13804a; --amber-600:#b45309; --red-600:#c42b2b; --blue-600:#2563eb;
+
+  --bg: var(--gray-50);
+  --surface: var(--gray-0);
+  --surface-2: var(--gray-25);
+  --sunken: var(--gray-100);
+  --ink: var(--gray-900);
+  --ink-2: var(--gray-500);
+  --line: var(--gray-200);
+  --brand: var(--violet-500);
+  --brand-hover: var(--violet-600);
+  --brand-soft: var(--violet-50);
+  --brand-ink: #fff;
+  --ok: var(--green-600); --warn: var(--amber-600); --bad: var(--red-600); --info: var(--blue-600);
+  --hero-a: var(--night-900); --hero-b: var(--night-600);
+  --shadow: 0 1px 2px rgb(23 21 43 / .04), 0 4px 16px rgb(23 21 43 / .04);
+  --ring: 0 0 0 3px rgb(109 74 255 / .35);
+
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-pill: 999px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#0c0b14; --surface:#15131f; --surface-2:#1a1826; --sunken:#211e30; --ink:#ecebf5; --ink-2:#a3a0ba; --line:#2a2740;
+  --brand: var(--violet-400); --brand-hover:#a08cff; --brand-soft: rgb(139 114 255 / .14);
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --shadow: none;
+} }
+:root[data-theme="dark"] {
+  --bg:#0c0b14; --surface:#15131f; --surface-2:#1a1826; --sunken:#211e30; --ink:#ecebf5; --ink-2:#a3a0ba; --line:#2a2740;
+  --brand: var(--violet-400); --brand-hover:#a08cff; --brand-soft: rgb(139 114 255 / .14);
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --shadow: none;
+}
+
+/* ── Base ── */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { font: 14px/1.5 var(--font); background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: none; box-shadow: var(--ring); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+[hidden] { display: none !important; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-2); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ── Shell ── */
+.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+.side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: var(--s2); padding: var(--s5) var(--s4); border-right: 1px solid var(--line); background: var(--surface); }
+.logo { display: flex; align-items: center; gap: var(--s3); font-weight: 650; font-size: 16px; padding: 0 var(--s2) var(--s4); }
+.logo .mark { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--violet-400), var(--night-600)); }
+.navlabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); padding: var(--s3) var(--s2) var(--s1); }
+.nav { display: flex; align-items: center; gap: var(--s3); min-height: 40px; padding: 0 var(--s3); border-radius: var(--r-sm); border: 0; background: none; color: var(--ink-2); cursor: pointer; text-align: left; width: 100%; transition: background .15s, color .15s; }
+.nav:hover { background: var(--sunken); color: var(--ink); }
+.nav[aria-current="page"] { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.nav .count { margin-left: auto; font-size: 11px; font-weight: 600; min-width: 20px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--brand); color: var(--brand-ink); text-align: center; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: var(--s2); }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.top { display: flex; align-items: center; gap: var(--s4); padding: var(--s5) var(--s6); border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.top h1 { font-size: 20px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+.top p { margin: 2px 0 0; color: var(--ink-2); font-size: 13px; }
+.top-right { margin-left: auto; display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.status { display: inline-flex; align-items: center; gap: var(--s2); padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--line); font-size: 13px; font-weight: 500; background: var(--surface); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.dot.live { box-shadow: 0 0 0 0 currentColor; animation: pulse 2s infinite; color: var(--ok); }
+.dot.bad { background: var(--bad); color: var(--bad); } .dot.warn { background: var(--warn); } .dot.idle { background: var(--ink-2); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(19 128 74 / .45); } 70% { box-shadow: 0 0 0 7px rgb(19 128 74 / 0); } 100% { box-shadow: 0 0 0 0 rgb(19 128 74 / 0); } }
+
+.content { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--s5); padding: var(--s5) var(--s6) var(--s8); align-items: start; }
+.stack { display: flex; flex-direction: column; gap: var(--s5); min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s5); }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); }
+
+/* ── Components ── */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s5); box-shadow: var(--shadow); min-width: 0; }
+.card-h { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
+.card-h h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.card-h .sub { font-size: 12.5px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.card-h .right { margin-left: auto; }
+.empty { color: var(--ink-2); font-size: 13px; padding: var(--s4) 0; text-align: center; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 36px; padding: 0 var(--s4); border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 500; cursor: pointer; transition: background .15s, border-color .15s, transform .1s; white-space: nowrap; }
+.btn:hover { border-color: var(--brand); }
+.btn:active { transform: scale(.97); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.btn.primary:hover { background: var(--brand-hover); }
+.btn.danger { color: var(--bad); }
+.btn.danger:hover { border-color: var(--bad); }
+.btn.solid-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.sm { min-height: 30px; padding: 0 var(--s3); font-size: 13px; }
+.btn.icon { padding: 0; width: 36px; }
+.btn.block { width: 100%; }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 10px; border-radius: var(--r-pill); background: var(--sunken); color: var(--ink-2); white-space: nowrap; }
+.pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.pill.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.pill.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.pill.brand { color: var(--brand); background: var(--brand-soft); }
+
+.ibox { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--sunken); color: var(--ink-2); flex: none; }
+.ibox.brand { background: var(--brand-soft); color: var(--brand); }
+
+.progress { height: 6px; border-radius: var(--r-pill); background: var(--sunken); overflow: hidden; }
+.progress > i { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width .6s var(--ease); }
+.progress.warn > i { background: var(--warn); } .progress.bad > i { background: var(--bad); }
+
+input, textarea, select { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 9px 12px; transition: border-color .15s; }
+input:hover, textarea:hover, select:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+textarea { resize: vertical; }
+label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-2); margin: var(--s4) 0 6px; }
+.help { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+
+/* Hero (Molar-style dark agent card) */
+.hero { position: relative; overflow: hidden; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s5); align-items: center; padding: var(--s5) var(--s6); border-radius: var(--r-lg); color: #fff; background: radial-gradient(120% 140% at 0% 0%, var(--hero-b) 0%, var(--hero-a) 60%); }
+.hero::after { content: ''; position: absolute; inset: auto -10% -60% 40%; height: 200%; background: radial-gradient(closest-side, rgb(139 114 255 / .35), transparent); pointer-events: none; }
+.orb { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #b9a8ff, var(--violet-500) 55%, var(--night-700)); box-shadow: 0 0 0 8px rgb(255 255 255 / .06), 0 0 40px rgb(139 114 255 / .6); }
+.orb svg.i { width: 26px; height: 26px; }
+.hero .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 10px; border-radius: var(--r-pill); background: rgb(255 255 255 / .1); }
+.hero h3 { margin: var(--s2) 0; font-size: 16px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.hero .chips { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.hero .chip { font-size: 12px; padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid rgb(255 255 255 / .18); color: rgb(255 255 255 / .85); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tiles { display: flex; gap: var(--s3); position: relative; z-index: 1; }
+.tile { min-width: 120px; padding: var(--s3) var(--s4); border-radius: var(--r-md); background: rgb(255 255 255 / .07); border: 1px solid rgb(255 255 255 / .1); }
+.tile .k { font-size: 12px; color: rgb(255 255 255 / .7); display: flex; align-items: center; gap: 6px; }
+.tile .v { font-size: 22px; font-weight: 650; margin-top: 2px; }
+.tile .s { font-size: 11.5px; color: rgb(255 255 255 / .6); }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-left: auto; }
+.bars i { width: 3px; border-radius: 2px; background: rgb(255 255 255 / .55); }
+
+/* KPI card */
+.kpi .k { display: flex; align-items: center; gap: var(--s2); font-size: 13px; color: var(--ink-2); }
+.kpi .v { font-size: 26px; font-weight: 650; letter-spacing: -.02em; margin: var(--s3) 0 2px; }
+.kpi .s { font-size: 12.5px; color: var(--ink-2); margin-bottom: var(--s3); }
+.kpi .pl { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+
+/* Lists */
+.row { display: flex; align-items: flex-start; gap: var(--s3); padding: var(--s3) 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; padding-top: 0; }
+.row .body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row .title { font-weight: 500; }
+.row .meta { font-size: 12px; color: var(--ink-2); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+#feed { max-height: 460px; overflow: auto; margin-right: -8px; padding-right: 8px; }
+.ibox.t-tool { color: var(--info); } .ibox.t-done { color: var(--ok); } .ibox.t-blocked, .ibox.t-error, .ibox.t-killed { color: var(--bad); } .ibox.t-approval { color: var(--warn); } .ibox.t-llm { color: var(--brand); }
+
+/* Agent cards (Control-centre style) */
+.agent { padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.agent + .agent { margin-top: var(--s3); }
+.agent-h { display: flex; align-items: center; gap: var(--s3); }
+.agent-h .name { font-weight: 600; }
+.agent-h .model { font-size: 12px; color: var(--ink-2); }
+.agent-h .right { margin-left: auto; }
+.agent .budget { display: flex; align-items: baseline; gap: 4px; margin: var(--s3) 0 6px; }
+.agent .budget b { font-size: 18px; font-weight: 650; }
+.agent .actions { display: flex; gap: var(--s2); margin-top: var(--s3); }
+
+/* Approval card */
+.ap { padding: var(--s4); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+.ap + .ap { margin-top: var(--s3); }
+.ap h4 { margin: var(--s2) 0 var(--s1); font-size: 14px; font-weight: 600; }
+.ap pre { margin: var(--s2) 0 var(--s3); padding: var(--s3); background: var(--sunken); border-radius: var(--r-sm); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow: auto; }
+.ap .actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+
+/* Chat rail */
+.chat { position: sticky; top: var(--s5); display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 520px; padding: 0; overflow: hidden; }
+.chat-h { display: flex; align-items: center; gap: var(--s3); padding: var(--s4) var(--s5); border-bottom: 1px solid var(--line); }
+.chat-h select { width: auto; padding: 4px 8px; font-size: 13px; }
+#msgs { flex: 1; overflow: auto; padding: var(--s5); display: flex; flex-direction: column; gap: var(--s3); }
+.msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s var(--ease); }
+.msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); border-bottom-right-radius: 4px; }
+.msg.assistant { align-self: flex-start; background: var(--sunken); border-bottom-left-radius: 4px; }
+.msg.sys { align-self: center; font-size: 12px; color: var(--ink-2); background: none; padding: 2px 8px; text-align: center; }
+.typing { display: inline-flex; gap: 4px; padding: 14px; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s; } .typing i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.ready { margin: auto; text-align: center; padding: var(--s6) var(--s2); }
+.ready .orb { width: 88px; height: 88px; margin: 0 auto var(--s5); animation: breathe 4s ease-in-out infinite; }
+.ready h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.ready p { margin: 4px 0 var(--s5); color: var(--ink-2); font-size: 13px; }
+.suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s2); }
+.suggest button { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 6px 12px; border-radius: var(--r-pill); border: 1px solid var(--line); background: var(--surface); cursor: pointer; transition: border-color .15s; }
+.suggest button:hover { border-color: var(--brand); color: var(--brand); }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.composer { padding: var(--s4); border-top: 1px solid var(--line); }
+.composer form { display: flex; gap: var(--s2); align-items: flex-end; padding: var(--s2); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); transition: border-color .15s; }
+.composer form:focus-within { border-color: var(--brand); }
+.composer textarea { border: 0; background: none; padding: 6px 8px; min-height: 40px; max-height: 160px; resize: none; }
+.composer textarea:focus-visible { box-shadow: none; }
+
+/* Login */
+.login { min-height: 100vh; display: grid; place-items: center; padding: var(--s4); }
+.login .card { width: min(400px, 100%); text-align: center; padding: var(--s8) var(--s6); }
+.login .orb { margin: 0 auto var(--s5); }
+.login h1 { margin: 0 0 4px; font-size: 20px; }
+.login form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s5); text-align: left; }
+
+/* Memory + costs */
+#graph { width: 100%; height: 62vh; min-height: 360px; border-radius: var(--r-md); background: var(--surface-2); touch-action: none; display: block; }
+#graph text { fill: var(--ink); font: 500 11.5px var(--font); }
+#graph line { stroke: var(--ink-2); stroke-opacity: .35; }
+#graph text.lbl { fill: var(--ink-2); font-size: 10.5px; }
+#graph circle { stroke: var(--surface); stroke-width: 3; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--s3); font-size: 12px; color: var(--ink-2); margin-top: var(--s3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; }
+#costChart { width: 100%; height: 240px; display: block; }
+#costChart text { fill: var(--ink-2); font: 11px var(--font); }
+#costChart rect.bar { fill: var(--brand); }
+#costChart rect.bar:hover { fill: var(--brand-hover); }
+#costChart line { stroke: var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; font-weight: 500; color: var(--ink-2); font-size: 12px; padding: 0 0 var(--s2); border-bottom: 1px solid var(--line); }
+td { padding: var(--s3) 0; border-bottom: 1px solid var(--line); }
+td.r, th.r { text-align: right; }
+.view-full { grid-template-columns: minmax(0, 1fr) 360px; }
+
+/* ── Responsive ── */
+@media (max-width: 1280px) { .content { grid-template-columns: minmax(0, 1fr); } .chat { position: static; height: 620px; } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .hero { grid-template-columns: auto minmax(0, 1fr); } .tiles { grid-column: 1 / -1; } .tile { flex: 1; min-width: 0; } }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .side { position: fixed; inset: auto 0 0 0; height: auto; z-index: 10; flex-direction: row; justify-content: space-around; padding: 6px var(--s2) calc(6px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--line); }
+  .side .logo, .side .navlabel, .side-foot { display: none; }
+  .nav { flex-direction: column; gap: 2px; justify-content: center; min-height: 52px; font-size: 11px; padding: 0 var(--s2); width: auto; flex: 1; text-align: center; }
+  .nav .count { position: absolute; margin: -30px 0 0 22px; }
+  .nav { position: relative; }
+  .main { padding-bottom: 76px; }
+  .top { padding: var(--s4); } .content { padding: var(--s4); gap: var(--s4); }
+  .grid2 { grid-template-columns: 1fr; }
+  #mobileHalt { display: inline-flex !important; }
+}
+@media (max-width: 560px) { .kpis { gap: var(--s3); } .kpi .v { font-size: 22px; } .tiles { flex-wrap: wrap; } .tile { min-width: calc(50% - 6px); } .hero { padding: var(--s4); } .top h1 { font-size: 18px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Sleeper Agent</h1>
-  <span class="stat">Today <b id="today">$0</b></span>
-  <span class="stat">Month <b id="month">$0</b></span>
-  <span class="stat" id="clock"></span>
-  <nav>
-    <button data-tab="home" class="on">Home</button>
-    <button data-tab="memory">Memory</button>
-    <button data-tab="costs">Costs</button>
-    <button data-tab="settings">Settings</button>
-    <button id="halt" title="Stops every agent from making API calls">Kill switch</button>
-  </nav>
-</header>
 
-<form id="login" hidden style="padding:16px 20px;display:flex;gap:8px;max-width:520px">
-  <input id="tokenIn" type="password" placeholder="Dashboard token (DASHBOARD_TOKEN in .env)" autocomplete="current-password"><button>Unlock</button>
-</form>
-
-<main id="tab-home">
-  <section class="card">
-    <h2>Chat — <select id="agentPick" style="width:auto"></select></h2>
-    <div id="msgs"></div>
-    <form class="row" id="chatForm"><textarea id="chatIn" placeholder="Message your agent… (Enter to send)"></textarea><button>Send</button></form>
-  </section>
-  <div class="col">
-    <section class="card"><h2>Needs your approval</h2><div id="approvals"></div></section>
-    <section class="card"><h2>Agents</h2><div id="agents"></div></section>
-    <section class="card"><h2>Activity</h2><div id="feed"></div></section>
+<!-- Login -->
+<div class="login" id="login" hidden>
+  <div class="card">
+    <div class="orb"><svg class="i"><use href="#i-sparkles"/></svg></div>
+    <h1>Sleeper Agent</h1>
+    <p class="muted">Enter your dashboard token to continue.</p>
+    <form id="loginForm">
+      <label class="sr" for="tokenIn">Dashboard token</label>
+      <input id="tokenIn" type="password" placeholder="DASHBOARD_TOKEN from .env" autocomplete="current-password" required>
+      <button class="btn primary block">Unlock</button>
+    </form>
   </div>
-</main>
+</div>
 
-<main id="tab-memory" hidden>
-  <section class="card"><h2>Memory graph — click a node to edit, drag to move</h2><svg id="graph"></svg></section>
-  <section class="card">
-    <h2>Edit memory</h2>
-    <form id="memForm">
-      <input type="hidden" name="id">
-      <label>Title</label><input name="title" required>
-      <label>Body</label><textarea name="body" rows="6"></textarea>
-      <label>Kind</label><select name="kind"><option>note</option><option>person</option><option>project</option><option>preference</option><option>fact</option><option>decision</option></select>
-      <label>Tags</label><input name="tags">
-      <label><input type="checkbox" name="pinned" style="width:auto"> Pinned (included in every prompt)</label>
-      <div class="row" style="display:flex;gap:8px;margin-top:10px"><button>Save</button><button type="button" id="memNew">New</button><button type="button" class="danger" id="memDel">Delete</button></div>
-    </form>
-    <label>Search</label><input id="memSearch" placeholder="filter…">
-    <div id="memList"></div>
-  </section>
-</main>
+<div class="app" id="app" hidden>
+  <aside class="side" aria-label="Main navigation">
+    <div class="logo"><span class="mark"><svg class="i"><use href="#i-sparkles"/></svg></span>Sleeper Agent</div>
+    <div class="navlabel">Workspace</div>
+    <button class="nav" data-view="overview" aria-current="page"><svg class="i"><use href="#i-grid"/></svg>Overview<span class="count" id="navApprovals" hidden></span></button>
+    <button class="nav" data-view="memory"><svg class="i"><use href="#i-graph"/></svg>Memory</button>
+    <button class="nav" data-view="costs"><svg class="i"><use href="#i-wallet"/></svg>Costs</button>
+    <div class="navlabel">Manage</div>
+    <button class="nav" data-view="settings"><svg class="i"><use href="#i-sliders"/></svg>Settings</button>
+    <div class="side-foot">
+      <div class="card" style="padding:var(--s4);box-shadow:none">
+        <div style="font-size:12px" class="muted">Emergency stop</div>
+        <div style="font-size:12.5px;margin:2px 0 var(--s3)">Blocks every agent from calling the API.</div>
+        <button class="btn danger block halt"><svg class="i"><use href="#i-power"/></svg><span>Kill switch</span></button>
+      </div>
+    </div>
+  </aside>
 
-<main id="tab-costs" hidden>
-  <section class="card wide"><h2>Daily API spend (last 30 days)</h2><svg id="costChart" width="100%" height="220"></svg></section>
-  <section class="card wide"><h2>Today by agent</h2><div id="byAgent"></div></section>
-</main>
+  <div class="main">
+    <header class="top">
+      <div>
+        <h1 id="greet">Hello</h1>
+        <p id="summary">Loading…</p>
+      </div>
+      <div class="top-right">
+        <span class="status" id="clock"><svg class="i"><use href="#i-clock"/></svg><span></span></span>
+        <span class="status" id="sys"><span class="dot live"></span><span>All systems normal</span></span>
+        <button class="btn danger halt" id="mobileHalt" style="display:none" aria-label="Kill switch"><svg class="i"><use href="#i-power"/></svg></button>
+      </div>
+    </header>
 
-<main id="tab-settings" hidden>
-  <section class="card wide">
-    <h2>Settings</h2>
-    <form id="setForm" style="max-width:420px">
-      <label>Your timezone (IANA, e.g. America/Denver)</label><input name="timezone">
-      <label>Global daily API budget (USD)</label><input name="global_daily_budget_usd" type="number" step="0.5" min="0">
-      <div style="margin-top:12px"><button>Save</button></div>
-    </form>
-  </section>
-</main>
+    <!-- Overview -->
+    <section class="content" data-panel="overview">
+      <div class="stack">
+        <div class="hero">
+          <div class="orb"><svg class="i"><use href="#i-sparkles"/></svg></div>
+          <div style="min-width:0;position:relative;z-index:1">
+            <span class="tag"><span class="dot" id="heroDot"></span><span id="heroTag">Orchestrator</span></span>
+            <h3 id="heroLine">Standing by</h3>
+            <div class="chips" id="heroChips"></div>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="k"><svg class="i" style="width:14px;height:14px"><use href="#i-message"/></svg>Tasks</div><div class="v num" id="tTasks">0</div><div class="s">last 24 hours</div></div>
+            <div class="tile"><div class="k"><svg class="i" style="width:14px;height:14px"><use href="#i-wrench"/></svg>Tool calls</div><div class="v num" id="tTools">0</div><div class="s">last 24 hours</div></div>
+            <div class="tile"><div class="k"><svg class="i" style="width:14px;height:14px"><use href="#i-wallet"/></svg>Spend<span class="bars" id="tBars"></span></div><div class="v num" id="tSpend">$0</div><div class="s">today</div></div>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="card kpi"><div class="k"><span class="ibox brand"><svg class="i"><use href="#i-wallet"/></svg></span>Spend today</div>
+            <div class="v num" id="kToday">$0</div><div class="s" id="kTodaySub">of daily cap</div>
+            <div class="pl"><span>Budget used</span><span class="num" id="kTodayPct">0%</span></div><div class="progress" id="kTodayBar"><i style="width:0"></i></div></div>
+          <div class="card kpi"><div class="k"><span class="ibox brand"><svg class="i"><use href="#i-trend"/></svg></span>This month</div>
+            <div class="v num" id="kMonth">$0</div><div class="s" id="kMonthSub">projected</div>
+            <div class="pl"><span>Of implied cap</span><span class="num" id="kMonthPct">0%</span></div><div class="progress" id="kMonthBar"><i style="width:0"></i></div></div>
+          <div class="card kpi"><div class="k"><span class="ibox brand"><svg class="i"><use href="#i-graph"/></svg></span>Memories</div>
+            <div class="v num" id="kMem">0</div><div class="s" id="kMemSub">0 pinned core facts</div>
+            <div class="pl"><span>Core facts</span><span class="num" id="kPinPct">0/10</span></div><div class="progress" id="kPinBar"><i style="width:0"></i></div></div>
+          <div class="card kpi"><div class="k"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span>Approvals</div>
+            <div class="v num" id="kAp">0</div><div class="s" id="kApSub">nothing waiting</div>
+            <div class="pl"><span>Agents active</span><span class="num" id="kActive">0/0</span></div><div class="progress" id="kActiveBar"><i style="width:0"></i></div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><div><h2>Needs your approval</h2><div class="sub">Risky actions wait here until you decide</div></div></div>
+            <div id="approvals"></div>
+          </div>
+          <div class="card">
+            <div class="card-h"><div><h2>Agents</h2><div class="sub">Budget, status and controls</div></div></div>
+            <div id="agents"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><div><h2>Agent activity</h2><div class="sub"><span class="dot live"></span>Live · everything your agents do</div></div></div>
+          <div id="feed"></div>
+        </div>
+      </div>
+
+      <aside class="card chat" aria-label="Chat">
+        <div class="chat-h">
+          <span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span>
+          <div style="flex:1;min-width:0"><div style="font-weight:600">Ask Sleeper</div><div class="muted" style="font-size:12px">Talks to the selected agent</div></div>
+          <label class="sr" for="agentPick">Agent</label><select id="agentPick"></select>
+        </div>
+        <div id="msgs" aria-live="polite"></div>
+        <div class="composer">
+          <form id="chatForm">
+            <label class="sr" for="chatIn">Message</label>
+            <textarea id="chatIn" rows="1" placeholder="Ask anything or give an instruction…"></textarea>
+            <button class="btn primary icon" aria-label="Send"><svg class="i"><use href="#i-send"/></svg></button>
+          </form>
+        </div>
+      </aside>
+    </section>
+
+    <!-- Memory -->
+    <section class="content view-full" data-panel="memory" hidden>
+      <div class="card">
+        <div class="card-h"><div><h2>Memory graph</h2><div class="sub">Click a node to edit · drag to rearrange</div></div></div>
+        <svg id="graph" role="img" aria-label="Memory graph"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><h2 id="memTitle">New memory</h2><button class="btn sm right" type="button" id="memNew"><svg class="i"><use href="#i-plus"/></svg>New</button></div>
+          <form id="memForm">
+            <input type="hidden" name="id">
+            <label class="f" for="mTitle">Title</label><input id="mTitle" name="title" required>
+            <label class="f" for="mBody">Details</label><textarea id="mBody" name="body" rows="5"></textarea>
+            <label class="f" for="mKind">Kind</label>
+            <select id="mKind" name="kind"><option>note</option><option>person</option><option>project</option><option>preference</option><option>fact</option><option>decision</option></select>
+            <label class="f" for="mTags">Tags</label><input id="mTags" name="tags" placeholder="comma, separated">
+            <label style="display:flex;align-items:center;gap:8px;margin-top:var(--s4);font-size:13px"><input type="checkbox" name="pinned" style="width:auto"> Pin as core fact (sent with every message)</label>
+            <div style="display:flex;gap:var(--s2);margin-top:var(--s5)"><button class="btn primary">Save</button><button type="button" class="btn danger" id="memDel"><svg class="i"><use href="#i-trash"/></svg>Delete</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <label class="sr" for="memSearch">Search memories</label>
+          <div style="position:relative"><svg class="i" style="position:absolute;left:10px;top:10px;color:var(--ink-2)"><use href="#i-search"/></svg><input id="memSearch" placeholder="Search memories" style="padding-left:36px"></div>
+          <div id="memList" style="margin-top:var(--s3);max-height:300px;overflow:auto"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Costs -->
+    <section class="content view-full" data-panel="costs" hidden>
+      <div class="card">
+        <div class="card-h"><div><h2>Daily API spend</h2><div class="sub">Last 30 days</div></div><span class="pill brand right num" id="costMax"></span></div>
+        <svg id="costChart" role="img" aria-label="Daily spend bar chart"></svg>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h2>Today by agent</h2><div class="sub">Where the money went</div></div></div>
+        <table><thead><tr><th>Agent</th><th class="r">Calls</th><th class="r">Spend</th></tr></thead><tbody id="byAgent"></tbody></table>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="content view-full" data-panel="settings" hidden>
+      <div class="card">
+        <div class="card-h"><div><h2>Settings</h2><div class="sub">Applies to every agent</div></div></div>
+        <form id="setForm" style="max-width:460px">
+          <label class="f" for="sTz">Your timezone</label>
+          <input id="sTz" name="timezone" placeholder="America/Chicago">
+          <div class="help">IANA name. Your agent also updates this when you tell it you've travelled.</div>
+          <label class="f" for="sBudget">Global daily API budget (USD)</label>
+          <input id="sBudget" name="global_daily_budget_usd" type="number" step="0.5" min="0">
+          <div class="help">Hard stop for all agents combined. Each agent also has its own cap.</div>
+          <label class="f" for="sTheme">Appearance</label>
+          <select id="sTheme"><option value="">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>
+          <div style="margin-top:var(--s5)"><button class="btn primary">Save settings</button></div>
+        </form>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>Session</h2></div>
+        <p class="muted" style="margin-top:0">Your token is stored in this browser only.</p>
+        <button class="btn" id="logout">Lock dashboard</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Icons (Lucide, ISC license) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+</svg>
 
 <script>
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-const money = (n) => '$' + Number(n || 0).toFixed(n < 1 ? 4 : 2);
-let token = ''; try { token = localStorage.getItem('token') || ''; } catch {}
-let state = null, agentName = 'orchestrator';
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => '$' + Number(n || 0).toFixed(n && n < 1 ? 3 : 2);
+const icon = (id, style = '') => `<svg class="i" style="${style}"><use href="#i-${id}"/></svg>`;
+const pct = (a, b) => Math.max(0, Math.min(100, b ? a / b * 100 : 0));
+const store = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} } };
+// SQLite current_timestamp is UTC without a zone marker
+const ago = (ts) => { const s = (Date.now() - new Date(ts.replace(' ', 'T') + 'Z')) / 1000; return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`; };
+
+let token = store.get('token'), state = null, agentName = 'orchestrator', view = 'overview', sending = false;
+const applyTheme = (t) => t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme;
+applyTheme(store.get('theme'));
 
 async function call(path, method = 'GET', body) {
   const r = await fetch('/api/' + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
-  if (r.status === 401) { $('#login').hidden = false; $('#tokenIn').focus(); return { error: 'locked' }; }
-  $('#login').hidden = true;
+  if (r.status === 401) { $('#app').hidden = true; $('#login').hidden = false; $('#tokenIn').focus(); return { error: 'locked' }; }
+  $('#login').hidden = true; $('#app').hidden = false;
   return r.json();
 }
+$('#loginForm').onsubmit = (e) => { e.preventDefault(); token = $('#tokenIn').value.trim(); store.set('token', token); refresh(); };
+$('#logout').onclick = () => { store.set('token', ''); token = ''; refresh(); };
 
-document.querySelectorAll('nav [data-tab]').forEach((b) => b.onclick = () => {
-  document.querySelectorAll('nav [data-tab]').forEach((x) => x.classList.toggle('on', x === b));
-  document.querySelectorAll('main').forEach((m) => m.hidden = m.id !== 'tab-' + b.dataset.tab);
-  if (b.dataset.tab === 'memory') loadMemory();
-  if (b.dataset.tab === 'costs') drawCosts();
-});
+function show(v) {
+  view = v;
+  document.querySelectorAll('.nav').forEach((b) => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== v);
+  if (v === 'memory') loadMemory();
+  if (v === 'costs') drawCosts();
+}
+document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
+
+const TYPE_ICON = { task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+
+function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
 async function refresh() {
-  state = await call('state?agent=' + encodeURIComponent(agentName));
-  if (state.error) return;
-  const { costs, agents, approvals, activity, settings, chat } = state;
-  $('#today').textContent = money(costs.today); $('#month').textContent = money(costs.month);
-  $('#clock').textContent = new Date().toLocaleString('en-US', { timeZone: settings.timezone, hour: 'numeric', minute: '2-digit', weekday: 'short', timeZoneName: 'short' });
-  const halted = settings.global_halt === '1';
-  $('#halt').className = halted ? 'halt-on' : 'danger'; $('#halt').textContent = halted ? 'HALTED — resume' : 'Kill switch';
+  const s = await call('state?agent=' + encodeURIComponent(agentName));
+  if (s.error) return;
+  state = s;
+  const { costs, agents, approvals, activity, settings, chat } = s, stats = s.stats || {};
+  const tz = settings.timezone, halted = settings.global_halt === '1';
+  const hour = +new Date().toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false });
 
+  // Header
+  $('#greet').textContent = `Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}`;
+  $('#summary').innerHTML = `Your agents handled <b>${stats.tasks24h ?? 0} tasks</b> in the last 24 hours` + (approvals.length ? ` · <b>${approvals.length}</b> waiting on you` : '');
+  $('#clock span').textContent = new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+  const errs = activity.filter((a) => (a.type === 'error' || a.type === 'blocked') && Date.now() - new Date(a.ts.replace(' ', 'T') + 'Z') < 3600e3).length;
+  $('#sys').innerHTML = halted ? '<span class="dot bad"></span><span>Halted · kill switch on</span>'
+    : errs ? `<span class="dot warn"></span><span>${errs} issue${errs > 1 ? 's' : ''} in the last hour</span>` : '<span class="dot live"></span><span>All systems normal</span>';
+  document.querySelectorAll('.halt').forEach((b) => { b.className = `btn ${halted ? 'solid-danger' : 'danger'} halt` + (b.id ? '' : ' block'); const t = b.querySelector('span'); if (t) t.textContent = halted ? 'Resume agents' : 'Kill switch'; });
+  const nb = $('#navApprovals'); nb.hidden = !approvals.length; nb.textContent = approvals.length;
+
+  // Hero
+  const orch = agents.find((a) => a.name === 'orchestrator') || agents[0];
+  const busy = agents.filter((a) => a.status === 'running');
+  const lastTask = activity.find((a) => a.type === 'task');
+  $('#heroDot').className = 'dot ' + (halted ? 'bad' : busy.length ? 'live' : 'idle');
+  $('#heroTag').textContent = halted ? 'Halted' : busy.length ? 'Agent · live' : 'Agent · standing by';
+  $('#heroLine').textContent = halted ? 'All agents are paused by the kill switch' : busy.length ? `${busy.map((a) => a.name).join(', ')} working on: ${lastTask?.detail || 'a task'}` : lastTask ? `Last task: ${lastTask.detail}` : 'Ready when you are';
+  $('#heroChips').innerHTML = [orch && `${orch.model}`, ...activity.filter((a) => a.type === 'tool').slice(0, 2).map((a) => a.detail.split(' ')[0])].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
+  $('#tTasks').textContent = stats.tasks24h ?? 0;
+  $('#tTools').textContent = stats.tools24h ?? 0;
+  $('#tSpend').textContent = money(costs.today);
+  const week = [...costs.daily].slice(0, 10).reverse(), wmax = Math.max(.0001, ...week.map((d) => d.usd));
+  $('#tBars').innerHTML = week.map((d) => `<i style="height:${Math.max(3, d.usd / wmax * 22)}px"></i>`).join('');
+
+  // KPIs
+  const cap = +settings.global_daily_budget_usd, monthCap = cap * 30;
+  const now = new Date(), dom = now.getDate(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  $('#kToday').textContent = money(costs.today); $('#kTodaySub').textContent = `of ${money(cap)} daily cap`;
+  const pt = pct(costs.today, cap); $('#kTodayPct').textContent = pt.toFixed(0) + '%'; setBar('#kTodayBar', pt);
+  $('#kMonth').textContent = money(costs.month); $('#kMonthSub').textContent = `on track for ${money(costs.month / dom * dim)}`;
+  const pm = pct(costs.month, monthCap); $('#kMonthPct').textContent = pm.toFixed(0) + '%'; setBar('#kMonthBar', pm);
+  $('#kMem').textContent = stats.memories ?? '—'; $('#kMemSub').textContent = `${stats.pinned ?? 0} pinned core facts`;
+  $('#kPinPct').textContent = `${stats.pinned ?? 0}/10`; $('#kPinBar').firstElementChild.style.width = pct(stats.pinned, 10) + '%';
+  $('#kAp').textContent = approvals.length; $('#kApSub').textContent = approvals.length ? `oldest ${ago(approvals[0].ts)}` : 'nothing waiting';
+  const live = agents.filter((a) => a.status !== 'killed').length; $('#kActive').textContent = `${live}/${agents.length}`; $('#kActiveBar').firstElementChild.style.width = pct(live, agents.length) + '%';
+
+  // Approvals
+  $('#approvals').innerHTML = approvals.map((a) => `<div class="ap">
+      <div style="display:flex;align-items:center;gap:8px"><span class="ibox brand" style="width:28px;height:28px">${icon('shield', 'width:15px;height:15px')}</span><span style="font-size:13px;font-weight:500">${esc(a.agent)}</span><span class="pill warn" style="margin-left:auto">Pending · ${esc(ago(a.ts))}</span></div>
+      <h4>${esc(a.tool.replace(/_/g, ' '))} <span class="muted" style="font-weight:400">#${a.id}</span></h4>
+      <pre>${esc(JSON.stringify(JSON.parse(a.input), null, 2))}</pre>
+      <div class="actions"><button class="btn primary sm" onclick="decide(${a.id}, true)">${icon('check')}Approve</button><button class="btn sm" onclick="decide(${a.id}, false)">${icon('x')}Decline</button></div>
+    </div>`).join('') || `<div class="empty">${icon('shield', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing needs you right now.</div>`;
+
+  // Agents
+  const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));
+  const STATUS = { running: ['ok', 'Working'], idle: ['', 'Idle'], killed: ['bad', 'Killed'] };
+  $('#agents').innerHTML = agents.map((a) => { const sp = spentBy[a.name]?.usd || 0, p = pct(sp, a.daily_budget_usd), [cls, label] = STATUS[a.status] || ['', a.status];
+    return `<div class="agent">
+      <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(a.name)}</div><div class="model">${esc(a.model)} · ${esc(a.effort || 'default')} effort</div></div>
+        <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
+      <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
+      <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
+      <div class="actions"><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
+    </div>`; }).join('');
+
+  // Activity
+  $('#feed').innerHTML = activity.map((x) => `<div class="row"><span class="ibox t-${esc(x.type.split(':')[0])}">${icon(TYPE_ICON[x.type] || (x.type.startsWith('notify') ? 'bell' : 'zap'))}</span>
+      <div class="body"><div><span class="title">${esc(TYPE_LABEL[x.type] || x.type)}</span> <span class="muted">${esc(x.detail)}</span></div>
+      <div class="meta">${icon('sparkles', 'width:12px;height:12px')}${esc(x.agent)} · ${esc(ago(x.ts))}</div></div></div>`).join('') || '<div class="empty">No activity yet. Send your agent a message to get started.</div>';
+
+  // Chat
   const pick = $('#agentPick');
   if (pick.options.length !== agents.length) pick.innerHTML = agents.map((a) => `<option ${a.name === agentName ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  if (!sending) renderChat(chat);
 
-  const box = $('#msgs'), atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content)}</div>`).join('') || '<div class="empty">Say hi. Tell it about yourself and your projects; it will remember.</div>';
-  if (atBottom) box.scrollTop = box.scrollHeight;
-
-  $('#approvals').innerHTML = approvals.map((a) => `<div class="item"><div class="grow"><b>#${a.id} ${esc(a.tool)}</b> <span class="pill">${esc(a.agent)}</span><br><code>${esc(a.input)}</code></div>
-    <button onclick="decide(${a.id}, true)">Approve</button><button class="danger" onclick="decide(${a.id}, false)">Deny</button></div>`).join('') || '<div class="empty">Nothing waiting.</div>';
-
-  const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x.usd]));
-  $('#agents').innerHTML = agents.map((a) => `<div class="item"><div class="grow"><b>${esc(a.name)}</b> <span class="pill ${a.status}">${a.status}</span><br>
-    <span class="t">${esc(a.model)} · ${money(spentBy[a.name])} of ${money(a.daily_budget_usd)} today</span></div>
-    <button onclick="agentAct('${esc(a.name)}','restart')">Restart</button><button class="danger" onclick="agentAct('${esc(a.name)}','kill')">Kill</button></div>`).join('');
-
-  $('#feed').innerHTML = activity.map((x) => `<div class="item"><span class="t">${esc(x.ts.slice(11, 16))}</span><span class="pill">${esc(x.agent)}</span><span class="pill">${esc(x.type)}</span><span class="grow">${esc(x.detail)}</span></div>`).join('') || '<div class="empty">No activity yet.</div>';
-
+  // Settings (don't clobber while editing)
   const f = $('#setForm');
-  if (document.activeElement?.form !== f) { f.timezone.value = settings.timezone; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; }
+  if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
+  if (view === 'costs') drawCosts();
+}
+
+const SUGGEST = [['sparkles', "Here's who I am and what I'm working on…"], ['clock', 'Plan my day'], ['graph', 'What do you know about me?'], ['shield', 'Find the holes in this idea:']];
+let lastChatKey = '';
+function renderChat(chat) {
+  const key = chat.length + ':' + (chat.at(-1)?.id ?? '');
+  if (key === lastChatKey) return; lastChatKey = key;
+  const box = $('#msgs');
+  if (!chat.length) {
+    box.innerHTML = `<div class="ready"><div class="orb">${icon('sparkles')}</div><h3>Sleeper is ready</h3><p>Tell it about yourself and your projects. It remembers.</p>
+      <div class="suggest">${SUGGEST.map(([i, t]) => `<button type="button" data-s="${esc(t)}">${icon(i, 'width:14px;height:14px')}${esc(t)}</button>`).join('')}</div></div>`;
+    box.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { $('#chatIn').value = b.dataset.s; $('#chatIn').focus(); });
+    return;
+  }
+  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`).join('');
+  box.scrollTop = box.scrollHeight;
 }
 
 window.decide = async (id, approve) => { await call('approvals/' + id, 'POST', { approve }); refresh(); };
-window.agentAct = async (name, action) => { await call(`agents/${encodeURIComponent(name)}/${action}`, 'POST'); refresh(); };
-$('#halt').onclick = async () => { await call('settings', 'POST', { global_halt: state.settings.global_halt !== '1' }); refresh(); };
-$('#agentPick').onchange = (e) => { agentName = e.target.value; refresh(); };
+window.agentAct = async (name, action) => {
+  if (action === 'kill' && !confirm(`Kill ${name}? It stops immediately and stays stopped until you restart it.`)) return;
+  await call(`agents/${encodeURIComponent(name)}/${action}`, 'POST'); refresh();
+};
+document.querySelectorAll('.halt').forEach((b) => b.onclick = async () => {
+  const on = state.settings.global_halt !== '1';
+  if (on && !confirm('Stop ALL agents from making API calls?')) return;
+  await call('settings', 'POST', { global_halt: on }); refresh();
+});
+$('#agentPick').onchange = (e) => { agentName = e.target.value; lastChatKey = ''; refresh(); };
 
-$('#chatIn').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } };
+const chatIn = $('#chatIn');
+chatIn.oninput = () => { chatIn.style.height = 'auto'; chatIn.style.height = Math.min(chatIn.scrollHeight, 160) + 'px'; };
+chatIn.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } };
 $('#chatForm').onsubmit = async (e) => {
   e.preventDefault();
-  const text = $('#chatIn').value.trim(); if (!text) return;
-  $('#chatIn').value = '';
-  $('#msgs').insertAdjacentHTML('beforeend', `<div class="msg user">${esc(text)}</div><div class="msg sys" id="thinking">working…</div>`);
-  $('#msgs').scrollTop = 1e9;
+  const text = chatIn.value.trim(); if (!text || sending) return;
+  sending = true; chatIn.value = ''; chatIn.oninput();
+  const box = $('#msgs');
+  if (box.querySelector('.ready')) box.innerHTML = '';
+  box.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(text)}</div><div class="msg assistant" id="typing"><span class="typing"><i></i><i></i><i></i></span></div>`);
+  box.scrollTop = box.scrollHeight;
   const r = await call('chat', 'POST', { agent: agentName, text });
-  if (r.error) alert(r.error);
-  await refresh(); $('#msgs').scrollTop = 1e9;
+  sending = false; lastChatKey = '';
+  if (r.error) { $('#typing').outerHTML = `<div class="msg sys">${esc(r.error)}</div>`; return; }
+  refresh();
 };
 
 $('#setForm').onsubmit = async (e) => {
   e.preventDefault();
+  store.set('theme', $('#sTheme').value); applyTheme($('#sTheme').value);
   const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value) });
   if (r.error) alert(r.error); refresh();
 };
 
-// ---- Memory graph: tiny force layout, no library ----
+// ── Memory graph: tiny force layout, no library ──
+const KINDS = { person: '#e11d48', project: '#6d4aff', preference: '#0891b2', fact: '#16a34a', decision: '#d97706', note: '#7c7a92' };
+$('#legend').innerHTML = Object.entries(KINDS).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('');
 let mem = { nodes: [], links: [] }, pos = {};
-const COLORS = { person:'#e11d48', project:'#4f46e5', preference:'#0891b2', fact:'#65a30d', decision:'#d97706', note:'#6b7280' };
-async function loadMemory() { mem = await call('memory'); renderList(); layout(); }
+async function loadMemory() { const m = await call('memory'); if (m.error) return; mem = m; renderList(); layout(); }
 function layout() {
   const svg = $('#graph'), W = svg.clientWidth || 800, H = svg.clientHeight || 500;
   mem.nodes.forEach((n) => pos[n.id] ??= { x: W / 2 + (Math.random() - .5) * W * .6, y: H / 2 + (Math.random() - .5) * H * .6 });
   for (let it = 0; it < 200; it++) { // ponytail: O(n²) repulsion; fine to ~500 memories, use d3-force beyond that
     for (const a of mem.nodes) for (const b of mem.nodes) if (a.id < b.id) {
-      const p = pos[a.id], q = pos[b.id], dx = p.x - q.x || .1, dy = p.y - q.y || .1, d2 = dx * dx + dy * dy, f = 800 / d2;
+      const p = pos[a.id], q = pos[b.id], dx = p.x - q.x || .1, dy = p.y - q.y || .1, f = 900 / (dx * dx + dy * dy);
       p.x += dx * f; p.y += dy * f; q.x -= dx * f; q.y -= dy * f;
     }
     for (const l of mem.links) { const p = pos[l.src], q = pos[l.dst]; if (!p || !q) continue; const dx = q.x - p.x, dy = q.y - p.y; p.x += dx * .02; p.y += dy * .02; q.x -= dx * .02; q.y -= dy * .02; }
-    for (const n of mem.nodes) { const p = pos[n.id]; p.x += (W / 2 - p.x) * .01; p.y += (H / 2 - p.y) * .01; p.x = Math.max(20, Math.min(W - 20, p.x)); p.y = Math.max(20, Math.min(H - 20, p.y)); }
+    for (const n of mem.nodes) { const p = pos[n.id]; p.x += (W / 2 - p.x) * .01; p.y += (H / 2 - p.y) * .01; p.x = Math.max(24, Math.min(W - 120, p.x)); p.y = Math.max(24, Math.min(H - 24, p.y)); }
   }
   draw();
 }
 function draw() {
   const svg = $('#graph');
   svg.innerHTML = mem.links.filter((l) => pos[l.src] && pos[l.dst]).map((l) => { const p = pos[l.src], q = pos[l.dst];
-    return `<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="currentColor" opacity=".25"/><text x="${(p.x + q.x) / 2}" y="${(p.y + q.y) / 2}" opacity=".6">${esc(l.label)}</text>`; }).join('')
-    + mem.nodes.map((n) => `<g data-id="${n.id}" style="cursor:pointer"><circle cx="${pos[n.id].x}" cy="${pos[n.id].y}" r="${n.pinned ? 11 : 8}" fill="${COLORS[n.kind] || COLORS.note}"/><text x="${pos[n.id].x + 13}" y="${pos[n.id].y + 4}">${esc(n.title.slice(0, 28))}</text></g>`).join('')
-    || '<text x="20" y="30">No memories yet. Chat with your agent or add one on the right.</text>';
+    return `<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}"/><text class="lbl" x="${(p.x + q.x) / 2}" y="${(p.y + q.y) / 2 - 4}" text-anchor="middle">${esc(l.label)}</text>`; }).join('')
+    + mem.nodes.map((n) => `<g data-id="${n.id}" style="cursor:pointer" tabindex="0" role="button" aria-label="${esc(n.title)}"><circle cx="${pos[n.id].x}" cy="${pos[n.id].y}" r="${n.pinned ? 12 : 9}" fill="${KINDS[n.kind] || KINDS.note}"/><text x="${pos[n.id].x + 16}" y="${pos[n.id].y + 4}">${esc(n.title.slice(0, 30))}</text></g>`).join('')
+    || `<text x="50%" y="50%" text-anchor="middle" class="lbl">No memories yet. Chat with your agent or add one on the right.</text>`;
+  svg.querySelectorAll('g').forEach((g) => g.onkeydown = (e) => { if (e.key === 'Enter') editMem(mem.nodes.find((n) => n.id === +g.dataset.id)); });
 }
 let drag = null, moved = false;
-$('#graph').onpointerdown = (e) => { const g = e.target.closest('g'); if (g) { drag = +g.dataset.id; moved = false; e.target.setPointerCapture(e.pointerId); } };
+$('#graph').onpointerdown = (e) => { const g = e.target.closest('g'); if (g) { drag = +g.dataset.id; moved = false; $('#graph').setPointerCapture(e.pointerId); } };
 $('#graph').onpointermove = (e) => { if (drag == null) return; const r = $('#graph').getBoundingClientRect(); pos[drag] = { x: e.clientX - r.left, y: e.clientY - r.top }; moved = true; draw(); };
 $('#graph').onpointerup = () => { if (drag != null && !moved) editMem(mem.nodes.find((n) => n.id === drag)); drag = null; };
 function renderList() {
   const q = $('#memSearch').value.toLowerCase();
   $('#memList').innerHTML = mem.nodes.filter((n) => (n.title + n.body + n.tags).toLowerCase().includes(q))
-    .map((n) => `<div class="item" style="cursor:pointer" onclick="editMem(mem.nodes.find(x=>x.id===${n.id}))"><span class="pill">${esc(n.kind)}</span><span class="grow">${esc(n.title)}</span></div>`).join('');
+    .map((n) => `<div class="row" style="cursor:pointer;align-items:center" onclick="editMem(mem.nodes.find(x=>x.id===${n.id}))"><i style="width:8px;height:8px;border-radius:50%;background:${KINDS[n.kind] || KINDS.note};flex:none"></i><span class="body">${esc(n.title)}</span>${n.pinned ? '<span class="pill brand">pinned</span>' : ''}</div>`).join('')
+    || '<div class="empty">No memories match.</div>';
 }
-window.editMem = (n) => { const f = $('#memForm'); f.reset(); if (!n) return; for (const k of ['id', 'title', 'body', 'kind', 'tags']) f[k].value = n[k] ?? ''; f.pinned.checked = !!n.pinned; };
+window.editMem = (n) => { const f = $('#memForm'); f.reset(); $('#memTitle').textContent = n ? 'Edit memory' : 'New memory'; $('#memDel').hidden = !n; if (!n) return; for (const k of ['id', 'title', 'body', 'kind', 'tags']) f[k].value = n[k] ?? ''; f.pinned.checked = !!n.pinned; };
+editMem(null);
 $('#memSearch').oninput = renderList;
 $('#memNew').onclick = () => editMem(null);
 $('#memForm').onsubmit = async (e) => {
   e.preventDefault(); const f = e.target;
   await call('memory', 'POST', { id: f.id.value ? +f.id.value : undefined, title: f.title.value, body: f.body.value, kind: f.kind.value, tags: f.tags.value, pinned: f.pinned.checked });
-  f.reset(); loadMemory();
+  editMem(null); loadMemory();
 };
 $('#memDel').onclick = async () => { const id = $('#memForm').id.value; if (id && confirm('Delete this memory?')) { await call('memory/' + id, 'DELETE'); editMem(null); loadMemory(); } };
 
 function drawCosts() {
-  const days = [...state.costs.daily].reverse(), svg = $('#costChart'), W = svg.clientWidth || 600, H = 200, max = Math.max(.01, ...days.map((d) => d.usd)), bw = W / Math.max(days.length, 1);
-  svg.innerHTML = days.map((d, i) => { const h = d.usd / max * (H - 30); return `<rect class="bar" x="${i * bw + 2}" y="${H - h}" width="${bw - 4}" height="${h}" rx="3"><title>${d.day}: ${money(d.usd)}</title></rect>`; }).join('')
-    + `<text x="4" y="12">max ${money(max)}/day</text>` || '';
-  if (!days.length) svg.innerHTML = '<text x="10" y="30">No spend yet.</text>';
-  $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<div class="item"><span class="grow">${esc(a.agent)}</span><span>${a.calls} calls</span><b>${money(a.usd)}</b></div>`).join('') || '<div class="empty">No spend today.</div>';
+  const days = [...state.costs.daily].reverse(), svg = $('#costChart'), W = svg.clientWidth || 600, H = 240, pad = 22;
+  const max = Math.max(.01, ...days.map((d) => d.usd)), bw = (W - 8) / Math.max(days.length, 1);
+  $('#costMax').textContent = `peak ${money(max)}/day`;
+  svg.innerHTML = days.length ? [.5, 1].map((g) => `<line x1="0" x2="${W}" y1="${H - pad - g * (H - pad - 10)}" y2="${H - pad - g * (H - pad - 10)}"/>`).join('')
+    + days.map((d, i) => { const h = Math.max(2, d.usd / max * (H - pad - 10)); return `<rect class="bar" x="${i * bw + 4}" y="${H - pad - h}" width="${Math.max(2, bw - 6)}" height="${h}" rx="4"><title>${d.day}: ${money(d.usd)}</title></rect>`; }).join('')
+    + days.filter((_, i) => i % Math.ceil(days.length / 6) === 0).map((d) => `<text x="${days.indexOf(d) * bw + 4}" y="${H - 6}">${d.day.slice(5)}</text>`).join('')
+    : '<text x="50%" y="50%" text-anchor="middle">No spend yet</text>';
+  $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<tr><td>${esc(a.agent)}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No spend today.</td></tr>';
 }
 
-$('#login').onsubmit = (e) => { e.preventDefault(); token = $('#tokenIn').value.trim(); try { localStorage.setItem('token', token); } catch {} refresh(); };
 refresh(); setInterval(refresh, 4000);
 </script>
 </body>

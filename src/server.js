@@ -36,6 +36,9 @@ async function api(req, url) {
     activity: db.prepare('select * from activity order by id desc limit 150').all(),
     costs: summary(),
     settings: Object.fromEntries(SETTINGS.map((k) => [k, get(k)])),
+    stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
+      (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
+      (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
     chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') || 'orchestrator'),
   };
   if (route === 'chat' && m === 'POST') {
