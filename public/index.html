@@ -272,6 +272,7 @@ td.r, th.r { text-align: right; }
     <div class="navlabel">Workspace</div>
     <button class="nav" data-view="overview" aria-current="page"><svg class="i"><use href="#i-grid"/></svg>Overview<span class="count" id="navApprovals" hidden></span></button>
     <button class="nav" data-view="memory"><svg class="i"><use href="#i-graph"/></svg>Memory</button>
+    <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
     <button class="nav" data-view="costs"><svg class="i"><use href="#i-wallet"/></svg>Costs</button>
     <div class="navlabel">Manage</div>
     <button class="nav" data-view="settings"><svg class="i"><use href="#i-sliders"/></svg>Settings</button>
@@ -392,6 +393,32 @@ td.r, th.r { text-align: right; }
       </div>
     </section>
 
+    <!-- Vault -->
+    <section class="content view-full" data-panel="vault" hidden>
+      <div class="stack">
+        <div class="card" id="vaultStatus"></div>
+        <div class="card">
+          <div class="card-h"><div><h2>Saved items</h2><div class="sub">Values stay encrypted on this machine. Your agent only sees the names.</div></div></div>
+          <div id="vaultList"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>Add or update</h2></div>
+        <form id="vaultForm" autocomplete="off">
+          <label class="f" for="vName">Name</label><input id="vName" name="name" required pattern="[a-z0-9_-]{2,40}" placeholder="schwab-login">
+          <div class="help">Lowercase, numbers, - or _. Saving an existing name replaces it. Agents refer to it as <code>{{secret:name}}</code>.</div>
+          <label class="f" for="vKind">Type</label>
+          <select id="vKind" name="kind"><option value="password">Password / login</option><option value="card">Payment card</option><option value="personal">Personal info</option><option value="api_key">API key / token</option><option value="note">Secure note</option></select>
+          <label class="f" for="vUser">Username / email</label><input id="vUser" name="username" autocomplete="off">
+          <label class="f" for="vUrl">Website</label><input id="vUrl" name="url" placeholder="https://" autocomplete="off">
+          <label class="f" for="vValue">Secret value</label><input id="vValue" name="value" type="password" required autocomplete="new-password">
+          <div class="help">Password, card number, SSN, address, key…</div>
+          <label class="f" for="vNotes">Notes</label><textarea id="vNotes" name="notes" rows="2"></textarea>
+          <div style="margin-top:var(--s5)"><button class="btn primary"><svg class="i"><use href="#i-lock"/></svg>Save to vault</button></div>
+        </form>
+      </div>
+    </section>
+
     <!-- Costs -->
     <section class="content view-full" data-panel="costs" hidden>
       <div class="card">
@@ -420,10 +447,18 @@ td.r, th.r { text-align: right; }
           <div style="margin-top:var(--s5)"><button class="btn primary">Save settings</button></div>
         </form>
       </div>
-      <div class="card">
-        <div class="card-h"><h2>Session</h2></div>
-        <p class="muted" style="margin-top:0">Your token is stored in this browser only.</p>
-        <button class="btn" id="logout">Lock dashboard</button>
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-info"/></svg></span><div><h2>About this build</h2><div class="sub">Major number = build, minor = update</div></div></div>
+          <table id="about"></table>
+          <p class="help" style="margin-top:var(--s3)">Your chats, memory and vault live in <code>data/agent.db</code>, which isn't tracked by git, so updates never replace it. Schema changes only ever add, and the database is backed up before every change and on every start (newest 10 kept in <code>data/backups/</code>).</p>
+          <button class="btn sm" id="backupNow" style="margin-top:var(--s2)">Back up now</button>
+        </div>
+        <div class="card">
+          <div class="card-h"><h2>Session</h2></div>
+          <p class="muted" style="margin-top:0">Your token is stored in this browser only.</p>
+          <button class="btn" id="logout">Lock dashboard</button>
+        </div>
       </div>
     </section>
   </div>
@@ -452,6 +487,10 @@ td.r, th.r { text-align: right; }
   <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -469,8 +508,14 @@ let token = store.get('token'), state = null, agentName = 'orchestrator', view =
 const applyTheme = (t) => t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme;
 applyTheme(store.get('theme'));
 
+// Backup files are named agent-2026-11-02T19-06-40-377Z-<reason>.db
+const backupLabel = (f, tz) => { const m = f?.match(/^agent-(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-\d+Z-(.+)\.db$/);
+  return m ? new Date(`${m[1]}T${m[2]}:${m[3]}:${m[4]}Z`).toLocaleString('en-US', { timeZone: tz, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' · ' + m[5].replace(/-/g, ' ') : 'none yet'; };
+
 async function call(path, method = 'GET', body) {
-  const r = await fetch('/api/' + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+  let r;
+  try { r = await fetch('/api/' + path, { method, headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' }, body: body && JSON.stringify(body) }); }
+  catch { $('#sys').innerHTML = '<span class="dot bad"></span><span>Server offline · run npm start</span>'; return { error: 'Server offline' }; }
   if (r.status === 401) { $('#app').hidden = true; $('#login').hidden = false; $('#tokenIn').focus(); return { error: 'locked' }; }
   $('#login').hidden = true; $('#app').hidden = false;
   return r.json();
@@ -484,6 +529,7 @@ function show(v) {
   document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== v);
   if (v === 'memory') loadMemory();
   if (v === 'costs') drawCosts();
+  if (v === 'vault') loadVault();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
@@ -570,6 +616,10 @@ async function refresh() {
   const f = $('#setForm');
   if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
   if (view === 'costs') drawCosts();
+  const V = s.version;
+  if (V) $('#about').innerHTML = [['Build', `Build ${V.build} · update ${V.update}`], ['Version', 'v' + V.version], ['Commit', V.commit ? `${V.commit} (${V.commits} total)` : 'n/a'],
+    ['Database schema', 'v' + V.schema], ['Last backup', backupLabel(V.lastBackup, tz)],
+    ['Vault', s.vaultReady ? 'Encrypted · unlocked' : 'Locked (no VAULT_KEY)']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
 }
 
 const SUGGEST = [['sparkles', "Here's who I am and what I'm working on…"], ['clock', 'Plan my day'], ['graph', 'What do you know about me?'], ['shield', 'Find the holes in this idea:']];
@@ -681,6 +731,44 @@ function drawCosts() {
     : '<text x="50%" y="50%" text-anchor="middle">No spend yet</text>';
   $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<tr><td>${esc(a.agent)}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No spend today.</td></tr>';
 }
+
+// ── Vault ──
+const KIND_LABEL = { password: 'Login', card: 'Card', personal: 'Personal', api_key: 'API key', note: 'Note' };
+async function loadVault() {
+  const v = await call('vault'); if (v.error) return;
+  $('#vaultStatus').innerHTML = v.ready
+    ? `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--ok)">${icon('lock')}</span><div><h2>Vault encrypted</h2><div class="sub">AES-256-GCM on this machine. Agents see names only. Anything matching a saved value, card number or SSN is stripped from messages before they reach Anthropic.</div></div></div>`
+    : `<div class="card-h" style="margin:0"><span class="ibox" style="color:var(--bad)">${icon('alert')}</span><div><h2>Vault locked</h2><div class="sub">Add VAULT_KEY (64 hex characters) to .env and restart the server.</div></div></div>`;
+  $('#vaultForm').querySelectorAll('input,select,textarea,button').forEach((el) => el.disabled = !v.ready);
+  $('#vaultList').innerHTML = v.items.map((i) => `<div class="row" style="align-items:center" data-name="${esc(i.name)}">
+      <span class="ibox brand">${icon(i.kind === 'card' ? 'wallet' : i.kind === 'personal' ? 'shield' : 'lock')}</span>
+      <div class="body"><div class="title">${esc(i.name)} <span class="pill">${esc(KIND_LABEL[i.kind] || i.kind)}</span></div>
+        <div class="meta">${esc([i.username, i.url].filter(Boolean).join(' · ') || 'updated ' + ago(i.updated_at))}</div>
+        <div class="meta num secret" hidden></div></div>
+      <button class="btn sm icon" title="Reveal for 15 seconds" aria-label="Reveal ${esc(i.name)}" onclick="vaultReveal(this)">${icon('eye')}</button>
+      <button class="btn sm icon" title="Copy" aria-label="Copy ${esc(i.name)}" onclick="vaultCopy(this)">${icon('copy')}</button>
+      <button class="btn sm icon danger" title="Delete" aria-label="Delete ${esc(i.name)}" onclick="vaultDelete(this)">${icon('trash')}</button>
+    </div>`).join('') || `<div class="empty">${icon('lock', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing saved yet.</div>`;
+}
+const vaultName = (btn) => btn.closest('[data-name]').dataset.name;
+window.vaultReveal = async (btn) => {
+  const r = await call('vault/' + encodeURIComponent(vaultName(btn))), el = btn.closest('.row').querySelector('.secret');
+  if (r.error) return alert(r.error);
+  el.textContent = r.value + (r.notes ? `  ·  ${r.notes}` : ''); el.hidden = false;
+  setTimeout(() => { el.hidden = true; el.textContent = ''; }, 15000);
+};
+window.vaultCopy = async (btn) => {
+  const r = await call('vault/' + encodeURIComponent(vaultName(btn)));
+  try { await navigator.clipboard.writeText(r.value); btn.innerHTML = icon('check'); setTimeout(() => btn.innerHTML = icon('copy'), 1500); } catch { alert('Clipboard blocked; use Reveal instead.'); }
+};
+window.vaultDelete = async (btn) => { if (confirm(`Delete ${vaultName(btn)} from the vault? This can't be undone.`)) { await call('vault/' + encodeURIComponent(vaultName(btn)), 'DELETE'); loadVault(); } };
+$('#vaultForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const r = await call('vault', 'POST', Object.fromEntries(new FormData(f)));
+  if (r.error) return alert(r.error);
+  f.reset(); loadVault();
+};
+$('#backupNow').onclick = async () => { const r = await call('backup', 'POST'); if (r.error) alert(r.error); refresh(); };
 
 refresh(); setInterval(refresh, 4000);
 </script>

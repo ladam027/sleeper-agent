@@ -1,5 +1,6 @@
 import { db, set, log } from './db.js';
 import { PRICES } from './budget.js';
+import { names as secretNames } from './vault.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -57,6 +58,9 @@ export const TOOLS = {
       log(ctx.agent, `notify:${urgency}`, message); // Build 2 routes high/critical to Twilio SMS/call
       return 'Delivered to dashboard';
     }),
+
+  list_secrets: tool('list_secrets', "List the names and kinds of the owner's vault entries (passwords, cards, personal info). You never get the values; reference one as {{secret:name}}.",
+    {}, [], () => JSON.stringify(secretNames())),
 
   delegate: tool('delegate', 'Hand a self-contained task to a sub-agent and get its answer. The sub-agent has no access to this conversation, so include all context.',
     { agent: str('sub-agent name'), task: str('full task description') }, ['agent', 'task'],

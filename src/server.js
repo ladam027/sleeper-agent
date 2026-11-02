@@ -1,7 +1,9 @@
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
-import { db, get, set, log } from './db.js';
+import { db, get, set, log, backup, lastBackup, SCHEMA_VERSION } from './db.js';
+import * as vault from './vault.js';
 import { summary } from './budget.js';
 import { TOOLS } from './tools.js';
 import { runAgent, kill, restart, decide } from './agent.js';
@@ -11,6 +13,13 @@ if (!TOKEN || TOKEN.length < 16) throw new Error('Set DASHBOARD_TOKEN (16+ chars
 const HOST = process.env.HOST || '127.0.0.1'; // keep local; reach it remotely through Tailscale, not the open internet
 const PORT = Number(process.env.PORT || 8787);
 const page = new URL('../public/index.html', import.meta.url);
+
+// Version shown in Settings. Major = build number (PLAN.md §4), minor = update within that build.
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
+const git = (...a) => { try { return execFileSync('git', a, { cwd: new URL('..', import.meta.url), encoding: 'utf8' }).trim(); } catch { return null; } };
+const VERSION = { version: pkg.version, build: Number(pkg.version.split('.')[0]), update: Number(pkg.version.split('.')[1]),
+  commit: git('rev-parse', '--short', 'HEAD'), commits: Number(git('rev-list', '--count', 'HEAD')) || null, schema: SCHEMA_VERSION, started: new Date().toISOString() };
+backup('startup');
 
 const authed = (req) => {
   const got = Buffer.from(req.headers.authorization?.replace(/^Bearer /, '') || '');
@@ -36,6 +45,8 @@ async function api(req, url) {
     activity: db.prepare('select * from activity order by id desc limit 150').all(),
     costs: summary(),
     settings: Object.fromEntries(SETTINGS.map((k) => [k, get(k)])),
+    version: { ...VERSION, lastBackup: lastBackup() },
+    vaultReady: vault.ready(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
@@ -64,6 +75,13 @@ async function api(req, url) {
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
     return { ok: true };
   }
+  if (route === 'vault') {
+    if (m === 'GET' && !id) return { ready: vault.ready(), items: vault.list() };
+    if (m === 'GET') return vault.reveal(decodeURIComponent(id)) || { error: 'not found' };
+    if (m === 'POST') return vault.save(await body(req)), { ok: true };
+    if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
+  }
+  if (route === 'backup' && m === 'POST') return { file: backup('manual') };
   if (route === 'memory') {
     if (m === 'GET') return {
       nodes: db.prepare('select * from memory order by id').all(),

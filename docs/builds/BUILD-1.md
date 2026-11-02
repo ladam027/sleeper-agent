@@ -23,3 +23,8 @@ npm install
 npm test
 npm start              # http://127.0.0.1:8787
 ```
+
+**Updates**
+- 1.1: Inline token login (the in-app browser blocks `prompt()`).
+- 1.2: Dashboard redesign (sidebar, live agent hero, KPI cards, agent and approval cards, chat rail, dark mode). See docs/DESIGN.md.
+- 1.3: Encrypted vault (AES-256-GCM, `VAULT_KEY`) for passwords, cards and personal info, with a Vault page. `redact()` strips vault values, card numbers and SSNs from everything sent to the API (messages, history, system prompt, tool results). The agent gets `list_secrets` (names only). Versioned append-only migrations, backups on startup and before migrations (newest 10), refuses to open a newer-schema DB. Version/build info in Settings. 14 tests.

@@ -14,8 +14,11 @@ Read `docs/PLAN.md` first. Work on exactly one build at a time (see §4 there). 
 4. Every Claude call goes through `runAgent`, so budgets, the kill switch, the step limit, and cost logging always apply. No direct `messages.create` elsewhere.
 5. Money and trading limits are enforced in code, not prompts.
 6. The dashboard binds to 127.0.0.1. Remote access is via Tailscale only.
+7. Everything sent to the API passes through `redact()` (src/vault.js). New code that builds prompts or tool results must go through `runAgent`/`exec` so this always applies. Secret values are resolved only inside tool executors via `vault.resolve()` and never returned to the model.
+8. Never lose owner data. `data/` is gitignored. Schema changes are new entries appended to `MIGRATIONS` in src/db.js (never edit, reorder, drop, or delete user tables/rows). Each migration runs after an automatic backup. Test any migration against an old database in `test/persist.test.js`.
 
 ## Conventions
+- Version (package.json, shown in Settings): major = build number, minor = update within that build. Bump the minor on every shipped change and add a line under "Updates" in that build's notes.
 - Run `npm test` before every commit. Each new money/safety path gets one test in `test/`.
 - Model IDs: `claude-opus-5-5` (orchestrator), `claude-sonnet-5`, `claude-haiku-4-5` (workers), `claude-fable-5-1` (rare). Add new models to `PRICES` in `src/budget.js` first.
 - Keep it small: no abstractions for one implementation, no scaffolding for later builds.
