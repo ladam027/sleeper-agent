@@ -53,6 +53,8 @@ const MIGRATIONS = [
    create index if not exists reminders_due on reminders (status, due_at);
    update agents set tools = tools || ',set_reminder,list_reminders,cancel_reminder' where name = 'quick' and tools not like '%set_reminder%';`,
   `update reminders set channel = 'message' where channel = 'sms';`,
+  `alter table agents add column web integer not null default 0;
+   update agents set tools = tools || ',trip_kill_switch' where name = 'security' and tools not like '%trip_kill_switch%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -78,6 +80,12 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
   'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder', 'Pete')`).run();
+
+// Build 3 team. Names are editable in Settings; ids are what agents delegate to.
+const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, '', 1, 'Riley');
+seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall', 1, 'Cleo');
+seed.run('security', 'claude-haiku-4-5', null, 'Hourly security audit of the activity log. Looks for prompt injection being acted on, unexpected tool use, repeated blocked messages or wrong PINs, spending spikes, and anything off-pattern. Reports only real problems; trips the kill switch only for clear compromise.', 0.5, 2048, 'notify_owner,trip_kill_switch', 0, 'Sam');
 
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;
 export const set = (k, v) => db.prepare('insert or replace into settings values (?, ?)').run(k, String(v));

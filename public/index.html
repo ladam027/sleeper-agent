@@ -184,7 +184,8 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 /* Chat rail */
 .chat { position: sticky; top: var(--s5); display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 520px; padding: 0; overflow: hidden; }
 .chat-h { display: flex; align-items: center; gap: var(--s3); padding: var(--s4) var(--s5); border-bottom: 1px solid var(--line); }
-.chat-h select { width: auto; padding: 4px 8px; font-size: 13px; }
+.chat-h select { width: auto; max-width: 150px; padding: 4px 8px; font-size: 13px; text-overflow: ellipsis; }
+.chat-h #chatSub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #msgs { flex: 1; overflow: auto; padding: var(--s5); display: flex; flex-direction: column; gap: var(--s3); }
 .msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s var(--ease); }
 .msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); border-bottom-right-radius: 4px; }
@@ -497,10 +498,30 @@ td.r, th.r { text-align: right; }
             </ul>
             <ul>
               <li><b>Phrases that stay cheap on Auto:</b> questions, lookups, "remember that…", quick edits.</li>
-              <li><b>Phrases that trigger Opus:</b> plan, research, analyze, build, draft, compare, strategy, business, invest, marketing, website, or anything over ~500 characters.</li>
+              <li><b>Phrases that go to James (Opus):</b> plan, research, analyze, build, draft, compare, strategy, business, invest, marketing, website, latest/news/price/search, critique, or anything over ~500 characters.</li>
               <li>Force a model any time with the picker above the chat.</li>
             </ul>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-bot"/></svg></span><div><h2>Your team</h2><div class="sub">Names are editable in Settings. James hands work to the others; you can also pick any of them in the chat picker.</div></div></div>
+          <table>
+            <thead><tr><th>Agent</th><th>Does</th><th>Model</th><th>Ask like</th></tr></thead>
+            <tbody>
+              <tr><td><b>James</b> · Orchestrator</td><td class="muted">Plans, remembers, delegates, handles anything complex</td><td class="muted">Opus 5.5</td><td class="muted">"Plan my week", "help me decide…"</td></tr>
+              <tr><td><b>Pete</b> · Quick</td><td class="muted">Fast cheap answers, memory lookups, reminders</td><td class="muted">Haiku 4.5</td><td class="muted">"What do you know about me?", "remind me at 5…"</td></tr>
+              <tr><td><b>Riley</b> · Researcher</td><td class="muted">Searches the web and reads pages, reports back with links. Takes no actions.</td><td class="muted">Sonnet 5 + web</td><td class="muted">"Research Etsy fees for digital prints", "what's the latest on…"</td></tr>
+              <tr><td><b>Cleo</b> · Critic</td><td class="muted">Finds holes, risks, legal and platform-rule problems, then improves the idea</td><td class="muted">Opus 5.5 + web</td><td class="muted">"Critique this idea: …", "tear apart my plan"</td></tr>
+              <tr><td><b>Sam</b> · Security</td><td class="muted">Audits the activity log hourly (only when something happened). Alerts you, and trips the kill switch for clear compromise.</td><td class="muted">Haiku 4.5</td><td class="muted">Runs by itself</td></tr>
+            </tbody>
+          </table>
+          <ul>
+            <li><b>Web safety:</b> anything read from the web could be written by an attacker. Once a task has read web content, actions that change things (saving memories, reminders, new agents) <b>wait for your approval</b>, and agents can't phone you from that task. You'll see the reason on the approval.</li>
+            <li><b>Cost:</b> a research question is usually 3–10¢ (searches are 1¢ each, max 5 per step). Sam's audit is about 1¢ and costs nothing in hours when nothing happened.</li>
+            <li><b>Memory cleanup:</b> once you have 12+ memories, a nightly half-price job looks for duplicates and outdated ones and <b>suggests</b> merges as an approval. Nothing changes until you approve, and pinned memories are never removed.</li>
+            <li><b>Custom agents:</b> ask James to "create an agent for my Etsy shop". He proposes its model, tools and budget, and you approve it.</li>
+          </ul>
         </div>
 
         <div class="card">
@@ -714,8 +735,8 @@ function show(v) {
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -768,7 +789,7 @@ async function refresh() {
   // Approvals
   $('#approvals').innerHTML = approvals.map((a) => `<div class="ap">
       <div style="display:flex;align-items:center;gap:8px"><span class="ibox brand" style="width:28px;height:28px">${icon('shield', 'width:15px;height:15px')}</span><span style="font-size:13px;font-weight:500">${esc(agentLabel(a.agent))}</span><span class="pill warn" style="margin-left:auto">Pending · ${esc(ago(a.ts))}</span></div>
-      <h4>${esc(a.tool.replace(/_/g, ' '))} <span class="muted" style="font-weight:400">#${a.id}</span></h4>
+      <h4>${esc(a.tool.replace(/_/g, ' '))} <span class="muted" style="font-weight:400">#${a.id}</span></h4>${a.reason ? `<div class="help" style="margin:0 0 4px">${esc(a.reason)}</div>` : ''}
       <pre>${esc(JSON.stringify(JSON.parse(a.input), null, 2))}</pre>
       <div class="actions"><button class="btn primary sm" onclick="decide(${a.id}, true)">${icon('check')}Approve</button><button class="btn sm" onclick="decide(${a.id}, false)">${icon('x')}Decline</button></div>
     </div>`).join('') || `<div class="empty">${icon('shield', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing needs you right now.</div>`;
@@ -782,7 +803,7 @@ async function refresh() {
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
       <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
-      <div class="tags">${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${a.concise ? 'concise' : 'full replies'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
+      <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${a.concise ? 'concise' : 'full replies'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
       <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
       <form class="cfg" data-agent="${esc(a.name)}" hidden onsubmit="agentSave(event)">
         <div><label class="f">Effort</label><select name="effort" ${isHaiku(a) ? 'disabled' : ''}>${['low', 'medium', 'high'].map((e) => `<option ${(a.effort || 'medium') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
@@ -791,6 +812,8 @@ async function refresh() {
           <div class="help">${isHaiku(a) ? '1k is plenty for quick answers.' : 'Includes thinking. Keep 8k+ for Opus.'}</div></div>
         <div><label class="f">Daily budget (USD)</label><input name="daily_budget_usd" type="number" min="0" max="50" step="0.25" value="${a.daily_budget_usd}"></div>
         <div style="display:flex;align-items:flex-end"><label style="display:flex;gap:8px;align-items:center;font-size:13px;min-height:40px"><input type="checkbox" name="concise" style="width:auto" ${a.concise ? 'checked' : ''}> Concise replies</label></div>
+        ${a.name === 'orchestrator' ? '<div class="full help">James has every tool except internal ones. Risky ones still need your approval.</div>' : `<div class="full"><label class="f">Tools it may use</label><div style="display:flex;flex-wrap:wrap;gap:6px 14px">${toolChoices(a).map(([t, on]) => `<label style="display:flex;gap:6px;align-items:center;font-size:12.5px" title="${esc(state.tools[t]?.description || '')}"><input type="checkbox" name="tool" value="${esc(t)}" style="width:auto" ${on ? 'checked' : ''}>${esc(t.replace(/_/g, ' '))}</label>`).join('')}</div></div>
+        <div class="full"><label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" name="web" style="width:auto" ${a.web ? 'checked' : ''}> Web search &amp; page reading (about 1¢ per search; anything it reads is treated as untrusted)</label></div>`}
         <div class="full" style="display:flex;gap:var(--s2)"><button class="btn primary sm">Save</button><button type="button" class="btn sm" onclick="agentCfg(null)">Cancel</button></div>
       </form>
     </div>`; }).join('');
@@ -857,6 +880,10 @@ function renderChat(chat) {
 }
 
 const isHaiku = (a) => a.model.startsWith('claude-haiku');
+// Tools an owner can grant a non-orchestrator agent (create/delegate stay with James; cleanup only runs via approval).
+const NOT_GRANTABLE = new Set(['create_agent', 'delegate', 'escalate', 'apply_memory_cleanup']);
+const toolChoices = (a) => { const own = new Set((a.tools || '').split(',').filter(Boolean));
+  return Object.keys(state.tools).filter((t) => !NOT_GRANTABLE.has(t) && (!state.tools[t].hidden || own.has(t) || a.name === 'security')).map((t) => [t, own.has(t)]); };
 // "James - Orchestrator". Falls back to the internal id for non-agents (owner, router).
 const roleOf = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 const agentLabel = (id) => { const a = state?.agents?.find((x) => x.name === id); return a ? (a.display_name ? `${a.display_name} - ${roleOf(a.name)}` : roleOf(a.name)) : id; };
@@ -868,7 +895,8 @@ window.agentCfg = (name) => {
 };
 window.agentSave = async (e) => {
   e.preventDefault(); const f = e.target;
-  const r = await call(`agents/${encodeURIComponent(f.dataset.agent)}`, 'POST', {
+  const perms = f.dataset.agent === 'orchestrator' ? {} : { tools: [...f.querySelectorAll('[name=tool]:checked')].map((c) => c.value), web: f.web.checked };
+  const r = await call(`agents/${encodeURIComponent(f.dataset.agent)}`, 'POST', { ...perms,
     ...(f.effort.disabled ? {} : { effort: f.effort.value }), max_tokens: +f.max_tokens.value,
     daily_budget_usd: +f.daily_budget_usd.value, concise: f.concise.checked });
   if (r.error) return alert(r.error);

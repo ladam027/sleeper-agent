@@ -62,7 +62,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Timezone from your phone (Shortcuts posts location → `set_timezone`).
 - Optional free channel: a Telegram bot for chat, keeping Twilio for urgent messages only.
 
-### Build 3: Team + safety
+### Build 3: Team + safety ✅
 - Sub-agent framework: per-agent tool allowlists stored in the DB, `create_agent` (already approval-gated).
 - Untrusted-content wrapper: anything from email or the web gets tagged as data, and agents that read untrusted content can't call side-effect tools in the same run.
 - `security` agent: reviews the activity log every hour on Haiku, flags anomalies, can trip the kill switch.

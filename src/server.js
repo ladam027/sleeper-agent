@@ -7,8 +7,9 @@ import * as vault from './vault.js';
 import * as phone from './phone.js';
 import * as scheduler from './scheduler.js';
 import * as telegram from './telegram.js';
-import { summary, PRICES } from './budget.js';
+import * as jobs from './jobs.js';
 import { TOOLS } from './tools.js';
+import { summary, PRICES } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
 
 
@@ -69,6 +70,7 @@ async function api(req, url) {
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
     chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') === 'auto' ? 'orchestrator' : url.searchParams.get('agent') || 'orchestrator'),
     prices: PRICES,
+    tools: Object.fromEntries(Object.entries(TOOLS).map(([k, t]) => [k, { risk: t.risk, hidden: t.hidden, description: t.def.description.split('. ')[0] }])),
   };
   if (route === 'chat' && m === 'POST') {
     const { agent = 'auto', text } = await body(req);
@@ -86,6 +88,12 @@ async function api(req, url) {
     if (b.daily_budget_usd !== undefined) { if (!(b.daily_budget_usd >= 0 && b.daily_budget_usd <= 50)) throw new Error('Daily budget must be $0–50'); upd('daily_budget_usd', b.daily_budget_usd); }
     if (b.effort !== undefined) { if (!['low', 'medium', 'high'].includes(b.effort)) throw new Error('Effort must be low, medium or high'); upd('effort', b.effort); }
     if (b.concise !== undefined) upd('concise', b.concise ? 1 : 0);
+    if (b.tools !== undefined) {
+      if (!Array.isArray(b.tools) || b.tools.some((t) => !TOOLS[t])) throw new Error('Unknown tool');
+      if (id !== 'orchestrator' && b.tools.some((t) => ['create_agent', 'delegate', 'apply_memory_cleanup'].includes(t))) throw new Error('Only the orchestrator may create agents or delegate');
+      upd('tools', b.tools.join(','));
+    }
+    if (b.web !== undefined) upd('web', b.web ? 1 : 0);
     if (b.display_name !== undefined) { const v = String(b.display_name).trim(); if (!/^[\p{L}\p{N} .'-]{1,24}$/u.test(v)) throw new Error('Name must be 1-24 letters, numbers or spaces'); upd('display_name', v); }
     if (b.max_tokens !== undefined) { if (!(b.max_tokens >= 512 && b.max_tokens <= 64000)) throw new Error('Max reply length must be 512–64000 tokens'); upd('max_tokens', Math.round(b.max_tokens)); }
     log('owner', 'settings', `${id}: ${Object.keys(b).join(', ')} updated`);
@@ -148,6 +156,7 @@ async function api(req, url) {
 
 scheduler.start();
 telegram.poll(); // no-op until TELEGRAM_BOT_TOKEN is set
+jobs.start();
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

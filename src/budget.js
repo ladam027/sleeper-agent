@@ -10,18 +10,22 @@ export const PRICES = {
 
 export const MAX_STEPS = 8; // model calls per run; stops runaway tool loops
 
-export function costOf(model, u) {
+export const WEB_SEARCH_USD = 0.01; // $10 per 1,000 searches; web fetch has no per-use fee
+
+// batch = Message Batches API (50% off tokens).
+export function costOf(model, u, { batch = false } = {}) {
   const p = PRICES[model];
   if (!p) throw new Error(`No price for ${model}; add it to PRICES before using it`);
-  return ((u.input_tokens || 0) * p.input + (u.output_tokens || 0) * p.output +
+  const tokens = ((u.input_tokens || 0) * p.input + (u.output_tokens || 0) * p.output +
     (u.cache_read_input_tokens || 0) * p.cacheRead + (u.cache_creation_input_tokens || 0) * p.cacheWrite) / 1e6;
+  return tokens * (batch ? 0.5 : 1) + (u.server_tool_use?.web_search_requests || 0) * WEB_SEARCH_USD;
 }
 
 // Calendar day in the owner's timezone, so "daily budget" resets at their midnight.
 export const today = () => new Date().toLocaleDateString('en-CA', { timeZone: get('timezone') });
 
-export function record(agentName, model, usage) {
-  const usd = costOf(model, usage);
+export function record(agentName, model, usage, opts) {
+  const usd = costOf(model, usage, opts);
   db.prepare(`insert into costs (day, agent, model, input, output, cache_read, cache_write, usd)
     values (?, ?, ?, ?, ?, ?, ?, ?)`).run(today(), agentName, model, usage.input_tokens || 0,
     usage.output_tokens || 0, usage.cache_read_input_tokens || 0, usage.cache_creation_input_tokens || 0, usd);

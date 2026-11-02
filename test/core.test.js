@@ -39,13 +39,13 @@ test('memory tool round-trips', async () => {
 
 test('high-risk tool is queued, not executed, until approved', async () => {
   reset();
-  fake([toolUse('create_agent', { name: 'researcher', model: 'claude-haiku-4-5', purpose: 'research', daily_budget_usd: 1 }), text('asked')]);
-  await runAgent('orchestrator', 'make a researcher');
-  assert.equal(db.prepare("select count(*) n from agents where name='researcher'").get().n, 0);
+  fake([toolUse('create_agent', { name: 'helper', model: 'claude-haiku-4-5', purpose: 'help', daily_budget_usd: 1 }), text('asked')]);
+  await runAgent('orchestrator', 'make a helper');
+  assert.equal(db.prepare("select count(*) n from agents where name='helper'").get().n, 0);
   const ap = db.prepare("select id from approvals where status='pending'").get();
   assert.ok(ap);
   await decide(ap.id, true);
-  assert.equal(db.prepare("select count(*) n from agents where name='researcher'").get().n, 1);
+  assert.equal(db.prepare("select count(*) n from agents where name='helper'").get().n, 1);
   assert.equal(await decide(ap.id, true), null, 'cannot approve twice');
 });
 
