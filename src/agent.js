@@ -67,8 +67,11 @@ async function exec(use, ctx, allowed) {
   catch (e) { return { content: redact(e.message), is_error: true }; }
 }
 
-export async function runAgent(name, text, depth = 0) {
+// opts.thread: which chat history to read/write (Auto mode shares the orchestrator's thread across models).
+// opts.canEscalate: adds the escalate tool; the run then returns { escalated: reason } instead of a reply.
+export async function runAgent(name, text, depth = 0, opts = {}) {
   text = redact(text); // before it is logged, saved to history, or sent
+  const thread = opts.thread || name;
   const a = agent(name);
   if (!a) return `Unknown agent ${name}`;
   if (running.has(name)) return `${name} is busy with another task`;
@@ -77,10 +80,13 @@ export async function runAgent(name, text, depth = 0) {
   if (a.status !== 'killed') setStatus(name, 'running');
   log(name, depth ? 'delegated' : 'task', text.slice(0, 500));
 
-  const allowed = new Set(Object.keys(TOOLS).filter((k) => depth === 0 || SUB_AGENT_TOOLS.has(k)));
+  const own = a.tools ? new Set(a.tools.split(',')) : null; // per-agent allowlist; null = all
+  const allowed = new Set(Object.keys(TOOLS).filter((k) => k !== 'escalate' && (depth === 0 ? !own || own.has(k) : SUB_AGENT_TOOLS.has(k))));
+  if (opts.canEscalate) allowed.add('escalate');
   const tools = [...allowed].map((k) => TOOLS[k].def);
   const ctx = { agent: name, depth, run: runAgent };
-  const messages = depth ? [] : history(name);
+  const messages = depth ? [] : history(thread);
+  let spent = 0;
   push(messages, 'user', `${nowLine()}\n${text}`);
 
   try {
@@ -93,6 +99,7 @@ export async function runAgent(name, text, depth = 0) {
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       }, { signal: ctrl.signal });
       const usd = record(name, a.model, res.usage);
+      spent += usd;
       log(name, 'llm', `${a.model} step ${step + 1} $${usd.toFixed(4)}`);
 
       if (res.stop_reason === 'refusal') { log(name, 'refusal', res.stop_details?.explanation || ''); return 'The model declined this request.'; }
@@ -103,14 +110,15 @@ export async function runAgent(name, text, depth = 0) {
       if (!uses.length) {
         const reply = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
         if (!depth) {
-          const ins = db.prepare('insert into chat (agent, role, content) values (?, ?, ?)');
-          ins.run(name, 'user', text);
-          ins.run(name, 'assistant', reply);
+          const ins = db.prepare('insert into chat (agent, role, content, model, usd) values (?, ?, ?, ?, ?)');
+          ins.run(thread, 'user', text, null, null);
+          ins.run(thread, 'assistant', reply, a.model, spent);
         }
         log(name, 'done', reply.slice(0, 300));
         return reply;
       }
       const results = await Promise.all(uses.map(async (u) => ({ type: 'tool_result', tool_use_id: u.id, ...(await exec(u, ctx, allowed)) })));
+      if (ctx.escalated) { log(name, 'escalated', ctx.escalated); return { escalated: ctx.escalated }; }
       messages.push({ role: 'user', content: results });
     }
     log(name, 'blocked', `hit ${MAX_STEPS}-step limit`);
@@ -123,6 +131,25 @@ export async function runAgent(name, text, depth = 0) {
     running.delete(name);
     if (agent(name)?.status === 'running') setStatus(name, 'idle');
   }
+}
+
+// Auto mode: cheapest model that can do the job. Obvious heavy work goes straight to the orchestrator;
+// everything else tries the quick (Haiku) agent first, which escalates if it is out of its depth.
+// ponytail: keyword heuristic, upgrade to a learned router if misroutes show up in the activity feed.
+const HEAVY = /\b(plan|strategy|strategi[sz]e|analy[sz]e|analysis|research|build|design|code|debug|draft|write (a|an|me|the)|compare|evaluate|forecast|simulat\w*|business|idea|legal|invest\w*|trad(e|ing)|marketing|website|step[- ]by[- ]step|delegate|create (an? )?agent|sub-?agent)\b/i;
+export const isHeavy = (text) => text.length > 500 || HEAVY.test(text);
+
+export async function auto(text) {
+  const thread = 'orchestrator';
+  if (isHeavy(text) || !agent('quick') || blocked('quick')) {
+    log('router', 'route', `orchestrator (${isHeavy(text) ? 'complex request' : 'quick agent unavailable'})`);
+    return runAgent('orchestrator', text, 0, { thread });
+  }
+  log('router', 'route', 'quick (simple request)');
+  const r = await runAgent('quick', text, 0, { thread, canEscalate: true });
+  if (typeof r === 'string') return r;
+  log('router', 'route', `orchestrator (quick escalated: ${r.escalated})`);
+  return runAgent('orchestrator', text, 0, { thread });
 }
 
 export function kill(name) {

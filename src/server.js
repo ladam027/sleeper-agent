@@ -4,9 +4,10 @@ import { execFileSync } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import { db, get, set, log, backup, lastBackup, SCHEMA_VERSION } from './db.js';
 import * as vault from './vault.js';
-import { summary } from './budget.js';
+import { summary, PRICES } from './budget.js';
 import { TOOLS } from './tools.js';
-import { runAgent, kill, restart, decide } from './agent.js';
+import { runAgent, auto, kill, restart, decide } from './agent.js';
+
 
 const TOKEN = process.env.DASHBOARD_TOKEN;
 if (!TOKEN || TOKEN.length < 16) throw new Error('Set DASHBOARD_TOKEN (16+ chars) in .env');
@@ -50,12 +51,13 @@ async function api(req, url) {
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
-    chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') || 'orchestrator'),
+    chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') === 'auto' ? 'orchestrator' : url.searchParams.get('agent') || 'orchestrator'),
+    prices: PRICES,
   };
   if (route === 'chat' && m === 'POST') {
-    const { agent = 'orchestrator', text } = await body(req);
+    const { agent = 'auto', text } = await body(req);
     if (!text?.trim()) throw new Error('text required');
-    return { reply: await runAgent(agent, text.slice(0, 20000)) };
+    return { reply: await (agent === 'auto' ? auto(text.slice(0, 20000)) : runAgent(agent, text.slice(0, 20000))) };
   }
   if (route === 'approvals' && m === 'POST') {
     const result = await decide(Number(id), (await body(req)).approve === true);

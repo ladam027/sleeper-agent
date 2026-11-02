@@ -38,6 +38,9 @@ const MIGRATIONS = [
    create table if not exists links (src integer, dst integer, label text, primary key (src, dst, label));`,
   `create table if not exists secrets (name text primary key, kind text not null, iv blob not null, tag blob not null,
      data blob not null, created_at text default current_timestamp, updated_at text default current_timestamp);`,
+  `alter table chat add column model text;
+   alter table chat add column usd real;
+   alter table agents add column tools text;`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -59,6 +62,10 @@ for (const [k, v] of Object.entries(defaults))
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd)
   values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3)`).run();
+
+db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, tools)
+  values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1,
+  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets')`).run();
 
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;
 export const set = (k, v) => db.prepare('insert or replace into settings values (?, ?)').run(k, String(v));

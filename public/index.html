@@ -184,6 +184,15 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s var(--ease); }
 .msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: var(--sunken); border-bottom-left-radius: 4px; }
+.badge { align-self: flex-start; margin: -6px 0 0 4px; font-size: 11px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+.badge b { font-weight: 600; color: var(--brand); }
+.guide h3 { font-size: 15px; margin: 0 0 var(--s2); }
+.guide p, .guide li { color: var(--ink-2); font-size: 13.5px; line-height: 1.6; }
+.guide ul { padding-left: 18px; margin: var(--s2) 0 0; }
+.guide li + li { margin-top: 6px; }
+.guide b, .guide strong { color: var(--ink); font-weight: 600; }
+.guide code { font-size: 12.5px; background: var(--sunken); padding: 1px 6px; border-radius: 6px; color: var(--ink); }
+.tips { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s4); }
 .msg.sys { align-self: center; font-size: 12px; color: var(--ink-2); background: none; padding: 2px 8px; text-align: center; }
 .typing { display: inline-flex; gap: 4px; padding: 14px; }
 .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); animation: blink 1.2s infinite; }
@@ -275,6 +284,7 @@ td.r, th.r { text-align: right; }
     <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
     <button class="nav" data-view="costs"><svg class="i"><use href="#i-wallet"/></svg>Costs</button>
     <div class="navlabel">Manage</div>
+    <button class="nav" data-view="guide"><svg class="i"><use href="#i-book"/></svg>Guide</button>
     <button class="nav" data-view="settings"><svg class="i"><use href="#i-sliders"/></svg>Settings</button>
     <div class="side-foot">
       <div class="card" style="padding:var(--s4);box-shadow:none">
@@ -350,7 +360,7 @@ td.r, th.r { text-align: right; }
       <aside class="card chat" aria-label="Chat">
         <div class="chat-h">
           <span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span>
-          <div style="flex:1;min-width:0"><div style="font-weight:600">Ask Sleeper</div><div class="muted" style="font-size:12px">Talks to the selected agent</div></div>
+          <div style="flex:1;min-width:0"><div style="font-weight:600">Ask Sleeper</div><div class="muted" style="font-size:12px" id="chatSub">Cheapest model that can answer</div></div>
           <label class="sr" for="agentPick">Agent</label><select id="agentPick"></select>
         </div>
         <div id="msgs" aria-live="polite"></div>
@@ -431,6 +441,74 @@ td.r, th.r { text-align: right; }
       </div>
     </section>
 
+    <!-- Guide -->
+    <section class="content" data-panel="guide" hidden style="grid-template-columns:1fr">
+      <div class="stack guide">
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-book"/></svg></span><div><h2>How to get the most out of Sleeper Agent</h2><div class="sub">Short version: leave chat on Auto, pin your core facts, and let the budgets do their job.</div></div></div>
+          <div class="tips">
+            <div><h3>1. Teach it who you are (once)</h3><p>Tell it your name, job, city, goals, projects and preferences in one message. Then go to <b>Memory</b> and <b>pin</b> the 5–10 facts it needs constantly. A single "Owner profile" memory works best. Pinned facts ride along with every message for about $0.00004 each and save a paid search on every question.</p></div>
+            <div><h3>2. Leave chat on Auto</h3><p><b>Auto</b> sends simple things ("what's my name?", "remind me what I said about X") to <b>Quick</b> (Haiku 4.5). Planning, research, writing, analysis and long messages go to the <b>Orchestrator</b> (Opus 5.5). If Quick is out of its depth it hands off by itself. Each reply shows which model answered and what it cost.</p></div>
+            <div><h3>3. One conversation, many models</h3><p>In Auto, both agents share one conversation, so the orchestrator sees what you told Quick and the other way round. Pick an agent by name only to force it. History is capped at the last 20 messages to keep costs flat, and anything older lives in memory.</p></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-wallet"/></svg></span><div><h2>Model prices</h2><div class="sub">Per million tokens. A typical short chat turn is 2–6k tokens in, 100–500 out.</div></div></div>
+          <table id="priceTable"></table>
+          <p class="help" style="margin-top:var(--s3)">"Cached" is the price when the same prompt prefix was sent in the last 5 minutes. Back-to-back messages are much cheaper than spread-out ones.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-trend"/></svg></span><div><h2>Keeping costs to a minimum</h2></div></div>
+          <div class="tips">
+            <ul>
+              <li><b>Batch your asks.</b> One message with three requests beats three messages, because each turn re-sends the conversation.</li>
+              <li><b>Be specific.</b> "Draft 3 Etsy titles for a minimalist fox print" is cheaper than a vague ask plus two rounds of clarification.</li>
+              <li><b>Start fresh topics fresh.</b> Long unrelated history makes every reply cost more. Save what matters to memory and move on.</li>
+            </ul>
+            <ul>
+              <li><b>Pin carefully.</b> Pin stable facts only. Editing a pinned memory resets the cache, so the next message costs a bit more.</li>
+              <li><b>Watch the Costs tab.</b> If a day spikes, the Activity feed shows which agent and step did it.</li>
+              <li><b>Budgets are hard stops.</b> Each agent has a daily cap and there's a global cap in Settings. Agents stop at the cap instead of overspending, and one runaway loop is cut off after 8 steps.</li>
+            </ul>
+            <ul>
+              <li><b>Phrases that stay cheap on Auto:</b> questions, lookups, "remember that…", quick edits.</li>
+              <li><b>Phrases that trigger Opus:</b> plan, research, analyze, build, draft, compare, strategy, business, invest, marketing, website, or anything over ~500 characters.</li>
+              <li>Force a model any time with the picker above the chat.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-lock"/></svg></span><div><h2>Memory vs Vault</h2></div></div>
+            <p style="margin-top:0">Ask yourself: does the agent need to <b>know</b> it, or only <b>use</b> it?</p>
+            <ul>
+              <li><b>Memory</b> (agent reads it, and it's sent to Anthropic): name, job, city, birth year, goals, projects, which bank or broker you use.</li>
+              <li><b>Vault</b> (never leaves this machine): passwords, API keys, card numbers, account numbers, SSN, full address, exact date of birth.</li>
+              <li>Don't vault something you want the agent to know. Vault values are replaced with <code>{{secret:name}}</code> everywhere before sending, including in memory.</li>
+              <li>Card numbers and SSNs are stripped from chat automatically even if you never saved them.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span><div><h2>Safety controls</h2></div></div>
+            <ul style="margin-top:0">
+              <li><b>Approvals:</b> risky actions (creating agents now; sending, posting, paying and trading later) wait on the Overview until you approve them.</li>
+              <li><b>Kill</b> stops one agent mid-task. <b>Restart</b> clears a stuck one. The red <b>Kill switch</b> blocks every agent from calling the API.</li>
+              <li>The dashboard only listens on this computer. Phone access comes in Build 2 via Tailscale.</li>
+              <li>Your chats, memory and vault live in <code>data/agent.db</code>. Updates never replace it, and it's backed up on every start.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span><div><h2>Good first prompts</h2></div></div>
+          <div class="suggest" style="justify-content:flex-start" id="guidePrompts"></div>
+        </div>
+      </div>
+    </section>
+
     <!-- Settings -->
     <section class="content view-full" data-panel="settings" hidden>
       <div class="card">
@@ -491,6 +569,8 @@ td.r, th.r { text-align: right; }
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
   <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -504,7 +584,7 @@ const store = { get: (k) => { try { return localStorage.getItem(k) || ''; } catc
 // SQLite current_timestamp is UTC without a zone marker
 const ago = (ts) => { const s = (Date.now() - new Date(ts.replace(' ', 'T') + 'Z')) / 1000; return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`; };
 
-let token = store.get('token'), state = null, agentName = 'orchestrator', view = 'overview', sending = false;
+let token = store.get('token'), state = null, agentName = store.get('agent') || 'auto', view = 'overview', sending = false;
 const applyTheme = (t) => t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme;
 applyTheme(store.get('theme'));
 
@@ -530,11 +610,12 @@ function show(v) {
   if (v === 'memory') loadMemory();
   if (v === 'costs') drawCosts();
   if (v === 'vault') loadVault();
+  if (v === 'guide') renderGuide();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -609,7 +690,9 @@ async function refresh() {
 
   // Chat
   const pick = $('#agentPick');
-  if (pick.options.length !== agents.length) pick.innerHTML = agents.map((a) => `<option ${a.name === agentName ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+  if (pick.options.length !== agents.length + 1) pick.innerHTML = `<option value="auto">Auto</option>` + agents.map((a) => `<option value="${esc(a.name)}">${esc(a.name)} · ${esc(MODEL_NAME[a.model] || a.model)}</option>`).join('');
+  pick.value = agentName;
+  if (view === 'guide') renderGuide();
   if (!sending) renderChat(chat);
 
   // Settings (don't clobber while editing)
@@ -634,7 +717,8 @@ function renderChat(chat) {
     box.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { $('#chatIn').value = b.dataset.s; $('#chatIn').focus(); });
     return;
   }
-  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`).join('');
+  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`
+    + (c.role === 'assistant' && c.model ? `<div class="badge">${icon('zap', 'width:12px;height:12px')}<b>${esc(MODEL_NAME[c.model] || c.model)}</b>${c.usd != null ? money(c.usd) : ''}</div>` : '')).join('');
   box.scrollTop = box.scrollHeight;
 }
 
@@ -648,7 +732,8 @@ document.querySelectorAll('.halt').forEach((b) => b.onclick = async () => {
   if (on && !confirm('Stop ALL agents from making API calls?')) return;
   await call('settings', 'POST', { global_halt: on }); refresh();
 });
-$('#agentPick').onchange = (e) => { agentName = e.target.value; lastChatKey = ''; refresh(); };
+$('#agentPick').onchange = (e) => { agentName = e.target.value; store.set('agent', agentName); lastChatKey = '';
+  $('#chatSub').textContent = agentName === 'auto' ? 'Cheapest model that can answer' : `Always uses ${agentName}`; refresh(); };
 
 const chatIn = $('#chatIn');
 chatIn.oninput = () => { chatIn.style.height = 'auto'; chatIn.style.height = Math.min(chatIn.scrollHeight, 160) + 'px'; };
@@ -730,6 +815,18 @@ function drawCosts() {
     + days.filter((_, i) => i % Math.ceil(days.length / 6) === 0).map((d) => `<text x="${days.indexOf(d) * bw + 4}" y="${H - 6}">${d.day.slice(5)}</text>`).join('')
     : '<text x="50%" y="50%" text-anchor="middle">No spend yet</text>';
   $('#byAgent').innerHTML = state.costs.byAgent.map((a) => `<tr><td>${esc(a.agent)}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No spend today.</td></tr>';
+}
+
+// ── Guide ──
+const MODEL_NAME = { 'claude-haiku-4-5': 'Haiku 4.5', 'claude-sonnet-5': 'Sonnet 5', 'claude-opus-5-5': 'Opus 5.5', 'claude-fable-5-1': 'Fable 5.1' };
+const GUIDE_PROMPTS = ["Here's my profile: name, job, city, goals… Save it as one pinned 'Owner profile' memory.", 'What do you know about me?', 'I moved to Denver, update my timezone', 'Plan my week: here are my projects and deadlines…', 'Find the holes in this business idea: …'];
+function renderGuide() {
+  const P = state?.prices || {};
+  $('#priceTable').innerHTML = '<thead><tr><th>Model</th><th>Used for</th><th class="r">Input</th><th class="r">Cached input</th><th class="r">Output</th></tr></thead><tbody>'
+    + Object.entries(P).sort((a, b) => a[1].input - b[1].input).map(([id, p]) => `<tr><td><b>${esc(MODEL_NAME[id] || id)}</b></td><td class="muted">${{ 'claude-haiku-4-5': 'Quick agent, simple asks', 'claude-sonnet-5': 'Future workers', 'claude-opus-5-5': 'Orchestrator, hard work', 'claude-fable-5-1': 'Rare, hardest problems' }[id] || ''}</td><td class="r num">$${p.input}</td><td class="r num">$${p.cacheRead}</td><td class="r num">$${p.output}</td></tr>`).join('') + '</tbody>';
+  const gp = $('#guidePrompts');
+  if (!gp.children.length) { gp.innerHTML = GUIDE_PROMPTS.map((t) => `<button type="button">${esc(t)}</button>`).join('');
+    gp.querySelectorAll('button').forEach((b) => b.onclick = () => { show('overview'); chatIn.value = b.textContent; chatIn.focus(); chatIn.oninput(); }); }
 }
 
 // ── Vault ──

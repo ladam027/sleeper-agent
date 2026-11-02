@@ -93,3 +93,27 @@ test('recall never reports empty when memories exist (synonyms, empty query)', a
   db.exec('delete from memory');
   assert.match(TOOLS.recall.run({ query: 'x' }), /Memory is empty/);
 });
+
+test('auto mode: simple question stays on Haiku, heavy request goes to Opus, escalation hands off', async () => {
+  reset();
+  const { auto, isHeavy } = await import('../src/agent.js');
+  assert.equal(isHeavy('what is my name'), false);
+  assert.equal(isHeavy('plan my week around the Etsy launch'), true);
+
+  let calls = fake([text('Logan')]);
+  assert.equal(await auto('what is my name'), 'Logan');
+  assert.equal(calls[0].model, 'claude-haiku-4-5');
+  assert.ok(calls[0].tools.some((t) => t.name === 'escalate'));
+  assert.ok(!calls[0].tools.some((t) => t.name === 'create_agent'), 'quick agent has a restricted tool set');
+
+  calls = fake([text('plan')]);
+  await auto('plan my week around the Etsy launch');
+  assert.equal(calls[0].model, 'claude-opus-5-5');
+
+  calls = fake([toolUse('escalate', { reason: 'needs judgment' }), text('deep answer')]);
+  assert.equal(await auto('should I quit my job'), 'deep answer');
+  assert.deepEqual(calls.map((c) => c.model), ['claude-haiku-4-5', 'claude-opus-5-5']);
+  const rows = db.prepare("select role, model from chat where agent = 'orchestrator' order by id").all();
+  assert.equal(rows.filter((r) => r.role === 'assistant').at(-1).model, 'claude-opus-5-5', 'one shared thread, records who answered');
+  assert.equal(rows.length, 6, 'escalated attempt is not saved twice');
+});
