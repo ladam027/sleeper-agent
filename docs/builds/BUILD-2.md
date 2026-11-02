@@ -43,3 +43,4 @@
 - Removed: Twilio, the port-8788 webhook listener, PUBLIC_URL/Tailscale Funnel requirement. Reminder channel `sms` → `message` (schema v7).
 - Owner setup: (1) Telegram → @BotFather → /newbot → paste token as TELEGRAM_BOT_TOKEN → Settings → Pair Telegram. (2) Telnyx account → buy a number → API key → TELNYX_API_KEY + OWNER_PHONE → `npm run setup:telnyx`.
 - 2.2: Telnyx setup reuses the account's existing outbound voice profile (new accounts are limited to one). Setup ran: calls come from +13233002744.
+- 2.3: Telegram never logs PINs (approvals logged as "Y #12 [PIN hidden]", bare numbers hidden, everything else vault-redacted). A bare PIN or an approval sent before a PIN is set gets a how-to reply instead of going to the model. Clearer help text.

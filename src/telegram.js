@@ -4,6 +4,7 @@ import { randomInt } from 'node:crypto';
 import { get, set, log } from './db.js';
 import * as phone from './phone.js';
 import { auto, decide } from './agent.js';
+import { redact } from './vault.js';
 
 let pairing = null; // { code, exp } from the dashboard; one guess only
 export function startPairing() {
@@ -13,7 +14,8 @@ export function startPairing() {
 }
 export function unpair() { set('telegram_chat_id', ''); log('owner', 'settings', 'Telegram unpaired'); }
 
-const HELP = "I'm your Sleeper Agent. Message me like a person: questions go to Pete, bigger jobs to James.\nApprove a request: Y 12 <PIN>  ·  Deny: N 12 <PIN>";
+const HELP = "I'm your Sleeper Agent. Message me like a person: questions go to Pete, bigger jobs to James.\nWhen I ask for approval I'll send a request number. Reply Y <number> <PIN> to approve or N <number> <PIN> to deny. Set your PIN on the dashboard: Settings → Phone & alerts.";
+const NO_PIN = 'No approval PIN is set yet. Set one on the dashboard under Settings → Phone & alerts (not in the Vault), then reply Y <request number> <PIN>.';
 
 export async function handleUpdate(update) {
   const msg = update.message;
@@ -31,9 +33,13 @@ export async function handleUpdate(update) {
   }
   if (!get('telegram_chat_id') || chat !== get('telegram_chat_id')) { log('phone', 'msg:blocked', 'message from an unpaired Telegram chat'); return; }
 
-  log('phone', 'msg:in', text.slice(0, 200));
-  if (text === '/start' || text === '/help') return phone.message(HELP);
   const ap = phone.parseApproval(text);
+  const barePin = /^\d{4,8}$/.test(text);
+  // Never write a PIN to the activity log; everything else is logged vault-redacted.
+  log('phone', 'msg:in', ap ? `${ap.approve ? 'Y' : 'N'} #${ap.id} [PIN hidden]` : barePin ? '[number hidden]' : redact(text).slice(0, 200));
+  if (text === '/start' || text === '/help') return phone.message(HELP);
+  if (barePin) return phone.message(phone.pinSet() ? 'To approve, send Y <request number> <PIN> (or N to deny). The request number is in the approval message.' : NO_PIN);
+  if (ap && !phone.pinSet()) return phone.message(NO_PIN);
   if (ap) {
     if (!phone.checkPin(ap.pin)) { log('phone', 'msg:blocked', `approval #${ap.id} with wrong PIN`); return phone.message('Wrong PIN. Nothing was approved.'); }
     const result = await decide(ap.id, ap.approve);

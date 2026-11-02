@@ -168,3 +168,19 @@ test('Telnyx setup reuses the default outbound profile on accounts limited to on
   assert.equal(r.profileId, 'default1');
   assert.deepEqual(posts, ['/texml_applications'], 'no new profile created');
 });
+
+test('PINs never reach the activity log or the model; helpful replies when no PIN is set', async () => {
+  reset();
+  db.exec("delete from settings where key = 'sms_pin'");
+  agentMod.deps.client = { messages: { create: async () => { throw new Error('model should not be called'); } } };
+  await tg.handleUpdate(tgMsg('Y 12 7777'));
+  assert.match(sent.at(-1).body.text, /No approval PIN is set/);
+  await tg.handleUpdate(tgMsg('7777'));
+  assert.match(sent.at(-1).body.text, /No approval PIN is set/);
+  phone.setPin('7777');
+  await tg.handleUpdate(tgMsg('7777'));
+  assert.match(sent.at(-1).body.text, /Y <request number> <PIN>/);
+  await tg.handleUpdate(tgMsg('N 5 7777'));
+  const logged = db.prepare("select group_concat(detail, ' | ') d from activity where type = 'msg:in'").get().d;
+  assert.ok(!logged.includes('7777'), `PIN leaked into the log: ${logged}`);
+});
