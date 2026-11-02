@@ -22,9 +22,11 @@ const page = new URL('../public/index.html', import.meta.url);
 
 // Version shown in Settings. Major = build number (PLAN.md §4), minor = update within that build.
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
-const git = (...a) => { try { return execFileSync('git', a, { cwd: new URL('..', import.meta.url), encoding: 'utf8' }).trim(); } catch { return null; } };
+// Commit info: from git locally, from .build-info.json on the VPS (written by scripts/deploy.sh; no .git there).
+const buildInfo = (() => { try { return JSON.parse(readFileSync(new URL('../.build-info.json', import.meta.url))); } catch { return {}; } })();
+const git = (...a) => { try { return execFileSync('git', a, { cwd: new URL('..', import.meta.url), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } };
 const VERSION = { version: pkg.version, build: Number(pkg.version.split('.')[0]), update: Number(pkg.version.split('.')[1]),
-  commit: git('rev-parse', '--short', 'HEAD'), commits: Number(git('rev-list', '--count', 'HEAD')) || null, schema: SCHEMA_VERSION, started: new Date().toISOString() };
+  commit: git('rev-parse', '--short', 'HEAD') || buildInfo.commit || null, commits: Number(git('rev-list', '--count', 'HEAD')) || buildInfo.commits || null, schema: SCHEMA_VERSION, started: new Date().toISOString() };
 backup('startup');
 
 const authed = (req) => {

@@ -51,6 +51,7 @@ echo "Node $(/usr/local/bin/node -v), Tailscale $(tailscale version | head -1)"
 REMOTE
 fi
 
+printf '{"commit":"%s","commits":%s}\n' "$(git rev-parse --short HEAD)" "$(git rev-list --count HEAD)" > .build-info.json
 echo "→ Uploading code"
 rsync -az --delete --exclude node_modules --exclude data --exclude .git --exclude .env --exclude .vps-host --exclude .claude ./ "$HOST:$APP/"
 

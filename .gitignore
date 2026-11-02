@@ -3,3 +3,4 @@ data/
 node_modules/
 .DS_Store
 .vps-host
+.build-info.json
