@@ -1,6 +1,6 @@
 {
   "name": "sleeper-agent",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node --env-file=.env src/server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "setup:telnyx": "node --env-file=.env src/telnyx-setup.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0"

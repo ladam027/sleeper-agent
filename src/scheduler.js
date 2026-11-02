@@ -34,7 +34,7 @@ const pretty = (date, tz) => date.toLocaleString('en-US', { timeZone: tz, weekda
 export function addReminder({ message, when, channel = 'dashboard', repeat = 'none' }, agent = 'owner') {
   const tz = get('timezone'), due = localToUtc(when, tz);
   if (!message?.trim()) throw new Error('Reminder needs a message');
-  if (!['dashboard', 'sms', 'call'].includes(channel)) throw new Error('channel must be dashboard, sms or call');
+  if (!['dashboard', 'message', 'call'].includes(channel)) throw new Error('channel must be dashboard, message or call');
   if (!['none', 'daily', 'weekdays', 'weekly'].includes(repeat)) throw new Error('repeat must be none, daily, weekdays or weekly');
   if (due < Date.now() - 60e3) throw new Error(`That time (${pretty(due, tz)}) is in the past`);
   const { lastInsertRowid: id } = db.prepare('insert into reminders (message, local_time, due_at, channel, repeat, created_by) values (?, ?, ?, ?, ?, ?)')
@@ -64,7 +64,7 @@ export async function tick(now = new Date()) {
     const tz = get('timezone');
     for (const r of db.prepare("select * from reminders where status = 'pending' and due_at <= ?").all(now.toISOString())) {
       const late = now - new Date(r.due_at) > 10 * 60e3 ? ' (late: the server was off)' : '';
-      const urgency = { dashboard: 'low', sms: 'high', call: 'critical' }[r.channel];
+      const urgency = { dashboard: 'low', message: 'high', call: 'critical' }[r.channel];
       await notify(urgency, `Reminder: ${r.message}${late}`, { agent: 'scheduler', alarm: r.channel === 'call' });
       if (r.repeat === 'none') db.prepare("update reminders set status = 'done' where id = ?").run(r.id);
       else {

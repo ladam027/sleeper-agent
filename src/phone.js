@@ -1,44 +1,57 @@
-// Texts and calls to the owner via Twilio's REST API (plain fetch, no SDK).
-// Credentials come from .env; this module never logs them or message bodies' secrets (bodies are agent text, already redacted).
-import { createHmac, timingSafeEqual, randomBytes, scryptSync } from 'node:crypto';
+// Reaching the owner: Telegram messages (free, two-way) and Telnyx phone calls (alarms, emergencies).
+// Neither needs SMS registration or a public URL: calls carry inline TeXML, Telegram is polled (see telegram.js).
+// Credentials come from .env and are never logged.
+import { timingSafeEqual, randomBytes, scryptSync } from 'node:crypto';
 import { db, get, set, log } from './db.js';
 import { recordUsd } from './budget.js';
 
 export const deps = { fetch: (...a) => fetch(...a) }; // tests swap in a fake
 const env = (k) => process.env[k] || '';
-export const configured = () => !!(env('TWILIO_ACCOUNT_SID') && env('TWILIO_AUTH_TOKEN') && /^\+\d{8,15}$/.test(env('TWILIO_FROM')) && /^\+\d{8,15}$/.test(env('OWNER_PHONE')));
+const e164 = (n) => /^\+\d{8,15}$/.test(n);
+export const callsReady = () => !!(env('TELNYX_API_KEY') && env('TELNYX_CONNECTION_ID') && e164(env('TELNYX_FROM')) && e164(env('OWNER_PHONE')));
+export const telegramReady = () => !!(env('TELEGRAM_BOT_TOKEN') && get('telegram_chat_id'));
 
-// ponytail: flat estimates (US rates); read real prices from Twilio's usage API if precision matters.
-export const COST = { sms: 0.0083 + 0.003, call: 0.014 + 0.0083 }; // per segment incl. carrier fee / per ~1-min call + SMS-ish overhead
-export const CAPS = { sms: 30, call: 5 }; // per rolling 24h; stops a loop from running up the phone bill
+// ponytail: flat estimate for a ~1 min US call with TTS; read Telnyx usage reports if precision matters.
+export const COST = { call: 0.01, msg: 0 };
+export const CAPS = { msg: 100, call: 5 }; // per rolling 24h; stops a loop from spamming you or running up the phone bill
 
 const sentToday = (kind) => db.prepare("select count(*) n from activity where type = ? and ts >= datetime('now', '-1 day')").get(`${kind}:out`).n;
 const xml = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
-async function twilio(resource, params) {
-  const sid = env('TWILIO_ACCOUNT_SID');
-  const res = await deps.fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/${resource}.json`, {
-    method: 'POST',
-    headers: { authorization: 'Basic ' + Buffer.from(`${sid}:${env('TWILIO_AUTH_TOKEN')}`).toString('base64'), 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(params),
+export async function telegram(method, params) {
+  const res = await deps.fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params), signal: params.signal,
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Twilio ${res.status}: ${body.message || 'request failed'}`);
-  return body;
+  if (!body.ok) throw new Error(`Telegram: ${body.description || res.status}`);
+  return body.result;
 }
 
-async function send(kind, message) {
-  if (!configured()) throw new Error('Phone not set up: add the Twilio lines to .env');
-  if (sentToday(kind) >= CAPS[kind]) throw new Error(`Daily ${kind} cap (${CAPS[kind]}) reached`);
-  const text = String(message).slice(0, kind === 'sms' ? 1500 : 600);
-  if (kind === 'sms') await twilio('Messages', { To: env('OWNER_PHONE'), From: env('TWILIO_FROM'), Body: text });
-  else await twilio('Calls', { To: env('OWNER_PHONE'), From: env('TWILIO_FROM'),
-    Twiml: `<Response><Say voice="Polly.Matthew">${xml(text)}</Say><Pause length="1"/><Say voice="Polly.Matthew">Again: ${xml(text)}</Say></Response>` });
-  log('phone', `${kind}:out`, text.slice(0, 200));
-  recordUsd('phone', `twilio-${kind}`, COST[kind] * (kind === 'sms' ? Math.ceil(text.length / 153) : 1));
+function guard(kind, ready, what) {
+  if (!ready) throw new Error(`${what} not set up yet (see Settings → Phone & alerts)`);
+  if (sentToday(kind) >= CAPS[kind]) throw new Error(`Daily ${kind === 'msg' ? 'message' : 'call'} cap (${CAPS[kind]}) reached`);
 }
-export const sms = (m) => send('sms', m);
-export const call = (m) => send('call', m);
+
+export async function message(text, chatId = get('telegram_chat_id')) {
+  guard('msg', env('TELEGRAM_BOT_TOKEN') && chatId, 'Telegram');
+  const body = String(text).slice(0, 4000);
+  await telegram('sendMessage', { chat_id: chatId, text: body });
+  log('phone', 'msg:out', body.slice(0, 200));
+}
+
+export async function call(text) {
+  guard('call', callsReady(), 'Phone calls');
+  const say = xml(String(text).slice(0, 600));
+  const res = await deps.fetch(`https://api.telnyx.com/v2/texml/calls/${encodeURIComponent(env('TELNYX_CONNECTION_ID'))}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${env('TELNYX_API_KEY')}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ From: env('TELNYX_FROM'), To: env('OWNER_PHONE'),
+      Texml: `<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Matthew-Neural">${say}</Say><Pause length="1"/><Say voice="Polly.Matthew-Neural">Again. ${say}</Say></Response>` }),
+  });
+  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(`Telnyx ${res.status}: ${b.errors?.[0]?.detail || b.errors?.[0]?.title || 'call failed'}`); }
+  log('phone', 'call:out', String(text).slice(0, 200));
+  recordUsd('phone', 'telnyx-call', COST.call);
+}
 
 // "HH:MM" quiet window in the owner's timezone; handles windows that cross midnight.
 export function inQuietHours(date = new Date()) {
@@ -47,31 +60,23 @@ export function inQuietHours(date = new Date()) {
   return qs <= qe ? now >= qs && now < qe : now >= qs || now < qe;
 }
 
-// low → dashboard; high → text; critical → call + text. Agent-initiated calls become texts during quiet hours.
+// low → dashboard; high → Telegram; critical → call + Telegram. Agent-initiated calls become messages during quiet hours.
 // opts.alarm: the owner set this call themselves, so it rings regardless of quiet hours.
-export async function notify(urgency, message, opts = {}) {
-  log(opts.agent || 'phone', `notify:${urgency}`, message);
+export async function notify(urgency, text, opts = {}) {
+  log(opts.agent || 'phone', `notify:${urgency}`, text);
   if (urgency === 'low') return 'Shown on the dashboard';
-  if (!configured()) return 'Shown on the dashboard (phone not set up yet)';
   const out = [];
-  try {
-    if (urgency === 'critical' && (opts.alarm || !inQuietHours())) { await call(message); out.push('called'); }
-    else if (urgency === 'critical') out.push('quiet hours, so no call');
-    await sms(message); out.push('texted');
-  } catch (e) { log('phone', 'error', e.message); out.push(`failed: ${e.message}`); }
+  if (urgency === 'critical') {
+    if (!callsReady()) out.push('calls not set up');
+    else if (!opts.alarm && inQuietHours()) out.push('quiet hours, so no call');
+    else try { await call(text); out.push('called'); } catch (e) { log('phone', 'error', e.message); out.push(`call failed: ${e.message}`); }
+  }
+  if (telegramReady()) try { await message(text); out.push('messaged on Telegram'); } catch (e) { log('phone', 'error', e.message); out.push(`message failed: ${e.message}`); }
+  else out.push('shown on the dashboard (Telegram not set up)');
   return `Owner ${out.join(', ')}`;
 }
 
-// Twilio request signing: HMAC-SHA1 over the full URL + POST params sorted by name, base64.
-export function validSignature(url, params, signature) {
-  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join('');
-  const want = Buffer.from(createHmac('sha1', env('TWILIO_AUTH_TOKEN')).update(data).digest('base64'));
-  const got = Buffer.from(String(signature || ''));
-  return want.length === got.length && timingSafeEqual(want, got);
-}
-export const isOwner = (from) => !!from && from === env('OWNER_PHONE');
-
-// SMS approval PIN, stored as a salted scrypt hash.
+// Approval PIN (required for approvals sent from the phone), stored as a salted scrypt hash.
 export function setPin(pin) {
   if (!/^\d{4,8}$/.test(String(pin))) throw new Error('PIN must be 4-8 digits');
   const salt = randomBytes(16).toString('hex');
@@ -89,6 +94,9 @@ export function parseApproval(text) {
   return m && { approve: /^(y|yes|approve)$/i.test(m[1]), id: Number(m[2]), pin: m[3] };
 }
 
-export const status = () => ({ configured: configured(), owner: env('OWNER_PHONE') ? '•••' + env('OWNER_PHONE').slice(-4) : null,
-  publicUrl: env('PUBLIC_URL') || null, pinSet: pinSet(), quietStart: get('quiet_start') || '00:00', quietEnd: get('quiet_end') || '07:00',
-  sentToday: { sms: sentToday('sms'), call: sentToday('call') }, caps: CAPS });
+export const status = () => ({
+  calls: callsReady(), owner: env('OWNER_PHONE') ? '•••' + env('OWNER_PHONE').slice(-4) : null,
+  telegramToken: !!env('TELEGRAM_BOT_TOKEN'), telegramPaired: !!get('telegram_chat_id'),
+  pinSet: pinSet(), quietStart: get('quiet_start') || '00:00', quietEnd: get('quiet_end') || '07:00',
+  sentToday: { msg: sentToday('msg'), call: sentToday('call') }, caps: CAPS,
+});

@@ -6,7 +6,7 @@ import { db, get, set, log, backup, lastBackup, SCHEMA_VERSION } from './db.js';
 import * as vault from './vault.js';
 import * as phone from './phone.js';
 import * as scheduler from './scheduler.js';
-import { handleSms } from './sms.js';
+import * as telegram from './telegram.js';
 import { summary, PRICES } from './budget.js';
 import { TOOLS } from './tools.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -16,7 +16,6 @@ const TOKEN = process.env.DASHBOARD_TOKEN;
 if (!TOKEN || TOKEN.length < 16) throw new Error('Set DASHBOARD_TOKEN (16+ chars) in .env');
 const HOST = process.env.HOST || '127.0.0.1'; // keep local; reach it remotely through Tailscale, not the open internet
 const PORT = Number(process.env.PORT || 8787);
-const HOOK_PORT = Number(process.env.HOOK_PORT || 8788); // the ONLY port to expose publicly (Twilio webhooks)
 const page = new URL('../public/index.html', import.meta.url);
 
 // Version shown in Settings. Major = build number (PLAN.md §4), minor = update within that build.
@@ -32,10 +31,10 @@ const authed = (req) => {
   return got.length === want.length && timingSafeEqual(got, want);
 };
 
-async function body(req, raw = false) {
+async function body(req) {
   let s = '';
   for await (const chunk of req) { s += chunk; if (s.length > 1e6) throw new Error('body too large'); }
-  return raw ? s : s ? JSON.parse(s) : {};
+  return s ? JSON.parse(s) : {};
 }
 
 const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt'];
@@ -120,9 +119,13 @@ async function api(req, url) {
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
   if (route === 'phone' && m === 'POST' && id === 'test') {
     const { kind } = await body(req);
-    if (kind === 'call') await phone.call('This is Sleeper Agent. Your phone alerts are working.');
-    else await phone.sms('Sleeper Agent: texts are working. Reply to this number to talk to James.');
+    if (kind === 'call') await phone.call('This is Sleeper Agent. Your phone calls are working.');
+    else await phone.message('Sleeper Agent: Telegram is working. Message me here to talk to James and Pete.');
     return { ok: true };
+  }
+  if (route === 'telegram' && m === 'POST') {
+    if (id === 'pair') return { code: telegram.startPairing() };
+    if (id === 'unpair') return telegram.unpair(), { ok: true };
   }
   if (route === 'reminders') {
     if (m === 'POST') return { result: scheduler.addReminder(await body(req), 'owner') };
@@ -143,20 +146,8 @@ async function api(req, url) {
   return { error: 'not found' };
 }
 
-// ── Public webhook listener: Twilio inbound texts only. Signature + owner number required. ──
-createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x');
-  res.writeHead(200, { 'content-type': 'text/xml' });
-  res.end('<Response/>'); // answer Twilio immediately (15s timeout); the reply goes out as a separate text
-  if (req.method !== 'POST' || url.pathname !== '/twilio/sms') return;
-  try {
-    const params = Object.fromEntries(new URLSearchParams(await body(req, true)));
-    const ok = !!process.env.PUBLIC_URL && phone.validSignature(process.env.PUBLIC_URL.replace(/\/$/, '') + req.url, params, req.headers['x-twilio-signature']);
-    await handleSms(params, ok);
-  } catch (e) { log('phone', 'error', e.message); }
-}).listen(HOOK_PORT, HOST, () => console.log(`Twilio webhook listener: http://${HOST}:${HOOK_PORT}/twilio/sms`));
-
 scheduler.start();
+telegram.poll(); // no-op until TELEGRAM_BOT_TOKEN is set
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

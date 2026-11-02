@@ -361,7 +361,7 @@ td.r, th.r { text-align: right; }
           <form id="remForm" style="display:grid;grid-template-columns:2fr 1.3fr 1fr 1fr auto;gap:var(--s2);align-items:end;margin-bottom:var(--s4)">
             <div><label class="f" for="remMsg" style="margin-top:0">Reminder</label><input id="remMsg" name="message" required placeholder="Call the dentist"></div>
             <div><label class="f" for="remWhen" style="margin-top:0">When (your time)</label><input id="remWhen" name="when" type="datetime-local" required></div>
-            <div><label class="f" for="remCh" style="margin-top:0">How</label><select id="remCh" name="channel"><option value="dashboard">Dashboard</option><option value="sms">Text</option><option value="call">Call (alarm)</option></select></div>
+            <div><label class="f" for="remCh" style="margin-top:0">How</label><select id="remCh" name="channel"><option value="dashboard">Dashboard</option><option value="message">Telegram</option><option value="call">Call (alarm)</option></select></div>
             <div><label class="f" for="remRep" style="margin-top:0">Repeat</label><select id="remRep" name="repeat"><option value="none">Once</option><option value="daily">Daily</option><option value="weekdays">Weekdays</option><option value="weekly">Weekly</option></select></div>
             <button class="btn primary">Add</button>
           </form>
@@ -536,16 +536,16 @@ td.r, th.r { text-align: right; }
         </div>
 
         <div class="card">
-          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Texts, calls &amp; reminders</h2><div class="sub">Needs the Twilio setup in Settings → Phone &amp; alerts</div></div></div>
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Telegram, calls &amp; reminders</h2><div class="sub">Set up in Settings → Phone &amp; alerts. No SMS registration needed.</div></div></div>
           <div class="tips">
-            <div><h3>Text James</h3><p>Text your Twilio number like you'd text a person. Simple questions go to Pete, bigger ones to James, and the reply comes back by text (kept under ~300 characters). Only texts from <b>your</b> number, signed by Twilio, are accepted.</p></div>
-            <div><h3>Approve by text</h3><p>Every approval is texted to you. Reply <code>Y 12 1234</code> to approve #12 or <code>N 12 1234</code> to deny, with your PIN at the end. No PIN, no approval, because phone numbers can be spoofed.</p></div>
-            <div><h3>Reminders &amp; alarms</h3><p>"Remind me to call mom at 5" (dashboard), "text me at 9 to submit the form", "wake me at 6:30 on weekdays" (a <b>call</b>, which rings even in quiet hours because you asked). Times follow your timezone, including DST and travel.</p></div>
+            <div><h3>Message James on Telegram</h3><p>Chat with your bot like a person. Simple questions go to Pete, bigger ones to James, and replies are kept short for your phone. Only your paired chat is answered; everyone else is ignored and logged. Free, and works over Wi-Fi or data.</p></div>
+            <div><h3>Approve from your phone</h3><p>Every approval is sent to you on Telegram. Reply <code>Y 12 1234</code> to approve #12 or <code>N 12 1234</code> to deny, with your PIN at the end. No PIN, no approval, so a borrowed phone can't approve anything.</p></div>
+            <div><h3>Reminders &amp; alarms</h3><p>"Remind me to call mom at 5" (dashboard), "message me at 9 to submit the form" (Telegram), "wake me at 6:30 on weekdays" (a <b>phone call</b> from your Telnyx number, which rings even in quiet hours because you asked). Times follow your timezone, including DST and travel.</p></div>
           </div>
           <ul>
-            <li><b>When agents reach you:</b> low = dashboard only. High = text. Critical = call + text, and only for urgent things. During quiet hours (Settings) calls become texts.</li>
-            <li><b>Cost:</b> about 1¢ per text and 2¢ per short call, counted in the Costs tab. Caps of 30 texts and 5 calls per day stop runaway loops.</li>
-            <li><b>Texts not arriving?</b> US carriers block app texts until Twilio's <b>A2P 10DLC</b> registration is approved (1–3 weeks). Calls work right away.</li>
+            <li><b>When agents reach you:</b> low = dashboard only. High = Telegram. Critical = phone call + Telegram, only for urgent things. During quiet hours, calls become messages.</li>
+            <li><b>Cost:</b> Telegram is free. Calls are about 1¢ each (Telnyx), counted in the Costs tab. Caps of 100 messages and 5 calls a day stop runaway loops.</li>
+            <li><b>Calling James</b> by phone, and James calling other people, come in Build 7 (voice agent).</li>
           </ul>
         </div>
 
@@ -557,13 +557,13 @@ td.r, th.r { text-align: right; }
               <tr><td><b>Password / login</b></td><td class="muted">Website and app logins: Schwab, Kalshi, email, social accounts, bank websites</td><td><code>schwab-login</code></td><td class="muted">Username/email, website, password. Notes: recovery codes, security answers</td></tr>
               <tr><td><b>Payment card</b></td><td class="muted">Debit/credit cards. Use <b>virtual cards</b> with limits for anything the agent may pay with</td><td><code>visa-chase</code>, <code>virtual-ads</code></td><td class="muted">Name on card, number, expiry, CVV. Notes: billing ZIP</td></tr>
               <tr><td><b>Personal info</b></td><td class="muted">Identity facts: SSN, passport #, driver's license #, full home address, exact date of birth, bank account # and routing # (two items)</td><td><code>ssn</code>, <code>home-address</code>, <code>dob</code>, <code>chase-account-number</code></td><td class="muted">Just the value. One fact per item, so each can be used on its own</td></tr>
-              <tr><td><b>API key / token</b></td><td class="muted">Keys for services the agent will connect to later: Twilio, ElevenLabs, Schwab app secret, Kalshi key</td><td><code>twilio-auth-token</code></td><td class="muted">Service, key. Notes: scopes, expiry date</td></tr>
+              <tr><td><b>API key / token</b></td><td class="muted">Keys for services the agent will connect to later: ElevenLabs, Schwab app secret, Kalshi key, OpenAI-style service keys</td><td><code>elevenlabs-api-key</code></td><td class="muted">Service, key. Notes: scopes, expiry date</td></tr>
               <tr><td><b>Secure note</b></td><td class="muted">Anything free-form: 2FA backup codes, wifi passwords, crypto wallet recovery phrase</td><td><code>google-backup-codes</code></td><td class="muted">The note text</td></tr>
             </tbody>
           </table>
           <ul>
             <li><b>Never</b> put these in chat or memory: passwords, full card numbers, SSN, account numbers, wallet seed phrases.</li>
-            <li>The Anthropic API key and dashboard token stay in <code>.env</code>, not the vault. They're needed before the vault can open.</li>
+            <li>Keys the server needs at startup (Anthropic, Telegram bot token, Telnyx API key, dashboard token) stay in <code>.env</code>, not the vault. They're needed before you've unlocked the vault.</li>
             <li>Keep your vault passphrase in your own password manager. Nobody can reset it, including you.</li>
           </ul>
         </div>
@@ -608,17 +608,19 @@ td.r, th.r { text-align: right; }
           <button class="btn sm" id="backupNow" style="margin-top:var(--s2)">Back up now</button>
         </div>
         <div class="card">
-          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Phone &amp; alerts</h2><div class="sub">Texts and calls via Twilio</div></div></div>
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-phone"/></svg></span><div><h2>Phone &amp; alerts</h2><div class="sub">Telegram for messages, Telnyx for calls</div></div></div>
           <table id="phoneStatus"></table>
+          <div id="pairBox" class="ap" style="margin-top:var(--s3)" hidden></div>
+          <div style="display:flex;gap:var(--s2);margin-top:var(--s3);flex-wrap:wrap"><button type="button" class="btn sm" id="pairTg">Pair Telegram</button><button type="button" class="btn sm danger" id="unpairTg" hidden>Unpair</button></div>
           <form id="phoneForm" style="margin-top:var(--s3)">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)">
               <div><label class="f" for="qStart" style="margin-top:0">No calls from</label><input id="qStart" name="quiet_start" type="time"></div>
               <div><label class="f" for="qEnd" style="margin-top:0">until</label><input id="qEnd" name="quiet_end" type="time"></div>
             </div>
-            <div class="help">During quiet hours agents text instead of calling. Alarms you set still ring.</div>
+            <div class="help">During quiet hours agents message you instead of calling. Alarms you set still ring.</div>
             <label class="f" for="smsPin">SMS approval PIN</label><input id="smsPin" name="sms_pin" inputmode="numeric" pattern="\d{4,8}" placeholder="4–8 digits" autocomplete="off">
-            <div class="help" id="pinHelp">Approve by text with "Y 12 &lt;PIN&gt;". Stored hashed. Leave blank to keep the current PIN.</div>
-            <div style="display:flex;gap:var(--s2);margin-top:var(--s4);flex-wrap:wrap"><button class="btn primary sm">Save</button><button type="button" class="btn sm" id="testSms">Send test text</button><button type="button" class="btn sm" id="testCall">Test call</button></div>
+            <div class="help" id="pinHelp">Approve from Telegram with "Y 12 &lt;PIN&gt;". Stored hashed. Leave blank to keep the current PIN.</div>
+            <div style="display:flex;gap:var(--s2);margin-top:var(--s4);flex-wrap:wrap"><button class="btn primary sm">Save</button><button type="button" class="btn sm" id="testSms">Send test message</button><button type="button" class="btn sm" id="testCall">Test call</button></div>
           </form>
         </div>
         <div class="card">
@@ -712,8 +714,8 @@ function show(v) {
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { sms: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { 'sms:out': 'Texted you', 'call:out': 'Called you', 'sms:in': 'Text from you', 'sms:blocked': 'Blocked text', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -799,7 +801,7 @@ async function refresh() {
       <div class="meta">${icon('sparkles', 'width:12px;height:12px')}${esc(agentLabel(x.agent))} · ${esc(ago(x.ts))}</div></div></div>`).join('') || '<div class="empty">No activity yet. Send your agent a message to get started.</div>';
 
   // Reminders
-  const REM_CH = { dashboard: ['bell', 'Dashboard'], sms: ['message', 'Text'], call: ['phone', 'Call'] };
+  const REM_CH = { dashboard: ['bell', 'Dashboard'], message: ['message', 'Telegram'], call: ['phone', 'Call'] };
   $('#reminders').innerHTML = (s.reminders || []).map((r) => { const when = new Date(r.due_at).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     return `<div class="row" style="align-items:center"><span class="ibox brand">${icon(REM_CH[r.channel][0])}</span><div class="body"><div class="title">${esc(r.message)}</div>
       <div class="meta num">${esc(when)} · ${REM_CH[r.channel][1]}${r.repeat !== 'none' ? ' · repeats ' + esc(r.repeat) : ''}</div></div>
@@ -808,11 +810,14 @@ async function refresh() {
   // Phone settings
   const P = s.phone;
   if (P) {
-    $('#phoneStatus').innerHTML = [['Twilio', P.configured ? `Connected · texts to ${P.owner}` : 'Not set up (add Twilio lines to .env)'], ['Inbound texts', P.publicUrl ? 'Webhook URL set' : 'Off (needs PUBLIC_URL + Tailscale Funnel)'],
-      ['Today', `${P.sentToday.sms}/${P.caps.sms} texts · ${P.sentToday.call}/${P.caps.call} calls`], ['SMS PIN', P.pinSet ? 'Set' : 'Not set']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
+    $('#phoneStatus').innerHTML = [['Telegram', P.telegramPaired ? 'Paired' : P.telegramToken ? 'Bot ready, not paired yet' : 'Not set up (add TELEGRAM_BOT_TOKEN)'],
+      ['Calls (Telnyx)', P.calls ? `Ready · calls ${P.owner}` : 'Not set up (Telnyx lines in .env)'],
+      ['Today', `${P.sentToday.msg}/${P.caps.msg} messages · ${P.sentToday.call}/${P.caps.call} calls`], ['Approval PIN', P.pinSet ? 'Set' : 'Not set']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('');
+    $('#pairTg').disabled = !P.telegramToken; $('#pairTg').textContent = P.telegramPaired ? 'Re-pair Telegram' : 'Pair Telegram'; $('#unpairTg').hidden = !P.telegramPaired;
+    $('#testSms').disabled = !P.telegramPaired;
     const pf = $('#phoneForm');
     if (!pf.contains(document.activeElement)) { pf.quiet_start.value = P.quietStart; pf.quiet_end.value = P.quietEnd; }
-    $('#testSms').disabled = $('#testCall').disabled = !P.configured;
+    $('#testCall').disabled = !P.calls;
   }
 
   // Chat
@@ -912,7 +917,14 @@ $('#phoneForm').onsubmit = async (e) => {
   if (r.error) return alert(r.error);
   f.sms_pin.value = ''; document.activeElement?.blur(); refresh();
 };
-for (const [btn, kind] of [['#testSms', 'sms'], ['#testCall', 'call']]) $(btn).onclick = async () => { const r = await call('phone/test', 'POST', { kind }); alert(r.error || (kind === 'sms' ? 'Test text sent.' : 'Calling you now.')); refresh(); };
+for (const [btn, kind] of [['#testSms', 'message'], ['#testCall', 'call']]) $(btn).onclick = async () => { const r = await call('phone/test', 'POST', { kind }); alert(r.error || (kind === 'message' ? 'Test message sent.' : 'Calling you now.')); refresh(); };
+$('#pairTg').onclick = async () => {
+  const r = await call('telegram/pair', 'POST'); if (r.error) return alert(r.error);
+  $('#pairBox').hidden = false;
+  $('#pairBox').innerHTML = `<b>Send this to your bot in Telegram within 10 minutes:</b><pre style="font-size:18px;text-align:center">/pair ${esc(r.code)}</pre><div class="help">One try only. A wrong code means pressing Pair again.</div>`;
+  setTimeout(() => { $('#pairBox').hidden = true; }, 10 * 60e3);
+};
+$('#unpairTg').onclick = async () => { if (confirm('Unpair Telegram? Messages from that chat will be ignored.')) { await call('telegram/unpair', 'POST'); refresh(); } };
 $('#namesForm').onsubmit = async (e) => {
   e.preventDefault();
   for (const i of $('#namesFields').querySelectorAll('input')) {
@@ -1056,7 +1068,7 @@ const VAULT_FIELDS = {
   password: { ph: 'schwab-login', help: 'A website or app login.', fields: [['username', 'Username or email', 'text'], ['url', 'Website', 'text', 'https://'], ['value', 'Password', 'password'], ['notes', 'Notes: recovery codes, security answers', 'area']] },
   card: { ph: 'visa-chase', help: 'A debit or credit card. Prefer virtual cards with spending limits for anything the agent will use.', fields: [['username', 'Name on card', 'text'], ['value', 'Card number', 'password'], ['expiry', 'Expiry (MM/YY)', 'text', '12/29'], ['cvv', 'Security code (CVV)', 'password'], ['notes', 'Notes: billing ZIP, bank phone number', 'area']] },
   personal: { ph: 'ssn', help: 'One sensitive fact per item, e.g. SSN, passport, full address, date of birth.', fields: [['value', 'Value', 'password'], ['notes', 'Notes', 'area']] },
-  api_key: { ph: 'twilio-auth-token', help: 'A key or token for a service the agent will connect to.', fields: [['url', 'Service', 'text', 'e.g. Twilio, or the dashboard URL'], ['value', 'Key or token', 'password'], ['notes', 'Notes: scopes, expiry date, where it is used', 'area']] },
+  api_key: { ph: 'elevenlabs-api-key', help: 'A key or token for a service the agent will connect to.', fields: [['url', 'Service', 'text', 'e.g. ElevenLabs, or the dashboard URL'], ['value', 'Key or token', 'password'], ['notes', 'Notes: scopes, expiry date, where it is used', 'area']] },
   note: { ph: 'recovery-codes', help: 'Free-form private text: recovery codes, wifi passwords, safe combinations.', fields: [['value', 'Note', 'area']] },
 };
 function renderVaultFields() {

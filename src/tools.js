@@ -59,12 +59,12 @@ export const TOOLS = {
       return `Timezone set to ${timezone}`;
     }),
 
-  notify_owner: tool('notify_owner', 'Tell the owner something now. urgency: low = dashboard only; high = text message; critical = phone call + text (only for urgent, important things; calls become texts during quiet hours). Keep it short.',
+  notify_owner: tool('notify_owner', 'Tell the owner something now. urgency: low = dashboard only; high = Telegram message to their phone; critical = phone call + Telegram message (only for urgent, important things; calls become messages during quiet hours). Keep it short.',
     { message: str('what to tell them, under 300 characters'), urgency: { type: 'string', enum: ['low', 'high', 'critical'] } }, ['message', 'urgency'],
     ({ message, urgency }, ctx) => notify(urgency, message, { agent: ctx.agent })),
 
-  set_reminder: tool('set_reminder', "Schedule a reminder or alarm for the owner. 'when' is the owner's local time as YYYY-MM-DDTHH:MM (use the [Now: ...] line to resolve 'tomorrow', 'in 2 hours'). channel: dashboard, sms (text), or call (an alarm; rings even in quiet hours because the owner asked for it). repeat: none, daily, weekdays, weekly.",
-    { message: str('what to remind them'), when: str('YYYY-MM-DDTHH:MM owner local time'), channel: { type: 'string', enum: ['dashboard', 'sms', 'call'] },
+  set_reminder: tool('set_reminder', "Schedule a reminder or alarm for the owner. 'when' is the owner's local time as YYYY-MM-DDTHH:MM (use the [Now: ...] line to resolve 'tomorrow', 'in 2 hours'). channel: dashboard, message (Telegram), or call (an alarm; rings even in quiet hours because the owner asked for it). repeat: none, daily, weekdays, weekly.",
+    { message: str('what to remind them'), when: str('YYYY-MM-DDTHH:MM owner local time'), channel: { type: 'string', enum: ['dashboard', 'message', 'call'] },
       repeat: { type: 'string', enum: ['none', 'daily', 'weekdays', 'weekly'] } }, ['message', 'when'],
     (input, ctx) => addReminder(input, ctx.agent)),
 

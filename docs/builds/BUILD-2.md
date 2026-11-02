@@ -36,3 +36,9 @@
 - 30 tests (8 new).
 
 **Known gaps:** Twilio prices are flat estimates. A repeating reminder fires once if the server was off for a long time (missed occurrences are skipped, not replayed). Inbound texts need Tailscale Funnel or a VPS with a public URL.
+
+**Update 2.1: Telnyx + Telegram instead of Twilio SMS** (owner declined A2P 10DLC sole-proprietor registration)
+- Calls: Telnyx `POST /v2/texml/calls/{connection_id}` with inline `Texml`. No public URL needed. `npm run setup:telnyx` creates the outbound voice profile + TeXML app, attaches the number, and writes `TELNYX_CONNECTION_ID`/`TELNYX_FROM` to .env.
+- Messages: a Telegram bot, long-polled (`getUpdates`), so there's no webhook or public port. Paired with a one-time 6-digit code from the dashboard (one guess per code). Only the paired private chat is answered. Approvals use `Y 12 <PIN>`.
+- Removed: Twilio, the port-8788 webhook listener, PUBLIC_URL/Tailscale Funnel requirement. Reminder channel `sms` → `message` (schema v7).
+- Owner setup: (1) Telegram → @BotFather → /newbot → paste token as TELEGRAM_BOT_TOKEN → Settings → Pair Telegram. (2) Telnyx account → buy a number → API key → TELNYX_API_KEY + OWNER_PHONE → `npm run setup:telnyx`.

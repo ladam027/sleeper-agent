@@ -52,6 +52,7 @@ const MIGRATIONS = [
      created_by text, created_at text default current_timestamp);
    create index if not exists reminders_due on reminders (status, due_at);
    update agents set tools = tools || ',set_reminder,list_reminders,cancel_reminder' where name = 'quick' and tools not like '%set_reminder%';`,
+  `update reminders set channel = 'message' where channel = 'sms';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

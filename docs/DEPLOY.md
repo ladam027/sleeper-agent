@@ -1,6 +1,6 @@
 # Running Sleeper Agent 24/7
 
-Pick one. Both keep the dashboard private (Tailscale) and expose **only** the Twilio webhook port.
+Pick one. Both keep the dashboard private (Tailscale); nothing is exposed to the internet.
 
 ## Option A: your Mac (free, simplest)
 1. System Settings → Battery/Energy → "Prevent automatic sleeping when the display is off" (on power). Lid closed = asleep unless an external display is attached.
@@ -39,12 +39,11 @@ sudo systemctl enable --now sleeper-agent
 ```
 Copy your existing `data/agent.db` over too if you want your chats and memory there.
 
-## Both: Tailscale for private access + the one public webhook
+## Both: Tailscale for private access
 ```bash
 tailscale up                  # dashboard reachable from your phone/laptop on your tailnet
 tailscale serve --bg 8787     # https://<machine>.<tailnet>.ts.net → dashboard (tailnet only)
-tailscale funnel --bg 8788    # public https URL → Twilio webhook listener only
 ```
-Put the Funnel URL in `.env` as `PUBLIC_URL`, and in Twilio set the number's "A message comes in" webhook to `PUBLIC_URL/twilio/sms` (HTTP POST). Never funnel 8787.
+Nothing needs to be public: Telegram is polled and Telnyx calls carry their own instructions. Never funnel 8787.
 
 **After every restart the vault is locked.** Open the dashboard → Vault → enter your passphrase. Card numbers and SSNs are still filtered while it's locked.

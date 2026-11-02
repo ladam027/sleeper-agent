@@ -1,28 +1,22 @@
-// Build 2: Twilio texts/calls, quiet hours, reminders, SMS approvals. No network: fetch and the model are faked.
+// Build 2: Telnyx calls, Telegram messages, quiet hours, reminders, phone approvals. No network: fetch and the model are faked.
 process.env.DB_PATH = ':memory:';
-Object.assign(process.env, { TWILIO_ACCOUNT_SID: 'AC_test', TWILIO_AUTH_TOKEN: 'tok_test', TWILIO_FROM: '+15550000001', OWNER_PHONE: '+15550000002' });
+Object.assign(process.env, { TELNYX_API_KEY: 'KEY_test', TELNYX_CONNECTION_ID: '123', TELNYX_FROM: '+15550000001', OWNER_PHONE: '+15550000002', TELEGRAM_BOT_TOKEN: 'bot_test' });
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
 
 const { db, set } = await import('../src/db.js');
 const phone = await import('../src/phone.js');
 const sched = await import('../src/scheduler.js');
-const { handleSms } = await import('../src/sms.js');
+const tg = await import('../src/telegram.js');
 const agentMod = await import('../src/agent.js');
+const { setupTelnyx, upsertEnv } = await import('../src/telnyx-setup.js');
 
 let sent = [];
-phone.deps.fetch = async (url, opts) => { sent.push({ url, params: Object.fromEntries(new URLSearchParams(opts.body)) }); return { ok: true, json: async () => ({}) }; };
-const reset = () => { sent = []; db.exec("delete from activity; delete from reminders; delete from approvals; delete from costs"); set('timezone', 'America/Los_Angeles'); set('quiet_start', '00:00'); set('quiet_end', '07:00'); };
-const at = (iso) => new Date(iso); // UTC instants
-
-test('Twilio signature: valid passes, tampered or missing fails', () => {
-  const url = 'https://me.ts.net/twilio/sms', params = { From: '+15550000002', Body: 'hi' };
-  const sig = createHmac('sha1', 'tok_test').update(url + 'Bodyhi' + 'From+15550000002').digest('base64');
-  assert.ok(phone.validSignature(url, params, sig));
-  assert.ok(!phone.validSignature(url, { ...params, Body: 'Y 1 0000' }, sig));
-  assert.ok(!phone.validSignature(url, params, undefined));
-});
+phone.deps.fetch = async (url, opts) => { sent.push({ url, body: JSON.parse(opts.body) }); return { ok: true, json: async () => ({ ok: true, result: {} }) }; };
+const kinds = () => sent.map((s) => s.url.includes('telnyx') ? 'call' : s.url.split('/').pop());
+const reset = () => { sent = []; db.exec("delete from activity; delete from reminders; delete from approvals; delete from costs"); set('timezone', 'America/Los_Angeles'); set('quiet_start', '00:00'); set('quiet_end', '07:00'); set('telegram_chat_id', '42'); };
+const at = (iso) => new Date(iso);
+const tgMsg = (text, chat = 42) => ({ update_id: 1, message: { text, chat: { id: chat, type: 'private' } } });
 
 test('quiet hours in the owner timezone, including windows across midnight', () => {
   reset();
@@ -40,42 +34,50 @@ test('local time → UTC is right on both sides of a DST change', () => {
   assert.throws(() => sched.localToUtc('tomorrow 6am', 'UTC'));
 });
 
-test('notify routes by urgency; calls become texts in quiet hours unless it is an alarm', async () => {
+test('a Telnyx call carries inline TeXML to the owner; XML is escaped', async () => {
+  reset();
+  await phone.call('Server <down> & out');
+  assert.equal(sent[0].url, 'https://api.telnyx.com/v2/texml/calls/123');
+  assert.equal(sent[0].body.To, '+15550000002');
+  assert.equal(sent[0].body.From, '+15550000001');
+  assert.match(sent[0].body.Texml, /<Say[^>]*>Server &lt;down&gt; &amp; out<\/Say>/);
+  assert.ok(db.prepare("select sum(usd) s from costs where agent = 'phone'").get().s > 0, 'call cost is in the ledger');
+});
+
+test('notify routes by urgency; calls become messages in quiet hours unless it is an alarm', async () => {
   reset();
   set('quiet_start', '00:00'); set('quiet_end', '00:00'); // never quiet
   await phone.notify('critical', 'server down');
-  assert.deepEqual(sent.map((s) => s.url.split('/').pop()), ['Calls.json', 'Messages.json']);
-  assert.equal(sent[1].params.To, '+15550000002');
-  assert.match(sent[0].params.Twiml, /server down/);
+  assert.deepEqual(kinds(), ['call', 'sendMessage']);
+  assert.equal(sent[1].body.chat_id, '42');
 
-  sent = []; set('quiet_start', '00:00'); set('quiet_end', '23:59'); // always quiet
-  assert.match(await phone.notify('critical', 'late night'), /quiet hours, so no call, texted/);
-  assert.deepEqual(sent.map((s) => s.url.split('/').pop()), ['Messages.json']);
+  sent = []; set('quiet_end', '23:59'); // always quiet
+  assert.match(await phone.notify('critical', 'late night'), /quiet hours, so no call, messaged on Telegram/);
+  assert.deepEqual(kinds(), ['sendMessage']);
   sent = [];
   await phone.notify('critical', 'wake up', { alarm: true });
-  assert.equal(sent[0].url.split('/').pop(), 'Calls.json', 'owner-set alarms ring anyway');
+  assert.equal(kinds()[0], 'call', 'owner-set alarms ring anyway');
 
   sent = [];
   assert.match(await phone.notify('low', 'fyi'), /dashboard/);
   assert.equal(sent.length, 0);
-  assert.ok(db.prepare("select sum(usd) s from costs where agent = 'phone'").get().s > 0, 'Twilio spend is in the cost ledger');
 });
 
-test('daily caps stop a loop from texting forever', async () => {
+test('daily caps stop a loop from calling forever', async () => {
   reset();
-  for (let i = 0; i < phone.CAPS.sms; i++) await phone.sms('x');
-  await assert.rejects(phone.sms('one too many'), /cap/);
+  for (let i = 0; i < phone.CAPS.call; i++) await phone.call('x');
+  await assert.rejects(phone.call('one too many'), /cap/);
 });
 
-test('reminders fire once, repeating ones roll forward keeping wall-clock time', async () => {
+test('reminders fire once; repeating ones roll forward keeping wall-clock time', async () => {
   reset();
   const future = sched.localNow('America/Los_Angeles').slice(0, 10) + 'T23:59';
-  assert.match(sched.addReminder({ message: 'call mom', when: future, channel: 'sms' }), /Reminder #\d+ set/);
+  assert.match(sched.addReminder({ message: 'call mom', when: future, channel: 'message' }), /Reminder #\d+ set/);
   assert.throws(() => sched.addReminder({ message: 'x', when: '2020-01-01T00:00' }), /past/);
   db.exec("update reminders set due_at = '2000-01-01T00:00:00.000Z'");
   await sched.tick();
-  assert.equal(sent.length, 1);
-  assert.match(sent[0].params.Body, /Reminder: call mom/);
+  assert.deepEqual(kinds(), ['sendMessage']);
+  assert.match(sent[0].body.text, /Reminder: call mom/);
   assert.equal(db.prepare('select status from reminders').get().status, 'done');
 
   reset();
@@ -88,34 +90,67 @@ test('reminders fire once, repeating ones roll forward keeping wall-clock time',
   assert.equal(r.due_at, '2026-11-03T14:30:00.000Z');
 });
 
-test('inbound texts: only signed texts from the owner get through; approvals need the PIN', async () => {
+test('Telegram pairing needs the one-time dashboard code; one wrong guess burns it', async () => {
+  reset();
+  set('telegram_chat_id', '');
+  const code = tg.startPairing();
+  await tg.handleUpdate(tgMsg('/pair 000000', 99));
+  await tg.handleUpdate(tgMsg(`/pair ${code}`, 99));
+  assert.equal(db.prepare("select value from settings where key = 'telegram_chat_id'").get().value, '', 'code burned by the wrong guess');
+  const code2 = tg.startPairing();
+  await tg.handleUpdate(tgMsg(`/pair ${code2}`, 42));
+  assert.equal(db.prepare("select value from settings where key = 'telegram_chat_id'").get().value, '42');
+});
+
+test('Telegram: only the paired chat gets through; approvals need the PIN', async () => {
   reset();
   phone.setPin('4821');
   agentMod.deps.client = { messages: { create: async () => { throw new Error('model should not be called'); } } };
   db.prepare("insert into approvals (agent, tool, input) values ('orchestrator', 'create_agent', ?)").run(JSON.stringify({ name: 'etsy', model: 'claude-haiku-4-5', purpose: 'x', daily_budget_usd: 1 }));
   const id = db.prepare('select max(id) id from approvals').get().id;
 
-  await handleSms({ From: '+15559999999', Body: `Y ${id} 4821` }, true);
-  await handleSms({ From: '+15550000002', Body: `Y ${id} 4821` }, false);
-  assert.equal(db.prepare('select status from approvals where id = ?').get(id).status, 'pending', 'stranger and unsigned are ignored');
+  await tg.handleUpdate(tgMsg(`Y ${id} 4821`, 99));
+  assert.equal(db.prepare('select status from approvals where id = ?').get(id).status, 'pending', 'stranger ignored');
   assert.equal(sent.length, 0);
 
-  await handleSms({ From: '+15550000002', Body: `Y ${id} 0000` }, true);
+  await tg.handleUpdate(tgMsg(`Y ${id} 0000`));
   assert.equal(db.prepare('select status from approvals where id = ?').get(id).status, 'pending');
-  assert.match(sent.at(-1).params.Body, /Wrong PIN/);
+  assert.match(sent.at(-1).body.text, /Wrong PIN/);
 
-  await handleSms({ From: '+15550000002', Body: `yes #${id} 4821` }, true);
+  await tg.handleUpdate(tgMsg(`yes #${id} 4821`));
   assert.equal(db.prepare('select status from approvals where id = ?').get(id).status, 'approved');
   assert.equal(db.prepare("select count(*) n from agents where name = 'etsy'").get().n, 1);
 });
 
-test('a normal text goes to the agents and the reply comes back by text', async () => {
+test('a normal Telegram message goes to the agents and the reply comes back', async () => {
   reset();
-  const usage = { input_tokens: 1, output_tokens: 1 };
-  const calls = [];
+  const usage = { input_tokens: 1, output_tokens: 1 }, calls = [];
   agentMod.deps.client = { messages: { create: async (p) => (calls.push(p), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Your name is Logan.' }] }) } };
-  await handleSms({ From: '+15550000002', Body: 'what is my name' }, true);
-  assert.equal(calls[0].model, 'claude-haiku-4-5', 'Auto routing: simple text goes to Pete');
-  assert.match(JSON.stringify(calls[0].messages), /under 300 characters/);
-  assert.equal(sent.at(-1).params.Body, 'Your name is Logan.');
+  await tg.handleUpdate(tgMsg('what is my name'));
+  assert.equal(calls[0].model, 'claude-haiku-4-5', 'Auto routing: simple message goes to Pete');
+  assert.match(JSON.stringify(calls[0].messages), /Sent from Telegram/);
+  assert.equal(sent.at(-1).body.text, 'Your name is Logan.');
+});
+
+test('Telnyx setup creates profile + app, attaches the number, and reuses them on a rerun', async () => {
+  const store = { profiles: [], apps: [], numbers: [{ id: 'n1', phone_number: '+15550000001', connection_id: null }] }, log = [];
+  const fakeFetch = async (url, o) => {
+    const path = url.replace('https://api.telnyx.com/v2', ''), body = o.body && JSON.parse(o.body);
+    log.push(`${o.method} ${path}`);
+    assert.equal(o.headers.authorization, 'Bearer K');
+    const data = o.method === 'GET' ? { '/outbound_voice_profiles': store.profiles, '/texml_applications': store.apps, '/phone_numbers': store.numbers }[path]
+      : path === '/outbound_voice_profiles' ? (store.profiles.push({ id: 'p1', ...body }), store.profiles[0])
+      : path === '/texml_applications' ? (store.apps.push({ id: 'a1', ...body }), store.apps[0])
+      : Object.assign(store.numbers[0], body);
+    return { ok: true, json: async () => ({ data }) };
+  };
+  const r = await setupTelnyx({ apiKey: 'K', fetch: fakeFetch });
+  assert.deepEqual(r, { connectionId: 'a1', from: '+15550000001', profileId: 'p1' });
+  assert.equal(store.apps[0].outbound.outbound_voice_profile_id, 'p1');
+  assert.equal(store.numbers[0].connection_id, 'a1');
+  log.length = 0;
+  await setupTelnyx({ apiKey: 'K', fetch: fakeFetch });
+  assert.ok(!log.some((l) => l.startsWith('POST') || l.startsWith('PATCH')), 'idempotent');
+  await assert.rejects(setupTelnyx({ apiKey: '', fetch: fakeFetch }), /TELNYX_API_KEY/);
+  assert.equal(upsertEnv('A=1\nTELNYX_FROM=\nB=2\n', { TELNYX_FROM: '+1555', TELNYX_CONNECTION_ID: '9' }), 'A=1\nTELNYX_FROM=+1555\nB=2\nTELNYX_CONNECTION_ID=9\n');
 });
