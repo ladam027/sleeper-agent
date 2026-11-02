@@ -128,3 +128,23 @@ test('system prompt stays identical within a run even when a tool edits a pinned
   await runAgent('orchestrator', 'hello');
   assert.match(next[0].system, /Logan, 18/, 'the new pinned fact applies from the next message');
 });
+
+test('concise mode, effort and max reply length reach the API; a cut-off reply says so', async () => {
+  reset();
+  db.exec("update agents set concise = 1, effort = 'low', max_tokens = 2000 where name = 'orchestrator'");
+  let calls = fake([text('ok')]);
+  await runAgent('orchestrator', 'hi');
+  assert.match(calls[0].system, /Reply style: concise/);
+  assert.equal(calls[0].output_config.effort, 'low');
+  assert.equal(calls[0].max_tokens, 2000);
+
+  db.exec("update agents set concise = 0, effort = 'medium', max_tokens = null where name = 'orchestrator'");
+  calls = fake([{ stop_reason: 'max_tokens', usage, content: [{ type: 'text', text: 'partial' }] }]);
+  assert.match(await runAgent('orchestrator', 'long please'), /partial[\s\S]*cut off at orchestrator's 16000-token limit/);
+  assert.doesNotMatch(calls[0].system, /Reply style: concise/);
+
+  calls = fake([text('x')]);
+  await runAgent('quick', 'hi');
+  assert.equal(calls[0].output_config, undefined, 'Haiku gets no effort parameter');
+  assert.equal(calls[0].max_tokens, 1024);
+});

@@ -167,7 +167,11 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent-h .right { margin-left: auto; }
 .agent .budget { display: flex; align-items: baseline; gap: 4px; margin: var(--s3) 0 6px; }
 .agent .budget b { font-size: 18px; font-weight: 650; }
-.agent .actions { display: flex; gap: var(--s2); margin-top: var(--s3); }
+.agent .actions { display: flex; gap: var(--s2); margin-top: var(--s3); flex-wrap: wrap; }
+.agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.agent .cfg label.f { margin: 0 0 4px; }
+.agent .cfg .full { grid-column: 1 / -1; }
+.agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
 .ap { padding: var(--s4); border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
@@ -480,6 +484,16 @@ td.r, th.r { text-align: right; }
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sliders"/></svg></span><div><h2>Agent settings</h2><div class="sub">Overview → Agents → Settings on any agent card</div></div></div>
+          <div class="tips">
+            <div><h3>Effort (Opus only)</h3><p>How hard the model thinks before answering. Thinking is billed as output at $20/M on Opus, so this is the biggest cost dial. <b>Low</b> for routine work and chatting. <b>Medium</b> (default) for most tasks. <b>High</b> only for plans or decisions where a better answer is worth paying for. Simple questions go to Haiku on Auto anyway, and it doesn't think.</p></div>
+            <div><h3>Concise replies (on by default)</h3><p>The answer comes first. Questions and lookups get at most ~3 sentences, with no preamble, recap or "let me know if…". Plans, drafts, analyses and lists are still complete, just without filler. Turn it off for an agent whose job is writing long content.</p></div>
+            <div><h3>Max reply length</h3><p>A hard ceiling on output per step, so a rambling reply can't run up the bill. On Opus it <b>includes thinking</b>, so keep it at <b>8k or more</b>. If a reply is cut off, it says so and tells you which setting to raise. <b>1k</b> is plenty for Quick.</p></div>
+          </div>
+          <p class="help" style="margin-top:var(--s3)">Settings apply from the next message. Check the effect on the Costs tab after a day or two.</p>
+        </div>
+
         <div class="grid2">
           <div class="card">
             <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-lock"/></svg></span><div><h2>Memory vs Vault</h2></div></div>
@@ -674,13 +688,23 @@ async function refresh() {
   // Agents
   const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));
   const STATUS = { running: ['ok', 'Working'], idle: ['', 'Idle'], killed: ['bad', 'Killed'] };
-  $('#agents').innerHTML = agents.map((a) => { const sp = spentBy[a.name]?.usd || 0, p = pct(sp, a.daily_budget_usd), [cls, label] = STATUS[a.status] || ['', a.status];
+  if (!openAgent) $('#agents').innerHTML = agents.map((a) => { const sp = spentBy[a.name]?.usd || 0, p = pct(sp, a.daily_budget_usd), [cls, label] = STATUS[a.status] || ['', a.status];
     return `<div class="agent">
-      <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(a.name)}</div><div class="model">${esc(a.model)} · ${esc(a.effort || 'default')} effort</div></div>
+      <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(a.name)}</div><div class="model">${esc(MODEL_NAME[a.model] || a.model)}</div></div>
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
       <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
-      <div class="actions"><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
+      <div class="tags">${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${a.concise ? 'concise' : 'full replies'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
+      <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
+      <form class="cfg" data-agent="${esc(a.name)}" hidden onsubmit="agentSave(event)">
+        <div><label class="f">Effort</label><select name="effort" ${isHaiku(a) ? 'disabled' : ''}>${['low', 'medium', 'high'].map((e) => `<option ${(a.effort || 'medium') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
+          <div class="help">${isHaiku(a) ? "Haiku doesn't think, so effort doesn't apply." : 'How hard it thinks. Thinking is billed as output.'}</div></div>
+        <div><label class="f">Max reply length</label><select name="max_tokens">${[1024, 2048, 4096, 8000, 16000, 32000].map((t) => `<option value="${t}" ${(a.max_tokens || 16000) === t ? 'selected' : ''}>${t >= 1000 ? Math.round(t / 1000) + 'k' : t} tokens</option>`).join('')}</select>
+          <div class="help">${isHaiku(a) ? '1k is plenty for quick answers.' : 'Includes thinking. Keep 8k+ for Opus.'}</div></div>
+        <div><label class="f">Daily budget (USD)</label><input name="daily_budget_usd" type="number" min="0" max="50" step="0.25" value="${a.daily_budget_usd}"></div>
+        <div style="display:flex;align-items:flex-end"><label style="display:flex;gap:8px;align-items:center;font-size:13px;min-height:40px"><input type="checkbox" name="concise" style="width:auto" ${a.concise ? 'checked' : ''}> Concise replies</label></div>
+        <div class="full" style="display:flex;gap:var(--s2)"><button class="btn primary sm">Save</button><button type="button" class="btn sm" onclick="agentCfg(null)">Cancel</button></div>
+      </form>
     </div>`; }).join('');
 
   // Activity
@@ -722,6 +746,20 @@ function renderChat(chat) {
   box.scrollTop = box.scrollHeight;
 }
 
+const isHaiku = (a) => a.model.startsWith('claude-haiku');
+let openAgent = null; // while a settings form is open, the 4s refresh leaves the agent list alone
+window.agentCfg = (name) => {
+  document.querySelectorAll('#agents .cfg').forEach((f) => f.hidden = f.dataset.agent !== name);
+  openAgent = name; if (!name) refresh();
+};
+window.agentSave = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const r = await call(`agents/${encodeURIComponent(f.dataset.agent)}`, 'POST', {
+    ...(f.effort.disabled ? {} : { effort: f.effort.value }), max_tokens: +f.max_tokens.value,
+    daily_budget_usd: +f.daily_budget_usd.value, concise: f.concise.checked });
+  if (r.error) return alert(r.error);
+  agentCfg(null);
+};
 window.decide = async (id, approve) => { await call('approvals/' + id, 'POST', { approve }); refresh(); };
 window.agentAct = async (name, action) => {
   if (action === 'kill' && !confirm(`Kill ${name}? It stops immediately and stays stopped until you restart it.`)) return;

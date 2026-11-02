@@ -66,8 +66,12 @@ async function api(req, url) {
   if (route === 'agents' && m === 'POST') {
     if (action === 'kill') return kill(id), { ok: true };
     if (action === 'restart') return restart(id), { ok: true };
-    const { daily_budget_usd } = await body(req);
-    if (daily_budget_usd >= 0) db.prepare('update agents set daily_budget_usd = ? where name = ?').run(daily_budget_usd, id);
+    const b = await body(req), upd = (col, v) => db.prepare(`update agents set ${col} = ? where name = ?`).run(v, id);
+    if (b.daily_budget_usd !== undefined) { if (!(b.daily_budget_usd >= 0 && b.daily_budget_usd <= 50)) throw new Error('Daily budget must be $0–50'); upd('daily_budget_usd', b.daily_budget_usd); }
+    if (b.effort !== undefined) { if (!['low', 'medium', 'high'].includes(b.effort)) throw new Error('Effort must be low, medium or high'); upd('effort', b.effort); }
+    if (b.concise !== undefined) upd('concise', b.concise ? 1 : 0);
+    if (b.max_tokens !== undefined) { if (!(b.max_tokens >= 512 && b.max_tokens <= 64000)) throw new Error('Max reply length must be 512–64000 tokens'); upd('max_tokens', Math.round(b.max_tokens)); }
+    log('owner', 'settings', `${id}: ${Object.keys(b).join(', ')} updated`);
     return { ok: true };
   }
   if (route === 'settings' && m === 'POST') {

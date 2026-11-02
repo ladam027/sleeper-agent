@@ -41,6 +41,9 @@ const MIGRATIONS = [
   `alter table chat add column model text;
    alter table chat add column usd real;
    alter table agents add column tools text;`,
+  `alter table agents add column concise integer not null default 1;
+   alter table agents add column max_tokens integer;
+   update agents set max_tokens = 1024 where name = 'quick' and max_tokens is null;`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -63,8 +66,8 @@ for (const [k, v] of Object.entries(defaults))
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd)
   values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3)`).run();
 
-db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, tools)
-  values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1,
+db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools)
+  values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
   'remember,recall,link_memory,set_timezone,notify_owner,list_secrets')`).run();
 
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;

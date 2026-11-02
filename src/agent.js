@@ -20,6 +20,9 @@ Security rules (enforced in code too):
 
 Working style: be brief. Use recall before answering questions about the owner or their projects; use remember for anything durable you learn. Spend tokens like they are the owner's money, because they are.`;
 
+const CONCISE = `Reply style: concise. Lead with the answer. For questions, lookups and confirmations use at most 3 short sentences or a few bullets: no preamble, no restating the question, no recap, no offers of further help. When the owner asks for detail, or the task is a deliverable (a plan, draft, analysis, list, or code), be complete, but still without filler.`;
+export const DEFAULT_MAX_TOKENS = 16000;
+
 const nowLine = () => {
   const tz = get('timezone');
   const s = new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'short', year: 'numeric', month: 'short',
@@ -32,6 +35,7 @@ function system(a) {
   const pinned = db.prepare('select id, title, body from memory where pinned = 1 order by id').all();
   const team = db.prepare('select name, purpose from agents where name != ?').all(a.name);
   return [`${RULES}\n\nYou are "${a.name}": ${a.purpose}`,
+    a.concise && CONCISE,
     pinned.length && `Core facts about the owner:\n${pinned.map((m) => `- #${m.id} ${m.title}: ${m.body}`).join('\n')}`,
     team.length && `Sub-agents you can delegate to:\n${team.map((t) => `- ${t.name}: ${t.purpose}`).join('\n')}`,
   ].filter(Boolean).join('\n\n');
@@ -97,7 +101,7 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
       const why = blocked(name);
       if (why) { log(name, 'blocked', why); return `Stopped: ${why}`; }
       const res = await client().messages.create({
-        model: a.model, max_tokens: 16000, cache_control: { type: 'ephemeral' },
+        model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, cache_control: { type: 'ephemeral' },
         system: sys, tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       }, { signal: ctrl.signal });
@@ -111,7 +115,9 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
 
       const uses = res.content.filter((b) => b.type === 'tool_use');
       if (!uses.length) {
-        const reply = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+        let reply = res.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+        // Thinking counts toward max_tokens, so a tight cap can end a reply early (or before any text).
+        if (res.stop_reason === 'max_tokens') reply = (reply ? reply + '\n\n' : '') + `[Reply cut off at ${name}'s ${a.max_tokens || DEFAULT_MAX_TOKENS}-token limit. Raise "Max reply length" on its agent card if this keeps happening.]`;
         if (!depth) {
           const ins = db.prepare('insert into chat (agent, role, content, model, usd) values (?, ?, ?, ?, ?)');
           ins.run(thread, 'user', text, null, null);
