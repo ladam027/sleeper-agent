@@ -154,3 +154,17 @@ test('Telnyx setup creates profile + app, attaches the number, and reuses them o
   await assert.rejects(setupTelnyx({ apiKey: '', fetch: fakeFetch }), /TELNYX_API_KEY/);
   assert.equal(upsertEnv('A=1\nTELNYX_FROM=\nB=2\n', { TELNYX_FROM: '+1555', TELNYX_CONNECTION_ID: '9' }), 'A=1\nTELNYX_FROM=+1555\nB=2\nTELNYX_CONNECTION_ID=9\n');
 });
+
+test('Telnyx setup reuses the default outbound profile on accounts limited to one', async () => {
+  const store = { profiles: [{ id: 'default1', name: 'Default' }], apps: [], numbers: [{ id: 'n1', phone_number: '+15550000001', connection_id: null }] }, posts = [];
+  const fakeFetch = async (url, o) => {
+    const path = url.replace('https://api.telnyx.com/v2', ''), body = o.body && JSON.parse(o.body);
+    if (o.method === 'POST') posts.push(path);
+    const data = o.method === 'GET' ? { '/outbound_voice_profiles': store.profiles, '/texml_applications': store.apps, '/phone_numbers': store.numbers }[path]
+      : path === '/texml_applications' ? (store.apps.push({ id: 'a1', ...body }), store.apps[0]) : Object.assign(store.numbers[0], body);
+    return { ok: true, json: async () => ({ data }) };
+  };
+  const r = await setupTelnyx({ apiKey: 'K', fetch: fakeFetch });
+  assert.equal(r.profileId, 'default1');
+  assert.deepEqual(posts, ['/texml_applications'], 'no new profile created');
+});

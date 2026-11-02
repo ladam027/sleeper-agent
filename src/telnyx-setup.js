@@ -15,7 +15,9 @@ export async function setupTelnyx({ apiKey, from = '', fetch = globalThis.fetch 
     return json.data;
   };
 
-  const profile = (await api('GET', '/outbound_voice_profiles')).find((p) => p.name === NAME)
+  // New accounts may have only one profile (Telnyx creates a default), so reuse any existing one.
+  const profiles = await api('GET', '/outbound_voice_profiles');
+  const profile = profiles.find((p) => p.name === NAME) || profiles[0]
     || await api('POST', '/outbound_voice_profiles', { name: NAME, traffic_type: 'conversational', whitelisted_destinations: ['US'] });
 
   // voice_url is required; inbound calls aren't handled until Build 7, so it points nowhere useful on purpose.

@@ -42,3 +42,4 @@
 - Messages: a Telegram bot, long-polled (`getUpdates`), so there's no webhook or public port. Paired with a one-time 6-digit code from the dashboard (one guess per code). Only the paired private chat is answered. Approvals use `Y 12 <PIN>`.
 - Removed: Twilio, the port-8788 webhook listener, PUBLIC_URL/Tailscale Funnel requirement. Reminder channel `sms` → `message` (schema v7).
 - Owner setup: (1) Telegram → @BotFather → /newbot → paste token as TELEGRAM_BOT_TOKEN → Settings → Pair Telegram. (2) Telnyx account → buy a number → API key → TELNYX_API_KEY + OWNER_PHONE → `npm run setup:telnyx`.
+- 2.2: Telnyx setup reuses the account's existing outbound voice profile (new accounts are limited to one). Setup ran: calls come from +13233002744.
