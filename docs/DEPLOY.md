@@ -21,8 +21,8 @@ Pick one. Both keep the dashboard private (Tailscale); nothing is exposed to the
    ```
    Restart after an update: `launchctl kickstart -k gui/$(id -u)/com.sleeper-agent`
 
-## Option B: a small VPS (~$5/mo, truly 24/7)
-1. Create an Ubuntu 24.04 server (e.g. Hetzner CPX11/CX22 in Hillsboro, OR, or DigitalOcean's $6 droplet in SFO). Paste your Mac's public key (`pbcopy < ~/.ssh/id_ed25519.pub`) as the SSH key.
+## Option B: a small VPS (~$7/mo, truly 24/7)
+1. Create an Ubuntu 24.04 server (e.g. Hetzner CX23 at ~$6.49 + $0.50 IPv4, in an EU location if CX isn't offered in the US; or DigitalOcean's $6 droplet). Paste your Mac's public key (`pbcopy < ~/.ssh/id_ed25519.pub`) as the SSH key.
 2. `npm run deploy -- root@SERVER_IP --setup` installs Node (checksum-verified from nodejs.org), Tailscale, a firewall allowing only SSH, and a systemd service that runs as an unprivileged `sleeper` user.
 3. `npm run deploy -- --move` stops the Mac server, copies `.env` and a consistent snapshot of `data/agent.db`, and starts it on the VPS. **Don't run `npm start` on the Mac again**: two copies would both answer Telegram and both fire reminders.
 4. On the server: `ssh root@SERVER_IP tailscale up` (open the printed link to log in), then `ssh root@SERVER_IP tailscale serve --bg 8787`. Open the printed `https://…ts.net` address on any device signed in to your tailnet.
