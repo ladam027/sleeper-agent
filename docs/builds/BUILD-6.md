@@ -22,3 +22,11 @@
 
 ## 6.2.0
 - Vault idle lock is a choice on the Vault page: 1 (default), 4, 8 or 24 hours without use. Changing it needs a passphrase session. Restarts/updates still always lock. (src/vault.js change, called out to the owner.) 98 tests.
+
+## Part 2 (v7.2.0, shipped during Build 7 at the owner's request): live orders
+- Owner decision (2026-11-03): build live trading now, but **opt-in per request**: only when the owner's own message (dashboard or Telegram) says "live trading" or mentions their Kalshi balance. Otherwise paper trading is the default. Background jobs, the archivist, history and tool output can never switch it on (`ctx.live`, set in runAgent from `opts.owner` + `LIVE_RE`).
+- `kalshi_order` (src/live.js), risk high: a pre-queue `check` refuses if not opted in or if limits fail, so only valid orders reach the owner; the approval card and phone notice show the real numbers (market, side, limit, max cost incl. fee, Kalshi cash) with a "Real money" badge.
+- Limits in code, checked at queue time and again right before placing: max $ per order, max open positions, total real money at risk (`live_max_total_usd`, default $14, editable on the Markets tab), Kalshi cash. Sells only close what's held (`reduce_only`).
+- Orders: Kalshi V2 `POST /portfolio/events/orders`, limit + `immediate_or_cancel` (fills now at the approved price or better, never rests). V2 books are YES-only: buy NO = ask at 1 − price, sell NO = bid at 1 − price. Logged in `live_orders`.
+- Approve-to-unlock: approving on the dashboard while the vault is locked asks for the passphrase in a dialog, then places. Approving by phone while locked sets `waiting_unlock`; unlocking within 30 minutes places it after re-checking, otherwise it expires.
+- Not counted yet: realized daily loss on live trades (the total-at-risk cap bounds exposure instead). Schema v21. 107 tests.

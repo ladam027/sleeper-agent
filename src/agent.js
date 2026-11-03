@@ -3,6 +3,8 @@ import { db, get, set, log, agent, setStatus } from './db.js';
 import { MAX_STEPS, blocked, record, limitHit, today, spentToday, agentCap, globalCap } from './budget.js';
 import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
+import * as vault from './vault.js';
+import { LIVE_RE } from './live.js';
 import { notify } from './phone.js';
 
 export const deps = { client: null }; // tests swap in a fake
@@ -125,11 +127,13 @@ async function exec(use, ctx, allowed) {
   log(ctx.agent, 'tool', `${use.name} ${JSON.stringify(use.input).slice(0, 300)}`);
   const taintHold = ctx.tainted && !TAINT_SAFE.has(use.name);
   if (t.risk === 'high' || taintHold) {
-    const reason = taintHold && t.risk !== 'high' ? 'This task read web content, so this action needs your OK' : null;
+    let reason = taintHold && t.risk !== 'high' ? 'This task read web content, so this action needs your OK' : null;
+    // Some high-risk tools check their rules before bothering the owner (e.g. live orders: opt-in + real limits) and describe the action.
+    if (t.check) try { reason = await t.check(use.input, ctx); } catch (e) { const msg = redact(e.message); log(ctx.agent, 'tool-error', `${use.name}: ${msg}`.slice(0, 500)); return { content: msg, is_error: true }; }
     const { lastInsertRowid: id } = db.prepare('insert into approvals (agent, tool, input, reason) values (?, ?, ?, ?)')
       .run(ctx.agent, use.name, JSON.stringify(use.input), reason);
     log(ctx.agent, 'approval', `#${id} ${use.name} waiting for owner`);
-    notify('high', `Approval #${id}: ${ctx.agent} wants to ${use.name.replace(/_/g, ' ')} ${JSON.stringify(use.input).slice(0, 160)}. Reply Y ${id} <PIN> or N ${id} <PIN>, or use the dashboard.`, { agent: ctx.agent })
+    notify('high', `Approval #${id}: ${ctx.agent} wants to ${use.name.replace(/_/g, ' ')} ${reason && t.check ? reason : JSON.stringify(use.input).slice(0, 160)}. Reply Y ${id} <PIN> or N ${id} <PIN>, or use the dashboard.`, { agent: ctx.agent })
       .catch(() => {}); // never block the agent on the phone
     return { content: `Queued for owner approval as #${id}${reason ? ' (this task read web content)' : ''}. It has NOT run. Tell the owner; do not retry.` };
   }
@@ -155,7 +159,8 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   const { allowed, tools, defer } = toolsFor(a, depth, opts.canEscalate);
   // The owner's original request, so a budget-stopped task can resume after the owner approves more budget.
   const root = opts.root || (depth === 0 ? { agent: name, text, thread } : null);
-  const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted, root };
+  // Live (real-money) trading: only for this request, only from the owner's own message (dashboard/Telegram), never from tools or history.
+  const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted, root, live: !!opts.owner && depth === 0 && LIVE_RE.test(text) };
   ctx.taint = () => { if (!ctx.tainted) log(name, 'tainted', 'read web content: state-changing actions now need approval'); ctx.tainted = true; opts.onTaint?.(); };
   if (ctx.tainted) opts.onTaint?.();
   const messages = depth || opts.ephemeral ? [] : history(thread);
@@ -259,12 +264,12 @@ export const CANT = /\b(?:I|I'm|I am)\s+(?:can(?:no|')t|unable to|not able to)\s
 // Specialists that can take a request directly (cheaper than James). Anything mixing in other work goes to James.
 const DIRECT = [{ agent: 'designer', re: /\b(web ?site|landing page|homepage|redesign|site for|one-page site)\b/i, unless: /\b(email|send|post|publish|research|find|look up|and then)\b/i }];
 
-export async function auto(text) {
+export async function auto(text, { owner = false } = {}) {
   const thread = 'orchestrator';
-  const toJames = (why) => { log('router', 'route', `orchestrator (${why})`); return runAgent('orchestrator', text, 0, { thread }); };
+  const toJames = (why) => { log('router', 'route', `orchestrator (${why})`); return runAgent('orchestrator', text, 0, { thread, owner }); };
   const tryAgent = async (name, why) => {
     log('router', 'route', `${name} (${why})`);
-    const r = await runAgent(name, text, 0, { thread, canEscalate: true, holdReply: true });
+    const r = await runAgent(name, text, 0, { thread, owner, canEscalate: true, holdReply: true });
     if (typeof r === 'string') return r; // stopped / error: show it
     if (r.escalated) return toJames(`${name} handed it up: ${r.escalated}`);
     if (CANT.test(r.reply)) return toJames(`${name} couldn't do it, handed to James instead`);
@@ -312,16 +317,37 @@ export function restart(name) {
 export async function decide(id, approve) {
   const ap = db.prepare("select * from approvals where id = ? and status = 'pending'").get(id);
   if (!ap) return null;
+  // A live order approved while the vault is locked waits (up to UNLOCK_WAIT_MS) for the owner to unlock, then re-checks and places.
+  if (approve && TOOLS[ap.tool]?.needsVault && !vault.ready()) {
+    db.prepare("update approvals set status = 'waiting_unlock', decided_at = current_timestamp where id = ?").run(id);
+    log(ap.agent, 'approval', `#${id} approved; waiting for the vault to be unlocked`);
+    notify('high', `Approved #${id}, but the vault is locked. Unlock it on the dashboard within 30 minutes to place it; it re-checks the price first.`).catch(() => {});
+    return 'Approved. The vault is locked: unlock it within 30 minutes and it will be placed (after re-checking the price).';
+  }
   let result = 'denied by owner';
   if (approve) {
     try { result = String(await TOOLS[ap.tool].run(JSON.parse(ap.input), { agent: ap.agent, depth: 0, run: runAgent })); }
     catch (e) { result = `failed: ${e.message}`; }
   }
+  return finish(ap, approve ? 'approved' : 'denied', result);
+}
+const UNLOCK_WAIT_MS = 30 * 60e3;
+// Called after the vault is unlocked (and by the job tick to expire stale ones).
+export async function runWaiting() {
+  for (const ap of db.prepare("select * from approvals where status = 'waiting_unlock' order by id").all()) {
+    if (Date.now() - Date.parse(`${ap.decided_at}Z`) > UNLOCK_WAIT_MS) { finish(ap, 'expired', 'expired: the vault stayed locked for 30 minutes, so it was not placed'); continue; }
+    if (!vault.ready()) continue;
+    let result; try { result = String(await TOOLS[ap.tool].run(JSON.parse(ap.input), { agent: ap.agent, depth: 0, run: runAgent })); } catch (e) { result = `failed: ${e.message}`; }
+    finish(ap, 'approved', result);
+  }
+}
+function finish(ap, status, result) {
+  const id = ap.id;
   db.prepare('update approvals set status = ?, decided_at = current_timestamp, result = ? where id = ?')
-    .run(approve ? 'approved' : 'denied', result, id);
+    .run(status, result, id);
   // So the agent learns the outcome on its next turn.
   db.prepare('insert into chat (agent, role, content) values (?, ?, ?)')
-    .run(ap.agent, 'user', `[system note] Approval #${id} (${ap.tool}) ${approve ? 'approved' : 'denied'}: ${result}`);
-  log(ap.agent, 'approval', `#${id} ${approve ? 'approved' : 'denied'}: ${result}`);
+    .run(ap.agent, 'user', `[system note] Approval #${id} (${ap.tool}) ${status}: ${result}`);
+  log(ap.agent, 'approval', `#${id} ${status}: ${result}`);
   return result;
 }

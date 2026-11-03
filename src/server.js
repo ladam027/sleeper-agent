@@ -15,9 +15,10 @@ import { stats } from './stats.js';
 import * as studio from './studio.js';
 import * as paper from './paper.js';
 import * as browser from './browser.js';
+import * as live from './live.js';
 import { TOOLS, capabilities } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
-import { runAgent, auto, kill, restart, decide, getSummary } from './agent.js';
+import { runAgent, auto, kill, restart, decide, getSummary, runWaiting } from './agent.js';
 
 
 const TOKEN = process.env.DASHBOARD_TOKEN;
@@ -94,7 +95,7 @@ async function api(req, url) {
     const { agent = 'auto', text } = await body(req);
     if (!text?.trim()) throw new Error('text required');
     phone.ownerUsed('dashboard'); set('dashboard_active_at', lastActiveWrite = Date.now());
-    return { reply: await (agent === 'auto' ? auto(text.slice(0, 20000)) : runAgent(agent, text.slice(0, 20000))) };
+    return { reply: await (agent === 'auto' ? auto(text.slice(0, 20000), { owner: true }) : runAgent(agent, text.slice(0, 20000), 0, { owner: true })) };
   }
   if (route === 'approvals' && m === 'POST') {
     const result = await decide(Number(id), (await body(req)).approve === true);
@@ -136,6 +137,7 @@ async function api(req, url) {
     const { passphrase } = await body(req);
     try { id === 'setup' ? vault.setup(passphrase) : vault.unlock(passphrase); }
     catch (e) { if (e.message === 'Wrong passphrase') { failures.push(Date.now()); log('owner', 'vault', 'wrong passphrase attempt'); } throw e; }
+    runWaiting().catch((e) => log('owner', 'error', `waiting orders: ${e.message}`)); // approved live orders that waited for the unlock
     return { session: newSession() };
   }
   if (route === 'vault') {
@@ -151,8 +153,8 @@ async function api(req, url) {
   if (route === 'capabilities' && m === 'GET') return capabilities();
   if (route === 'browser' && m === 'GET') return id ? (await browser.preview(id)) || { error: 'That browser session has closed' } : { sessions: browser.openSessions() };
   if (route === 'markets') { // read-only view + the owner's limits; agents can't change limits
-    if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS };
-    if (m === 'POST' && id === 'limits') return paper.setLimits(await body(req)), { ok: true };
+    if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS, live_orders: live.recent(), live_cap: live.cap() };
+    if (m === 'POST' && id === 'limits') { const b = await body(req); if (b.live_max_total_usd !== undefined) live.setCap(b.live_max_total_usd); delete b.live_max_total_usd; return paper.setLimits(b), { ok: true }; }
   }
   if (route === 'studio') { // owner's own clicks: publishing from here is the approval
     if (m === 'GET' && !id) return { sites: studio.listSites(), posts: studio.listPosts(), platforms: studio.PLATFORMS,

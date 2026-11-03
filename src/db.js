@@ -91,6 +91,8 @@ const MIGRATIONS = [
   `update agents set tools = tools || ',get_site' where name = 'designer' and tools not like '%get_site%';`,
   `create table if not exists paper_trades (id integer primary key, ts text default current_timestamp, ticker text not null, title text,
      side text not null, action text not null, count integer not null, price real not null, fee real not null default 0, pnl real not null default 0, by text, reason text);`,
+  `create table if not exists live_orders (id integer primary key, ts text default current_timestamp, ticker text not null, side text not null, action text not null,
+     count integer not null, limit_price real not null, order_id text, client_order_id text, fill_count real, avg_price real, fee real, by text, reason text);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

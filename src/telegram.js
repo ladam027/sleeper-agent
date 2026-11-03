@@ -50,7 +50,7 @@ export async function handleUpdate(update) {
     return phone.message(result === null ? `Approval #${ap.id} isn't pending.` : `#${ap.id} ${ap.approve ? 'approved' : 'denied'}: ${result}`);
   }
   phone.telegram('sendChatAction', { chat_id: chat, action: 'typing' }).catch(() => {});
-  return phone.message(plain(await auto(`[Sent from Telegram on the owner's phone. Keep the reply short and plain text, no markdown.]\n${text}`)));
+  return phone.message(plain(await auto(`[Sent from Telegram on the owner's phone. Keep the reply short and plain text, no markdown.]\n${text}`, { owner: true })));
 }
 
 export async function poll() {

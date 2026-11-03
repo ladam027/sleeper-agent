@@ -133,6 +133,15 @@ async function kalshi(path, query = '') {
   const c = creds('kalshi'), full = `/trade-api/v2${path}`;
   return getJson(`${KALSHI}${full}${query ? `?${query}` : ''}`, kalshiHeaders('GET', full, c), 'Kalshi');
 }
+// Signed POST (orders). Only called from src/live.js after the owner approved the order.
+export async function kalshiPost(path, body) {
+  const c = creds('kalshi'), full = `/trade-api/v2${path}`;
+  const res = await deps.fetch(`${KALSHI}${full}`, { method: 'POST', body: JSON.stringify(body),
+    headers: { ...kalshiHeaders('POST', full, c), 'content-type': 'application/json', accept: 'application/json' } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Kalshi rejected the order (${res.status}): ${j.error?.message || j.message || 'no reason given'}`);
+  return j;
+}
 // Kalshi now reports money as dollar strings (e.g. "0.3600"); older fields were integer cents. Accept both.
 const usd = (dollars, cents) => dollars != null ? Number(dollars) : cents != null ? cents / 100 : null;
 
