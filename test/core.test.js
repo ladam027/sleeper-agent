@@ -206,3 +206,31 @@ test('Pete can update the dashboard (clients, money, projects), knows what "the 
   assert.match(calls[0].tools.find((t) => t.name === 'escalate').description, /Never offer a workaround/);
   assert.equal(db.prepare("select count(*) n from contacts where name = 'Raincross Pub'").get().n, 1);
 });
+
+test('Auto: a specialist "I can\'t" never reaches the owner; the right agent answers instead', async () => {
+  reset();
+  const { auto, CANT } = await import('../src/agent.js');
+  for (const t of ["I don't have a dashboard tool to add contacts, that's James's job.", "I can't send emails.", 'Ask James to do that.', "I'm unable to post that."]) assert.ok(CANT.test(t), t);
+  for (const t of ["I couldn't find any reminders for today.", "You don't have any approvals waiting.", 'James is your orchestrator.', "I can't wait to see it launch!"]) assert.ok(!CANT.test(t), t);
+
+  const calls = [];
+  const replies = [text("Sorry, I can't create projects. That's James's job."), text('Created the Etsy project.')];
+  deps.client = { messages: { create: async (p) => (calls.push(p), replies.shift()) } };
+  assert.equal(await auto('add an etsy project'), 'Created the Etsy project.');
+  assert.deepEqual(calls.map((c) => c.model), ['claude-haiku-4-5', 'claude-opus-5-5']);
+  const saved = db.prepare("select content from chat where agent = 'orchestrator' and role = 'assistant'").all().map((r) => r.content);
+  assert.deepEqual(saved, ['Created the Etsy project.'], "Pete's refusal was never saved or shown");
+});
+
+test('Auto: website work goes straight to Mia; mixed requests go to James', async () => {
+  reset();
+  const { auto } = await import('../src/agent.js');
+  let calls = fake([text('Draft saved.')]);
+  await auto('design a website for Corner Bakery');
+  assert.equal(calls[0].model, 'claude-sonnet-5');
+  assert.match(sysText(calls[0]), /Your name is Mia/);
+  assert.ok(calls[0].tools.some((t) => t.name === 'escalate'), 'Mia can hand up too');
+  calls = fake([text('On it.')]);
+  await auto('build a website for Corner Bakery and email it to Dana');
+  assert.equal(calls[0].model, 'claude-opus-5-5');
+});

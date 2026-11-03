@@ -24,3 +24,6 @@
 
 ## 5.3.0
 - Pete gets contact / log_money / project (everyday dashboard updates). Every agent's system prompt maps dashboard tabs to tools ("add to the dashboard" = the real record, not a memory). escalate: hand off immediately when a tool is missing, never improvise a workaround. 85 tests.
+
+## 5.4.0
+- Auto routing by capability: website work → Mia directly; complex → James; everyday → Pete. Every specialist can escalate. A specialist reply that says it can't do something (`CANT` pattern) is held back, not saved or shown, and James answers instead (`holdReply`). Rule in every agent: never tell the owner to ask another agent. 87 tests.
