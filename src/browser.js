@@ -167,7 +167,7 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     if (info.commit || submitsNow) throw new Error(`[${ref}] "${info.label}" submits or commits. Use browser_submit (the owner approves it) after filling everything in.`);
     await loc.click({ timeout: 10e3 }); return snap(s);
   }
-  if (action === 'type') { await loc.fill(String(text ?? ''), { timeout: 10e3 }); return snap(s); }
+  if (action === 'type') { await keys(loc, String(text ?? '')); return snap(s); }
   if (action === 'select') { await loc.selectOption({ label: String(option) }, { timeout: 10e3 }).catch(() => loc.selectOption(String(option), { timeout: 10e3 })); return snap(s); }
   if (action === 'press') {
     if (key === 'Enter' && info.inForm) throw new Error('Enter would submit this form. Use browser_submit on the submit button (the owner approves it).');
@@ -182,13 +182,19 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     const parts = Object.fromEntries(String(item.value || '').split(/\n|·|;|\|/).map((p) => /^\s*([^:]{1,40}):\s*(.+?)\s*$/.exec(p)).filter(Boolean).map((m) => [m[1].trim().toLowerCase(), m[2]]));
     const fill = ['value', 'username'].includes(field) ? item[field] : parts[String(field).toLowerCase()];
     if (!fill) throw new Error(`"${secret}" has no ${field}. Parts you can type: value${item.username ? ', username' : ''}${Object.keys(parts).length ? ', ' + Object.keys(parts).join(', ') : ''}.`);
-    await loc.fill(fill, { timeout: 10e3 });
+    await keys(loc, String(fill).replace(/[\r\n]+$/, ''));
     await loc.evaluate((e) => { e.dataset.saSecret = '1'; });
     s.logins.add(secret);
     log(agent, 'browser', `typed ${secret} ${field} into "${info.label}" on ${host}`); // never the value
     return snap(s);
   }
   throw new Error(`Unknown action ${action}`);
+}
+
+// Real keystrokes, not a pasted value: some login forms (MyDMV) only accept what was typed key by key.
+async function keys(loc, text) {
+  await loc.fill('', { timeout: 10e3 });
+  await loc.pressSequentially(text, { delay: 20, timeout: 30e3 });
 }
 
 // Approval-gated (risk 'high'): the only way to press a submit/commit control.
@@ -223,7 +229,7 @@ export async function ownerInput(id, { type, x, y, text, key, dy }) {
   else throw new Error('Unknown input');
   s.elements = []; // the agent's numbered controls are stale now: it must take a fresh snapshot
   s.lastAction = 'you used the page';
-  log('owner', 'browser', `used session ${id} (${type})`); // never the text
+  if (Date.now() - (s.ownerLogged || 0) > 60e3) { s.ownerLogged = Date.now(); log('owner', 'browser', `used session ${id}`); } // once a minute, never the text
   return { ok: true };
 }
 export const openSessions = () => [...sessions].map(([id, s]) => ({ id, url: s.page.url(), agent: s.agent, idle_min: Math.round((Date.now() - s.last) / 60e3) }));
