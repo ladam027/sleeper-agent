@@ -171,7 +171,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
-@media (max-width: 900px) { .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
+@media (max-width: 900px) { [data-panel="studio"] { grid-template-columns: 1fr !important; } .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
 .agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
@@ -270,6 +270,9 @@ td.r, th.r { text-align: right; }
 .seg button { border: 0; background: none; padding: 5px 12px; border-radius: var(--r-pill); cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
 #statAgents th, #statAgents td { padding-right: 14px; } #statAgents th:last-child, #statAgents td:last-child { padding-right: 0; }
+dialog.preview { width: min(1200px, 96vw); height: 92vh; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0; background: var(--surface); color: var(--ink); }
+dialog.preview::backdrop { background: rgb(0 0 0 / .55); }
+dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 auto; height: calc(92vh - 58px); transition: width .2s var(--ease); }
 .stack-bar { display: flex; height: 14px; border-radius: var(--r-pill); overflow: hidden; background: var(--sunken); }
 .stack-bar i { display: block; height: 100%; }
 @media (max-width: 560px) { .kpis { gap: var(--s3); } .kpi .v { font-size: 22px; } .tiles { flex-wrap: wrap; } .tile { min-width: calc(50% - 6px); } .hero { padding: var(--s4); } .top h1 { font-size: 18px; } }
@@ -302,6 +305,7 @@ td.r, th.r { text-align: right; }
     <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
     <button class="nav" data-view="money"><svg class="i"><use href="#i-wallet"/></svg>Money</button>
     <button class="nav" data-view="clients"><svg class="i"><use href="#i-users"/></svg>Clients</button>
+    <button class="nav" data-view="studio"><svg class="i"><use href="#i-palette"/></svg>Studio</button>
     <button class="nav" data-view="stats"><svg class="i"><use href="#i-chart"/></svg>Statistics</button>
     <div class="navlabel">Manage</div>
     <button class="nav" data-view="integrations"><svg class="i"><use href="#i-plug"/></svg>Integrations</button>
@@ -557,6 +561,38 @@ td.r, th.r { text-align: right; }
       </div>
     </section>
 
+    <!-- Studio -->
+    <section class="content" data-panel="studio" hidden style="grid-template-columns:minmax(0,1fr) 380px">
+      <div class="stack">
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-palette"/></svg></span><div><h2>Websites</h2><div class="sub">Designed by Mia. Preview safely here; publishing makes a public link and is always your call.</div></div></div>
+          <div id="sites" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s3)"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><h2>Content calendar</h2><div class="sub" id="postsSub">Posts your agents drafted. Nothing goes out until you approve it.</div></div></div>
+          <div id="posts"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>Ask Mia for a site</h2></div>
+        <form id="siteForm">
+          <label class="f" for="sfName">Business name</label><input id="sfName" name="name" required placeholder="Raincross Pub &amp; Kitchen">
+          <label class="f" for="sfDetails">Details</label><textarea id="sfDetails" name="details" rows="7" required placeholder="What they sell, a few menu items or services with prices, hours, address, phone, Instagram, the vibe (cozy, modern, family-friendly), colors they like…"></textarea>
+          <div class="help">Mia only uses facts you give her and marks anything missing as [placeholder]. Riley can look things up first if you ask James instead.</div>
+          <label class="f" for="sfContact">For client (optional)</label><select id="sfContact" name="contact"></select>
+          <div style="margin-top:var(--s4)"><button class="btn primary" id="sfBtn"><svg class="i"><use href="#i-sparkles"/></svg>Design it</button></div>
+        </form>
+      </div>
+    </section>
+    <dialog class="preview" id="previewDlg">
+      <div style="display:flex;align-items:center;gap:var(--s2);padding:10px 14px;border-bottom:1px solid var(--line)">
+        <b id="previewTitle" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></b>
+        <div class="seg"><button type="button" data-w="390px" aria-pressed="true">Phone</button><button type="button" data-w="100%">Desktop</button></div>
+        <button class="btn sm icon" type="button" aria-label="Close preview" onclick="$('#previewDlg').close()"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+      <iframe id="previewFrame" sandbox="" referrerpolicy="no-referrer" title="Site preview" style="width:390px"></iframe>
+    </dialog>
+
     <!-- Statistics -->
     <section class="content" data-panel="stats" hidden style="grid-template-columns:1fr">
       <div class="stack">
@@ -664,6 +700,7 @@ td.r, th.r { text-align: right; }
               <tr><td><b>James</b> · Orchestrator</td><td class="muted">Plans, remembers, delegates, handles anything complex</td><td class="muted">Opus 5.5</td><td class="muted">"Plan my week", "help me decide…"</td></tr>
               <tr><td><b>Pete</b> · Quick</td><td class="muted">Fast cheap answers, memory lookups, reminders</td><td class="muted">Haiku 4.5</td><td class="muted">"What do you know about me?", "remind me at 5…"</td></tr>
               <tr><td><b>Riley</b> · Researcher</td><td class="muted">Searches the web, reads pages and <b>PDF, CSV and Excel files</b>, reports back with links. Takes no actions. Files are only read as data, never opened or run; macro workbooks are refused; public internet only; 10 MB max.</td><td class="muted">Sonnet 5 + web</td><td class="muted">"Research Etsy fees for digital prints", "what's the latest on…"</td></tr>
+              <tr><td><b>Mia</b> · Designer</td><td class="muted">Designs one-page websites for local businesses from your notes. Never invents facts. Pages are stripped of scripts; publishing is your call.</td><td class="muted">Sonnet 5</td><td class="muted">Studio → "Ask Mia for a site", or "James, have Mia build a site for…"</td></tr>
               <tr><td><b>Cleo</b> · Critic</td><td class="muted">Finds holes, risks, legal and platform-rule problems, then improves the idea</td><td class="muted">Opus 5.5 + web</td><td class="muted">"Critique this idea: …", "tear apart my plan"</td></tr>
               <tr><td><b>Sam</b> · Security</td><td class="muted">Audits the activity log hourly (only when something happened). Alerts you, and trips the kill switch for clear compromise.</td><td class="muted">Haiku 4.5</td><td class="muted">Runs by itself</td></tr>
             </tbody>
@@ -862,6 +899,8 @@ td.r, th.r { text-align: right; }
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-9"/></symbol>
+  <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -914,11 +953,12 @@ function show(v) {
   if (v === 'guide') renderGuide();
   if (v === 'integrations') renderIntegrations();
   if (v === 'stats') loadStats();
+  if (v === 'studio') loadStudio();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { budget: 'trend', email: 'mail', integration: 'plug', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { budget: 'Budget', 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { site: 'palette', post: 'message', budget: 'trend', email: 'mail', integration: 'plug', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { site: 'Website', post: 'Social post', budget: 'Budget', 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -1050,6 +1090,7 @@ async function refresh() {
   pick.value = agentName;
   if (view === 'guide') renderGuide();
   if (view === 'integrations' && !openIntegration) renderIntegrations();
+  if (view === 'studio' && !designing) loadStudio();
   if (!sending) renderChat(chat, s.chatSummary);
 
   // Settings (don't clobber while editing)
@@ -1443,6 +1484,69 @@ window.applyTip = async (n) => {
   const r = t.kind === 'agent' ? await call(`agents/${t.agent}`, 'POST', t.body) : await call('settings', 'POST', t.body);
   if (r.error) return alert(r.error);
   toast(`Done: ${t.label}`); refresh(); loadStats();
+};
+
+// ── Studio ──
+let SD = null, designing = false;
+const SITE_STATUS = { draft: ['', 'Draft'], live: ['ok', 'Live'], changed: ['warn', 'Live, unpublished changes'] };
+async function loadStudio() {
+  const r = await call('studio'); if (r.error) return;
+  SD = r; renderStudio();
+  if (!$('#siteForm').contains(document.activeElement)) {
+    const c = state?.agents ? await call('money') : null;
+    if (c && !c.error) $('#sfContact').innerHTML = '<option value="">None</option>' + c.contacts.map((x) => `<option value="${x.id}">${esc(x.name)}${x.company ? ` (${esc(x.company)})` : ''}</option>`).join('');
+  }
+}
+function renderStudio() {
+  $('#sites').innerHTML = SD.sites.map((s) => { const [cls, label] = SITE_STATUS[s.status] || ['', s.status];
+    return `<div class="agent" style="margin:0"><div class="agent-h"><div style="min-width:0"><div class="name">${esc(s.title)}</div><div class="model">${esc(s.contact || s.slug)} · ${esc(ago(s.updated_at))}</div></div><span class="pill ${cls} right">${label}</span></div>
+      ${s.url ? `<div class="help" style="margin-top:6px;overflow-wrap:anywhere"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.url.replace('https://', ''))}</a></div>` : ''}
+      <div class="actions"><button class="btn sm primary" onclick="previewSite('${esc(s.slug)}', '${esc(s.title).replace(/'/g, '')}')">${icon('eye')}Preview</button>
+        <button class="btn sm" onclick="publishSite('${esc(s.slug)}')" ${SD.netlify ? '' : 'disabled title="Connect Netlify on the Integrations page"'}>${icon('external')}${s.url ? 'Update live' : 'Publish'}</button>
+        ${s.url ? `<button class="btn sm" onclick="navigator.clipboard.writeText('${esc(s.url)}').then(() => toast('Link copied'))">${icon('copy')}Copy link</button>` : ''}
+        <button class="btn sm" onclick="changeSite('${esc(s.slug)}')">${icon('sparkles')}Request changes</button>
+        ${s.status === 'draft' ? `<button class="btn sm icon danger" aria-label="Delete draft" onclick="deleteSite('${esc(s.slug)}')">${icon('trash')}</button>` : ''}</div></div>`; }).join('')
+    || '<div class="empty">No sites yet. Describe a business on the right and Mia will design one.</div>';
+  const tz = state?.settings?.timezone;
+  $('#postsSub').textContent = 'Posts your agents drafted. Nothing goes out until you approve it.' + (SD.ayrshare ? '' : ' Approving marks a post ready to copy (connect Ayrshare to post automatically).');
+  const PS = { draft: ['', 'Draft'], ready: ['brand', 'Ready to copy'], scheduled: ['ok', 'Scheduled'], posted: ['ok', 'Posted'], failed: ['bad', 'Failed'], discarded: ['', 'Discarded'] };
+  $('#posts').innerHTML = SD.posts.map((p) => { const [cls, label] = PS[p.status] || ['', p.status];
+    return `<div class="row" style="align-items:flex-start"><span class="ibox brand">${icon('message')}</span><div class="body">
+      <div style="white-space:pre-wrap">${esc(p.text)}</div>
+      <div class="meta">${p.platforms ? esc(p.platforms.split(',').join(' · ')) : 'no platform yet'}${p.scheduled_at ? ' · ' + esc(new Date(p.scheduled_at).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : ''} · <span class="pill ${cls}">${label}</span></div>
+      ${['draft', 'ready', 'failed'].includes(p.status) ? `<div class="actions">${p.status !== 'ready' ? `<button class="btn sm primary" onclick="postAct(${p.id}, 'publish')">${icon('check')}Approve</button>` : ''}<button class="btn sm" onclick="copyPost(${p.id})">${icon('copy')}Copy</button><button class="btn sm" onclick="postAct(${p.id}, 'posted')">Mark posted</button><button class="btn sm danger" onclick="postAct(${p.id}, 'discarded')">Discard</button></div>` : ''}
+    </div></div>`; }).join('') || '<div class="empty">No posts yet. Try: "James, draft 3 Instagram posts announcing the new Raincross Pub website."</div>';
+}
+window.previewSite = async (slug, title) => {
+  const r = await call('studio/site/' + encodeURIComponent(slug)); if (r.error) return alert(r.error);
+  $('#previewTitle').textContent = title; $('#previewFrame').srcdoc = r.html; $('#previewDlg').showModal();
+};
+document.querySelectorAll('#previewDlg .seg button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('#previewDlg .seg button').forEach((x) => x.setAttribute('aria-pressed', x === b)); $('#previewFrame').style.width = b.dataset.w;
+});
+window.publishSite = async (slug) => {
+  const s = SD.sites.find((x) => x.slug === slug);
+  if (!confirm(`${s.url ? 'Update' : 'Publish'} "${s.title}" on a public link? Anyone with the link can see it.`)) return;
+  toast('Publishing…'); const r = await call('studio/publish-site', 'POST', { slug }); if (r.error) return alert(r.error);
+  toast(r.result); loadStudio();
+};
+window.deleteSite = async (slug) => { if (confirm('Delete this draft?')) { await call('studio/delete-site', 'POST', { slug }); loadStudio(); } };
+window.changeSite = async (slug) => {
+  const what = prompt('What should Mia change?'); if (!what) return;
+  designing = true; toast('Mia is updating the site… (about a minute)');
+  const r = await call('chat', 'POST', { agent: 'designer', text: `Update the site "${slug}" (use list_sites; keep everything else the same): ${what}` });
+  designing = false; if (r.error) alert(r.error); else toast(String(r.reply).slice(0, 200)); loadStudio();
+};
+window.postAct = async (id, action) => { const r = await call('studio/post', 'POST', { id, action }); if (r.error) return alert(r.error); if (r.result) toast(r.result); loadStudio(); };
+window.copyPost = async (id) => { const p = SD.posts.find((x) => x.id === id); try { await navigator.clipboard.writeText(p.text); toast('Copied'); } catch { alert('Clipboard blocked'); } };
+$('#siteForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const contact = f.contact.value ? ` This site is for CRM contact #${f.contact.value}; pass contact_id.` : '';
+  designing = true; $('#sfBtn').disabled = true; $('#sfBtn').textContent = 'Mia is designing… (about a minute)';
+  const r = await call('chat', 'POST', { agent: 'designer', text: `Design a one-page website for ${f.name.value}.${contact}\nDetails from the owner:\n${f.details.value}` });
+  designing = false; $('#sfBtn').disabled = false; $('#sfBtn').innerHTML = `${icon('sparkles')}Design it`;
+  if (r.error) return alert(r.error);
+  f.reset(); toast(String(r.reply).slice(0, 200)); loadStudio();
 };
 
 // ── Vault ──

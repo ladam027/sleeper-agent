@@ -7,6 +7,7 @@ import { upsertProject, moneySummary, logMoney, upsertContact, listContacts, sav
 import * as google from './google.js';
 import * as integ from './integrations.js';
 import { fetchDocument } from './documents.js';
+import * as studio from './studio.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -18,7 +19,7 @@ const str = (description) => ({ type: 'string', description });
 // Tools a created worker agent may be given (never create_agent, delegate, or the hidden internal ones).
 export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets',
   'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email', 'read_email', 'calendar_events', 'calendar_add',
-  'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets', 'read_document', 'kalshi_backtest_data', 'weather_history'];
+  'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets', 'read_document', 'kalshi_backtest_data', 'weather_history', 'save_site', 'list_sites', 'draft_post', 'list_posts'];
 
 export const TOOLS = {
   remember: tool('remember', 'Save or update a long-term memory about the owner, a project, a person, or a decision. Pass id to update. pinned=true puts it in every prompt (use for core facts only).',
@@ -160,6 +161,26 @@ export const TOOLS = {
       return `<untrusted_content source="${doc.url} (PDF, read by the reader agent)">\n${answer}\n</untrusted_content>`;
     }),
 
+  save_site: tool('save_site', 'Save (or update) a draft one-page website. html must be a complete, self-contained document: inline CSS, no JavaScript (scripts, forms and embeds are stripped), Google Fonts allowed, images only from https links the owner provided. Drafts are private until the owner publishes.',
+    { slug: str('url-safe id, e.g. raincross-pub'), title: str('site title'), html: str('complete HTML document'), contact_id: { type: 'integer', description: 'CRM contact this site is for' }, notes: str('what changed / what the client asked for') }, ['slug', 'title', 'html'],
+    (input, ctx) => studio.saveSite(input, ctx.agent)),
+
+  list_sites: tool('list_sites', 'List website drafts and live sites with their status and live URL.', {}, [],
+    () => JSON.stringify(studio.listSites())),
+
+  publish_site: tool('publish_site', 'Publish a site to its public Netlify link (or update it). Always needs owner approval.', { slug: str('site slug') }, ['slug'],
+    ({ slug }) => studio.publishSite(slug), 'high'),
+
+  draft_post: tool('draft_post', `Draft a social media post for the owner to review. platforms: ${studio.PLATFORMS.join(', ')}. scheduled_at is owner local time YYYY-MM-DDTHH:MM (optional). Nothing is posted without approval.`,
+    { text: str('post text, written for the platform'), platforms: { type: 'array', items: { type: 'string', enum: studio.PLATFORMS } }, scheduled_at: str('YYYY-MM-DDTHH:MM, optional'), media_url: str('https image link, optional') }, ['text'],
+    (input, ctx) => studio.draftPost(input, ctx.agent)),
+
+  list_posts: tool('list_posts', 'List drafted, scheduled and recent social posts.', {}, [],
+    () => JSON.stringify(studio.listPosts().map(({ id, text, platforms, local_time, status }) => ({ id, text: text.slice(0, 200), platforms, local_time, status })))),
+
+  publish_post: tool('publish_post', 'Post or schedule a drafted social post. Always needs owner approval.', { id: { type: 'integer' } }, ['id'],
+    ({ id }) => studio.publishPost(id), 'high'),
+
   canvas_upcoming: tool('canvas_upcoming', "The owner's upcoming Canvas assignments, to-dos and events (title, course, type, due date), soonest first. Use it to plan study time or set reminders for due work.", {}, [],
     async () => `<untrusted_content source="Canvas (titles written by instructors)">\n${JSON.stringify(await integ.canvasUpcoming())}\n</untrusted_content>`),
 
@@ -181,7 +202,7 @@ export const TOOLS = {
     { station: str('GHCN-Daily station id'), start: str('YYYY-MM-DD'), end: str('YYYY-MM-DD') }, ['start', 'end'],
     async (input) => JSON.stringify(await integ.weatherHistory(input))),
 
-  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea.',
+  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea, designer to build or change a website.',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],
     async ({ agent, task }, ctx) => {
       if (ctx.depth >= 2) return 'Refused: delegation depth limit reached';

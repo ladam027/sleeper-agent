@@ -24,6 +24,20 @@ export const INTEGRATIONS = {
     help: 'In Kalshi: Account → Profile → API Keys → Create. Kalshi shows the private key once: paste the whole thing, including the BEGIN/END lines.',
     tools: ['kalshi_portfolio', 'kalshi_markets'],
   },
+  netlify: {
+    name: 'Netlify', vault: 'netlify', category: 'Websites',
+    blurb: 'Publishes the sites Mia designs to a free https://….netlify.app link you can send to clients. Every publish needs your approval.',
+    fields: [{ key: 'value', label: 'Personal access token', secret: true }],
+    help: 'Sign up free at netlify.com → avatar → User settings → Applications → Personal access tokens → New access token. Give it an expiry, then paste it here.',
+    tools: ['publish_site'],
+  },
+  ayrshare: {
+    name: 'Ayrshare', vault: 'ayrshare', category: 'Social media',
+    blurb: 'Optional: posts or schedules approved posts on your linked social accounts. Without it, approved posts are ready to copy.',
+    fields: [{ key: 'value', label: 'API key', secret: true }],
+    help: 'Create an account at ayrshare.com, link your social profiles there, then copy the API key from the dashboard. Free plans are limited; videos need a paid plan.',
+    tools: ['publish_post'],
+  },
   schwab: {
     name: 'Charles Schwab', vault: 'schwab', category: 'Markets',
     blurb: 'Stores your Schwab developer app credentials now. Read-only portfolio access comes in Build 6, once Schwab approves your app.',
@@ -204,5 +218,7 @@ export async function test(id) {
   if (id === 'canvas') { const me = await canvas('/users/self'); log('owner', 'settings', 'Canvas test OK'); return `Connected as ${short(me.name, 60)}`; }
   if (id === 'kalshi') { const b = await kalshi('/portfolio/balance'); log('owner', 'settings', 'Kalshi test OK'); return `Connected. Balance $${((b.balance ?? 0) / 100).toFixed(2)}`; }
   if (id === 'schwab') { creds('schwab'); return 'Saved. Schwab sign-in arrives in Build 6.'; }
+  if (id === 'netlify') { const u = await getJson('https://api.netlify.com/api/v1/user', { authorization: `Bearer ${creds('netlify').value}` }, 'Netlify'); return `Connected as ${short(u.email || u.full_name, 60)}`; }
+  if (id === 'ayrshare') { const u = await getJson('https://api.ayrshare.com/api/user', { authorization: `Bearer ${creds('ayrshare').value}` }, 'Ayrshare'); return `Connected (${(u.activeSocialAccounts || []).join(', ') || 'no social accounts linked yet'})`; }
   throw new Error('Unknown integration');
 }

@@ -12,6 +12,7 @@ import * as money from './money.js';
 import * as google from './google.js';
 import * as integrations from './integrations.js';
 import { stats } from './stats.js';
+import * as studio from './studio.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide, getSummary } from './agent.js';
@@ -143,6 +144,19 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'studio') { // owner's own clicks: publishing from here is the approval
+    if (m === 'GET' && !id) return { sites: studio.listSites(), posts: studio.listPosts(), platforms: studio.PLATFORMS,
+      netlify: vault.ready() && vault.names().some((n) => n.name === 'netlify'), ayrshare: vault.ready() && vault.names().some((n) => n.name === 'ayrshare') };
+    if (m === 'GET' && id === 'site') return { html: studio.siteHtml(decodeURIComponent(action)) || '' };
+    const b = await body(req);
+    if (id === 'publish-site') return { result: await studio.publishSite(b.slug) };
+    if (id === 'delete-site') { db.prepare('delete from sites where slug = ?').run(b.slug); log('owner', 'site', `deleted draft ${b.slug}`); return { ok: true }; }
+    if (id === 'post') {
+      if (b.action === 'publish') return { result: await studio.publishPost(Number(b.id)) };
+      if (!['posted', 'discarded'].includes(b.action)) throw new Error('Unknown action');
+      db.prepare('update posts set status = ? where id = ?').run(b.action, Number(b.id)); return { ok: true };
+    }
+  }
   if (route === 'stats' && m === 'GET') return stats(url.searchParams.get('span') || '7d');
   if (route === 'boost' && m === 'POST') { // the owner's own click: raise a limit for today, no approval needed
     const { target, extra } = await body(req);

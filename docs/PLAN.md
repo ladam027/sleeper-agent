@@ -76,7 +76,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Gmail: daily digest from your inbox (read-only), outreach from the agent's own inbox.
 - GitHub: create/publish repos via `gh` or the GitHub MCP (publishing needs approval).
 
-### Build 5: Marketing studio
+### Build 5: Marketing studio (part 1 ✅ websites + content calendar; part 2: images/video)
 - Social posting through Ayrshare or Posty (one API for many networks, avoids X's expensive API), approval required per post at first.
 - Image generation, short video (Adobe Express/Firefly tools already connected, or Veo/Kling APIs), simple website generation and deploy (static site on Cloudflare Pages/Vercel).
 - Content calendar and post analytics feeding back into memory.

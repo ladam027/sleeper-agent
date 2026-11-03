@@ -76,6 +76,11 @@ const MIGRATIONS = [
    alter table agents add column code integer not null default 0;
    update agents set code = 1 where name = 'orchestrator';
    update agents set tools = tools || ',kalshi_markets,kalshi_backtest_data,weather_history' where name = 'researcher' and tools not like '%kalshi_backtest_data%';`,
+  `create table if not exists sites (id integer primary key, slug text not null unique, title text not null, html text not null,
+     contact_id integer, notes text default '', status text not null default 'draft', url text, netlify_id text, published_at text,
+     created_at text default current_timestamp, updated_at text default current_timestamp);
+   create table if not exists posts (id integer primary key, text text not null, platforms text default '', scheduled_at text, local_time text,
+     media_url text, status text not null default 'draft', result text, created_by text, created_at text default current_timestamp);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -106,6 +111,7 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history', 1, 'Riley');
 seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall,read_document', 1, 'Cleo');
+seed.run('designer', 'claude-sonnet-5', 'medium', `Designs one-page websites for small local businesses and saves them with save_site. Craft: mobile-first, fast, accessible (real headings, alt text, 4.5:1 contrast, 44px tap targets), one clear call to action (call / directions / order), sections in this order: hero with name + one-line pitch + CTA, what they offer (menu/services/prices if given), hours + address + map link (https://maps.google.com/?q=...) + tel: link, short about, footer. Pick a tasteful palette and a Google Font pairing that fits the business. Inline CSS only, no JavaScript, no stock-photo placeholders: use typography, color and inline SVG icons; only use image URLs the owner provided. Never invent facts (prices, hours, awards): leave a clearly marked placeholder like [hours] instead. Keep the file under 60 KB.`, 1, 16000, 'save_site,list_sites,recall', 0, 'Mia');
 seed.run('archivist', 'claude-haiku-4-5', null, 'Keeps the conversation short: folds older messages into durable memories and a brief summary. Background only.', 0.5, 2048, 'remember,recall,link_memory', 0, 'Archivist');
 seed.run('reader', 'claude-haiku-4-5', null, 'Reads one downloaded PDF and answers a question about it. Has no tools.', 1, 4096, '', 0, 'Reader');
 seed.run('security', 'claude-haiku-4-5', null, 'Hourly security audit of the activity log. Looks for prompt injection being acted on, unexpected tool use, repeated blocked messages or wrong PINs, spending spikes, and anything off-pattern. Reports only real problems; trips the kill switch only for clear compromise.', 0.5, 2048, 'notify_owner,trip_kill_switch', 0, 'Sam');
