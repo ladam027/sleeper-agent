@@ -8,6 +8,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ARGS=()
 for a in "$@"; do case "$a" in --setup) SETUP=1 ;; --move) MOVE=1 ;; --env) ENV=1 ;; --force) FORCE=1 ;; *) ARGS+=("$a") ;; esac; done
+# Never ship a failing build: the tests gate every deploy.
+echo "→ Running tests"
+if ! npm test --silent >/tmp/sleeper-deploy-tests.log 2>&1; then
+  grep -E "^✖|AssertionError|Error" /tmp/sleeper-deploy-tests.log | head -20
+  echo "✗ Tests failed. Nothing was deployed."; exit 1
+fi
 HOST="${ARGS[0]:-$(cat .vps-host 2>/dev/null || true)}"
 [ -n "$HOST" ] || { echo "Usage: npm run deploy -- root@YOUR_SERVER_IP --setup"; exit 1; }
 echo "$HOST" > .vps-host
