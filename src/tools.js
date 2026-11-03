@@ -17,6 +17,7 @@ const tool = (name, description, properties, required, run, risk = 'low', hidden
 
 const str = (description) => ({ type: 'string', description });
 // Tools a created worker agent may be given (never create_agent, delegate, or the hidden internal ones).
+const LONG = 800;
 export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets',
   'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email', 'read_email', 'calendar_events', 'calendar_add',
   'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets', 'read_document', 'kalshi_backtest_data', 'weather_history', 'save_site', 'list_sites', 'draft_post', 'list_posts'];
@@ -36,6 +37,7 @@ export const TOOLS = {
       return `Saved memory #${r.lastInsertRowid}`;
     }),
 
+  // Bodies longer than this are clipped in multi-result recalls.
   recall: tool('recall', 'Search long-term memory. Use before answering anything about the owner, their projects, or past decisions. Leave query empty to list everything saved.',
     { query: str('keywords, or empty for everything') }, [],
     ({ query = '' }) => {
@@ -45,11 +47,14 @@ export const TOOLS = {
       const where = words.map(() => "(title || ' ' || body || ' ' || tags || ' ' || kind) like ?").join(' or ');
       const hits = words.length ? db.prepare(`select ${cols} from memory where ${where} order by pinned desc, updated_at desc limit 15`)
         .all(...words.map((w) => `%${w}%`)) : [];
-      if (hits.length) return JSON.stringify(hits);
+      // Long memories (e.g. design specs) come back in full only when asked for by title or as the only hit.
+      const q = query.trim().toLowerCase();
+      const clip = (rows, full) => rows.map((m) => full(m) || m.body.length <= LONG ? m : { ...m, body: `${m.body.slice(0, LONG)}… [truncated; recall its exact title for the full text]` });
+      if (hits.length) return JSON.stringify(clip(hits, (m) => hits.length === 1 || m.title.toLowerCase() === q));
       // Keyword search misses synonyms ("owner" vs "user"), so never report empty while memories exist.
       const total = db.prepare('select count(*) n from memory').get().n;
       const recent = db.prepare(`select ${cols} from memory order by pinned desc, updated_at desc limit 30`).all();
-      return JSON.stringify({ note: total ? `${words.length ? 'No keyword match. ' : ''}Showing ${recent.length} of ${total} memories, most important first.` : 'Memory is empty.', memories: recent });
+      return JSON.stringify({ note: total ? `${words.length ? 'No keyword match. ' : ''}Showing ${recent.length} of ${total} memories, most important first.` : 'Memory is empty.', memories: clip(recent, () => false) });
     }),
 
   link_memory: tool('link_memory', 'Connect two memories (e.g. person -> works_on -> project). Builds the memory graph.',

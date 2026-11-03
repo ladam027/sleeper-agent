@@ -33,3 +33,7 @@
 
 ## 5.6.0
 - Private draft links: "Open draft" opens /p/<slug>/<token> full-page on the tailnet-only dashboard host (per-site random token, timing-safe compare, 404 otherwise) with a strict CSP (no scripts, forms, framing; CSP sandbox), noindex, no-referrer, no-store. 88 tests.
+
+## 5.7.0
+- Cost: James's specialist tools load on demand via Anthropic tool search (bm25); 8 core tools stay loaded (only agents with more than 20 tools defer). James's prefix cache lives 1 hour (owner replies often come 5-60 min apart); Haiku agents (Pete) send no cache markers (writes were never reused). Tool-search calls don't count as web content (no taint).
+- Mia follows a saved "Website design spec" memory (adapted to static, script-free pages). recall clips memories over 800 chars unless it's the only hit or the exact title was asked for, so long specs don't flood other agents. Schema v16. 90 tests.

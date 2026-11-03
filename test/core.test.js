@@ -171,6 +171,38 @@ test('caching: stable prefix always cached; the conversation only within multi-s
   assert.ok(calls[0].messages.length <= 13, `12 past messages + the new one (got ${calls[0].messages.length})`);
 });
 
+test('cost: James defers specialist tools behind tool search, caches 1h; Pete sends no cache markers', async () => {
+  reset();
+  const calls = [];
+  const srv = { type: 'server_tool_use', id: 'srvtoolu_1', name: 'tool_search_tool_bm25', input: { query: 'kalshi' } };
+  const replies = [{ stop_reason: 'end_turn', usage, content: [srv, { type: 'tool_search_tool_result', tool_use_id: 'srvtoolu_1', content: { type: 'tool_search_tool_search_result', tool_references: [] } }, { type: 'text', text: 'ok' }] }, text('hi')];
+  deps.client = { messages: { create: async (p) => (calls.push(structuredClone(p)), replies.shift()) } };
+  await runAgent('orchestrator', 'markets?');
+  const t = calls[0].tools;
+  const search = t.find((x) => x.type === 'tool_search_tool_bm25_20251119');
+  assert.ok(search && !search.defer_loading, 'search tool present, never deferred');
+  for (const k of ['recall', 'remember', 'delegate']) assert.ok(!t.find((x) => x.name === k).defer_loading, `${k} stays loaded`);
+  assert.equal(t.find((x) => x.name === 'kalshi_markets').defer_loading, true, 'specialist tool deferred');
+  assert.ok(!t.some((x) => x.defer_loading && x.cache_control), 'no cache_control on deferred tools');
+  assert.deepEqual(calls[0].system[0].cache_control, { type: 'ephemeral', ttl: '1h' });
+  assert.equal(db.prepare("select count(*) n from activity where type in ('web','tainted')").get().n, 0, 'tool search is not web content');
+  await runAgent('quick', 'what is my name');
+  assert.equal(calls[1].system[0].cache_control, undefined, 'Pete: no prefix cache');
+  assert.equal(calls[1].cache_control, undefined);
+  assert.ok(!calls[1].tools.some((x) => x.defer_loading), 'small toolsets load normally');
+});
+
+test('recall clips long memories unless asked for by title', async () => {
+  reset();
+  const { TOOLS } = await import('../src/tools.js');
+  const big = 'x'.repeat(3000);
+  db.prepare('insert into memory (title, body) values (?, ?), (?, ?)').run('Website design spec', `design ${big}`, 'Design note', 'short design note');
+  const many = JSON.parse(await TOOLS.recall.run({ query: 'design' }));
+  assert.ok(many.find((m) => m.title === 'Website design spec').body.length < 1000, 'clipped among many');
+  const one = JSON.parse(await TOOLS.recall.run({ query: 'website design spec' }));
+  assert.ok(one.find((m) => m.title === 'Website design spec').body.length > 3000, 'full by title');
+});
+
 test('compression: older messages become memories + a short summary that leads the history', async () => {
   reset();
   const { compressThread, getSummary } = await import('../src/agent.js');

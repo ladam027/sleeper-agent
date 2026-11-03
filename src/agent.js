@@ -83,12 +83,37 @@ function push(msgs, role, content) {
   else msgs.push({ role, content });
 }
 
+// Tools always in context; with more than DEFER_OVER tools the rest load on demand via tool search,
+// which keeps the cached prefix small (James: ~9k tokens of tool definitions -> ~2k).
+const CORE_TOOLS = new Set(['recall', 'remember', 'link_memory', 'delegate', 'escalate', 'notify_owner', 'set_reminder', 'list_reminders']);
+const DEFER_OVER = 20; // James (~35 tools) defers; Pete (~17 everyday tools) keeps them all loaded
+const TOOL_SEARCH = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' };
+const WEB_TOOLS = new Set(['web_search', 'web_fetch']);
+const DEFER_HINT = '\n\nMore tools (Kalshi, weather, Canvas, Gmail, calendar, contacts/CRM, money, projects, websites, posts, documents, vault, agents) load on demand: search for them with tool_search_tool_bm25 when you need one.';
+
+function toolsFor(a, depth, canEscalate) {
+  // Per-agent allowlist (null = every non-hidden tool). Delegated runs are further capped at SUB_AGENT_TOOLS.
+  const own = a.tools != null ? new Set(a.tools.split(',').filter(Boolean)) : null;
+  const allowed = new Set(Object.keys(TOOLS).filter((k) => k !== 'escalate'
+    && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k))));
+  if (canEscalate) allowed.add('escalate');
+  const defer = allowed.size > DEFER_OVER;
+  const defs = [...allowed].map((k) => defer && !CORE_TOOLS.has(k) ? { ...TOOLS[k].def, defer_loading: true } : TOOLS[k].def);
+  // Code execution (Anthropic's sandbox, no internet) for exact math on data already in the conversation.
+  // Not combined with the web tools, which run their own sandbox.
+  const server = a.web ? webTools(a.model) : a.code ? [{ type: 'code_execution_20260521', name: 'code_execution' }] : [];
+  return { allowed, defer, tools: [...(defer ? [TOOL_SEARCH] : []), ...defs, ...server] };
+}
+
+// Prompt caching. Haiku (Pete etc.): none, its short chats rarely reuse a prefix, so writes were pure cost.
+// The orchestrator's prefix is cached for 1 hour (the owner often replies 5-60 min later); others 5 minutes.
+export const cacheFor = (a) => a.model.startsWith('claude-haiku') ? null : a.name === 'orchestrator' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' };
+
 // The fixed part of every request for an agent (tools + system prompt), e.g. for measuring token overhead.
 export function promptFor(name, depth = 0) {
   const a = agent(name);
-  const own = a.tools != null ? new Set(a.tools.split(',').filter(Boolean)) : null;
-  const allowed = Object.keys(TOOLS).filter((k) => k !== 'escalate' && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k)));
-  return { model: a.model, system: systemFor(a), tools: [...allowed.map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : a.code ? [{ type: 'code_execution_20260521', name: 'code_execution' }] : [])] };
+  const { tools, defer } = toolsFor(a, depth, false);
+  return { model: a.model, system: systemFor(a) + (defer ? DEFER_HINT : ''), tools };
 }
 
 async function exec(use, ctx, allowed) {
@@ -124,14 +149,7 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   if (a.status !== 'killed') setStatus(name, 'running');
   log(name, depth ? 'delegated' : 'task', text.slice(0, 500));
 
-  // Per-agent allowlist (null = every non-hidden tool). Delegated runs are further capped at SUB_AGENT_TOOLS.
-  const own = a.tools != null ? new Set(a.tools.split(',').filter(Boolean)) : null;
-  const allowed = new Set(Object.keys(TOOLS).filter((k) => k !== 'escalate'
-    && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k))));
-  if (opts.canEscalate) allowed.add('escalate');
-  // Code execution (Anthropic's sandbox, no internet) for exact math on data already in the conversation.
-  // Not combined with the web tools, which run their own sandbox.
-  const tools = [...[...allowed].map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : a.code ? [{ type: 'code_execution_20260521', name: 'code_execution' }] : [])];
+  const { allowed, tools, defer } = toolsFor(a, depth, opts.canEscalate);
   // The owner's original request, so a budget-stopped task can resume after the owner approves more budget.
   const root = opts.root || (depth === 0 ? { agent: name, text, thread } : null);
   const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted, root };
@@ -140,7 +158,8 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   const messages = depth || opts.ephemeral ? [] : history(thread);
   // Frozen for the whole run: tools can change pinned memories or the vault mid-run, and Opus 5.5 rejects
   // earlier thinking blocks if the system prompt changes under them. Changes apply from the next message.
-  const sys = systemFor(a);
+  const sys = systemFor(a) + (defer ? DEFER_HINT : '');
+  const cache = cacheFor(a);
   let spent = 0;
   // opts.attachments: content blocks (e.g. a PDF document) placed before the text.
   push(messages, 'user', opts.attachments ? [...opts.attachments, { type: 'text', text: `${nowLine()}\n${text}` }] : `${nowLine()}\n${text}`);
@@ -156,11 +175,10 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
         return `Stopped: ${why}${ask ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
       }
       const res = await client().messages.create({
-        // Caching: the stable prefix (tools + system) is always marked. The conversation itself is cached only from the
-        // second step of a run, when it's reused within seconds; caching it between messages minutes apart just pays
-        // the write premium for a cache that expires (5 min) before the owner replies.
-        model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, ...(step > 0 ? { cache_control: { type: 'ephemeral' } } : {}),
-        system: [{ type: 'text', text: sys, cache_control: { type: 'ephemeral' } }], tools, messages,
+        // Caching: the stable prefix (tools + system) is marked per cacheFor. The conversation itself is cached only from
+        // the second step of a run, when it's reused within seconds (a 5 min tail after a 1 h prefix marker is allowed).
+        model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, ...(cache && step > 0 ? { cache_control: { type: 'ephemeral' } } : {}),
+        system: [{ type: 'text', text: sys, ...(cache ? { cache_control: cache } : {}) }], tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       }, { signal: ctrl.signal });
       const usd = record(name, a.model, res.usage);
@@ -169,7 +187,7 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
 
       if (res.stop_reason === 'refusal') { log(name, 'refusal', res.stop_details?.explanation || ''); return 'The model declined this request.'; }
       messages.push({ role: 'assistant', content: res.content });
-      const web = res.content.filter((b) => b.type === 'server_tool_use');
+      const web = res.content.filter((b) => b.type === 'server_tool_use' && WEB_TOOLS.has(b.name)); // not tool search / code execution
       for (const b of web) log(name, 'web', `${b.name === 'web_fetch' ? 'read' : 'searched'}: ${b.input?.query || b.input?.url || ''}`.slice(0, 200));
       if (web.length) ctx.taint();
       if (res.stop_reason === 'pause_turn') continue;
