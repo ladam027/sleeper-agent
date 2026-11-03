@@ -5,6 +5,8 @@
 // - Anything that submits or commits (submit buttons, Enter inside a form, buy/pay/send/confirm buttons) is refused here
 //   and only happens through browser_submit, which is risk 'high' (owner approval every time).
 // - CAPTCHAs are reported, never solved: the owner finishes them.
+// - Staying signed in: after a vault login is used, that site's own cookies are saved ENCRYPTED in the vault as
+//   session-<login> and loaded only when a later session opens that same site (vault unlocked). Delete the item to sign out.
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -18,7 +20,33 @@ export const deps = {
 };
 const IDLE_MS = 30 * 60e3, MAX_SESSIONS = 3, TEXT_MAX = 2000, ELEMENTS_MAX = 80;
 let browser = null;
-const sessions = new Map(); // id -> { ctx, page, elements, last, agent }
+const sessions = new Map(); // id -> { ctx, page, elements, last, agent, logins }
+const sessionItem = (login) => `session-${login}`.slice(0, 40);
+
+// Save the signed-in cookies for each vault login used in this session (only cookies of that login's own site).
+async function saveSignIns(s) {
+  if (!s.logins?.size || !vault.ready()) return;
+  const all = await s.ctx.cookies().catch(() => []);
+  for (const login of s.logins) {
+    const item = vault.reveal(login);
+    const mine = all.filter((c) => item?.url && sameSite(c.domain.replace(/^\./, ''), item.url));
+    if (!mine.length) continue;
+    vault.save({ name: sessionItem(login), kind: 'note', value: JSON.stringify(mine), url: item.url,
+      notes: `Browser sign-in for ${login}, saved ${new Date().toISOString().slice(0, 10)}. Delete this to sign the agents out.` });
+  }
+}
+// Load saved sign-ins whose site matches the page being opened. Returns the logins loaded.
+async function loadSignIns(ctx, url) {
+  if (!vault.ready()) return [];
+  const host = new URL(url).hostname, now = Date.now() / 1000, loaded = [];
+  for (const { name } of vault.names().filter((n) => n.name.startsWith('session-'))) {
+    const item = vault.reveal(name);
+    if (!item?.url || !sameSite(host, item.url)) continue;
+    let cookies; try { cookies = JSON.parse(item.value).filter((c) => !(c.expires > 0 && c.expires < now)); } catch { continue; }
+    if (cookies.length) { await ctx.addCookies(cookies); loaded.push(name.slice(8)); }
+  }
+  return loaded;
+}
 
 const PRIVATE = [/^127\./, /^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./, /^169\.254\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, /^0\./,
   /^::1?$/, /^f[cd]/i, /^fe80/i, /^::ffff:/i];
@@ -97,17 +125,19 @@ async function open(url, agent) {
   browser ??= await deps.launch();
   const ctx = await browser.newContext({ acceptDownloads: false, serviceWorkers: 'block', viewport: { width: 1280, height: 900 } });
   await ctx.route('**/*', (route) => publicUrl(route.request().url(), hosts).then(() => route.continue(), () => route.abort('blockedbyclient')));
+  const signedIn = await loadSignIns(ctx, url).catch(() => []);
   const page = await ctx.newPage(), id = randomBytes(4).toString('hex');
   page.on('dialog', (d) => d.dismiss().catch(() => {}));
-  const s = { ctx, page, elements: [], last: Date.now(), agent };
+  const s = { ctx, page, elements: [], last: Date.now(), agent, logins: new Set(signedIn) };
   sessions.set(id, s);
   await page.goto(url, { timeout: 25e3 }).catch((e) => { throw new Error(`Couldn't open ${url}: ${e.message.split('\n')[0]}`); });
   log(agent, 'browser', `opened ${url} (session ${id})`);
-  return snap(s, `Session ${id} (pass session="${id}" on every next action; it closes after 30 idle minutes).`);
+  const note = signedIn.length ? ` Loaded the saved sign-in for ${signedIn.join(', ')}.` : vault.ready() ? '' : ' (Vault locked: saved sign-ins were not loaded.)';
+  return snap(s, `Session ${id} (pass session="${id}" on every next action; it closes after 30 idle minutes).${note}`);
 }
 export async function close(id) {
   const s = sessions.get(id); if (!s) return 'Already closed.';
-  sessions.delete(id); await s.ctx.close().catch(() => {});
+  sessions.delete(id); await saveSignIns(s).catch(() => {}); await s.ctx.close().catch(() => {});
   if (!sessions.size && browser) { const b = browser; browser = null; await b.close().catch(() => {}); }
   return `Closed session ${id}.`;
 }
@@ -143,6 +173,7 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     if (!item[field]) throw new Error(`"${secret}" has no ${field}`);
     await loc.fill(item[field], { timeout: 10e3 });
     await loc.evaluate((e) => { e.dataset.saSecret = '1'; });
+    s.logins.add(secret);
     log(agent, 'browser', `typed ${secret} ${field} into "${info.label}" on ${host}`); // never the value
     return snap(s);
   }
@@ -155,6 +186,7 @@ export async function submit({ session: id, ref }, agent = 'orchestrator') {
   await loc.click({ timeout: 10e3 });
   log(agent, 'browser', `submitted "${info.label}" on ${new URL(before).hostname} (approved)`);
   await s.page.waitForLoadState('domcontentloaded', { timeout: 10e3 }).catch(() => {});
+  await saveSignIns(s).catch(() => {}); // stay signed in next time
   // One line only: approval results are saved into chat history, so no page text goes in here.
   return `Pressed "${info.label}". Now on: ${(await s.page.title().catch(() => '')).slice(0, 80)} — ${s.page.url().slice(0, 200)}. Use browser snapshot (session ${id}) to see the page.`;
 }

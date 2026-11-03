@@ -25,3 +25,7 @@
 - No false claims: rule for all agents (never say it was done without a tool result), and in code a specialist reply that claims an action (`CLAIM`) while it ran no action tool is discarded and James answers. Found in the logs: Pete promised daily Riley monitoring and daily updates without doing anything.
 - Morning Telegram briefing now includes a paper-trading line (value, P&L, open/closed, paper day), which the owner asked for and Pete had falsely confirmed.
 - 109 tests.
+
+## 7.4.0: stay signed in
+- After a vault login is used in the browser, that site's own cookies (filtered to the login's saved website) are saved encrypted in the vault as `session-<login>` (after each approved submit and when the session closes). A later session opening the same site loads them, so sites like Amazon don't ask for a code every time. Only while the vault is unlocked; never shown to the model (vault values are also scrubbed by redact()). Deleting the `session-…` item on the Vault page signs the agents out. The browser tool tells agents to tick "Keep me signed in".
+- 110 tests.
