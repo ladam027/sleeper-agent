@@ -419,6 +419,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     <button class="nav" data-view="money"><svg class="i"><use href="#i-wallet"/></svg>Money</button>
     <button class="nav" data-view="markets"><svg class="i"><use href="#i-trend"/></svg>Markets</button>
     <button class="nav" data-view="clients"><svg class="i"><use href="#i-users"/></svg>Clients</button>
+    <button class="nav" data-view="browser"><svg class="i"><use href="#i-eye"/></svg>Browser</button>
     <button class="nav" data-view="studio"><svg class="i"><use href="#i-palette"/></svg>Studio</button>
     <button class="nav" data-view="stats"><svg class="i"><use href="#i-chart"/></svg>Statistics</button>
     <div class="navlabel">Manage</div>
@@ -725,6 +726,24 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     </dialog>
 
     <!-- Statistics -->
+    <section class="content" data-panel="browser" hidden style="grid-template-columns:1fr">
+      <div class="card">
+        <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-eye"/></svg></span><div><h2>Live browser</h2><div class="sub">See exactly what your agents see on websites, live. Click and type on the page to finish CAPTCHAs, 2FA or anything else yourself. Watching costs no tokens: it never goes to the AI.</div></div></div>
+        <div id="brTabs" class="seg" role="group" aria-label="Browser sessions" style="margin-bottom:var(--s3)"></div>
+        <div id="brEmpty" class="empty">No open browser sessions. Ask James to open a website, e.g. "open dmv.ca.gov".</div>
+        <div id="brLive" hidden>
+          <div style="display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;margin-bottom:var(--s2);font-size:13px">
+            <span class="pill" id="brWho"></span><span class="muted" id="brLast"></span><span class="muted" id="brUrl" style="overflow-wrap:anywhere;margin-left:auto"></span>
+          </div>
+          <img id="brShot" alt="Live view of the agent's browser page" style="width:100%;max-width:1280px;aspect-ratio:1280/900;border-radius:12px;border:1px solid var(--line);cursor:crosshair;display:block;background:var(--sunken)">
+          <form id="brType" style="display:flex;gap:var(--s2);margin-top:var(--s3);flex-wrap:wrap;align-items:center">
+            <input class="input" id="brText" placeholder="Click a field on the page first, then type here" autocomplete="off" style="flex:1;min-width:220px">
+            <button class="btn sm primary">Type</button>
+          </form>
+          <div id="brKeys" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s2)"></div>
+        </div>
+      </div>
+    </section>
     <section class="content" data-panel="markets" hidden style="grid-template-columns:1fr">
       <div class="stack">
         <div class="kpis" id="mkKpis"></div>
@@ -1138,7 +1157,7 @@ function show(v) {
   loadView(v);
 }
 const VIEW_LOADERS = { memory: () => loadMemory(), money: () => Promise.all([drawCosts(), loadMoney()]), clients: () => loadMoney(), vault: () => loadVault(), guide: () => renderGuide(),
-  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio() };
+  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio(), browser: () => loadBrowser() };
 const loadView = (v) => VIEW_LOADERS[v]?.();
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 $('#refreshBtn').onclick = async () => {
@@ -1773,6 +1792,36 @@ window.applyTip = async (n) => {
 // ── Studio ──
 let SD = null, designing = false;
 const SITE_STATUS = { draft: ['', 'Draft'], live: ['ok', 'Live'], changed: ['warn', 'Live, unpublished changes'] };
+// ── Live browser: polls only while this tab is open and visible. Screenshots never go to a model. ──
+let brSession = null, brTimer = null;
+async function loadBrowser() {
+  clearTimeout(brTimer);
+  if (view !== 'browser' || document.visibilityState !== 'visible') return;
+  const list = await call('browser');
+  const ss = list.sessions || [];
+  if (!ss.some((x) => x.id === brSession)) brSession = ss[0]?.id || null;
+  $('#brEmpty').hidden = !!brSession; $('#brLive').hidden = !brSession;
+  $('#brTabs').innerHTML = ss.length > 1 ? ss.map((x) => `<button type="button" aria-pressed="${x.id === brSession}" onclick="brPick('${x.id}')">${esc(agentLabel(x.agent))} · ${esc(new URL(x.url).hostname)}</button>`).join('') : '';
+  if (brSession) {
+    const f = await call('browser/' + brSession);
+    if (!f.error) {
+      $('#brShot').src = 'data:image/jpeg;base64,' + f.shot;
+      $('#brWho').textContent = f.ownerUsing ? 'You' : agentLabel(f.agent);
+      $('#brLast').textContent = 'Last: ' + f.last; $('#brUrl').textContent = f.url;
+    }
+  }
+  brTimer = setTimeout(loadBrowser, brSession ? 1000 : 4000);
+}
+window.brPick = (id) => { brSession = id; loadBrowser(); };
+const brInput = async (b) => { if (!brSession) return; const r = await call(`browser/${brSession}/input`, 'POST', b); if (r.error) toast(r.error); setTimeout(loadBrowser, 250); };
+$('#brShot').onclick = (e) => { const r = e.target.getBoundingClientRect(); brInput({ type: 'click', x: Math.round((e.clientX - r.left) * 1280 / r.width), y: Math.round((e.clientY - r.top) * 900 / r.height) }); };
+$('#brShot').onwheel = (e) => { e.preventDefault(); brInput({ type: 'scroll', dy: Math.round(e.deltaY) }); };
+$('#brType').onsubmit = (e) => { e.preventDefault(); const t = $('#brText').value; if (!t) return; $('#brText').value = ''; brInput({ type: 'type', text: t }); };
+$('#brKeys').innerHTML = [['Enter', 'Enter'], ['Tab', 'Tab'], ['Backspace', '⌫ Delete'], ['Escape', 'Esc'], ['ArrowUp', '↑'], ['ArrowDown', '↓'], ['Space', 'Space']]
+  .map(([k, l]) => `<button type="button" class="btn sm" onclick="brInput({ type: 'key', key: '${k}' })">${l}</button>`).join('')
+  + `<button type="button" class="btn sm" onclick="brInput({ type: 'scroll', dy: -600 })">Scroll up</button><button type="button" class="btn sm" onclick="brInput({ type: 'scroll', dy: 600 })">Scroll down</button>`;
+window.brInput = brInput;
+document.addEventListener('visibilitychange', () => { if (view === 'browser') loadBrowser(); });
 async function loadMarkets() {
   const r = await call('markets'); if (r.error) return;
   const p = r.paper, pnl = (n) => n == null ? '<span class="muted">–</span>' : `<span style="color:var(${n >= 0 ? '--ok' : '--bad'})">${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}</span>`;

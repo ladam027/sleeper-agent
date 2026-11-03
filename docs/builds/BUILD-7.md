@@ -29,3 +29,9 @@
 ## 7.4.0: stay signed in
 - After a vault login is used in the browser, that site's own cookies (filtered to the login's saved website) are saved encrypted in the vault as `session-<login>` (after each approved submit and when the session closes). A later session opening the same site loads them, so sites like Amazon don't ask for a code every time. Only while the vault is unlocked; never shown to the model (vault values are also scrubbed by redact()). Deleting the `session-…` item on the Vault page signs the agents out. The browser tool tells agents to tick "Keep me signed in".
 - 110 tests.
+
+## 7.5.0: live browser
+- Dashboard **Browser** tab: live view of each open agent browser session (a screenshot about once a second, only while the tab is open and visible), the agent's last action ("click "Sign in"", "fill_secret (dmv-login)"; typed text never shown), and the page URL. Costs no tokens: screenshots go only to the dashboard.
+- The owner can click, type, press a few safe keys and scroll on the page (`POST /api/browser/<id>/input`), which is how CAPTCHAs and other human-only steps get done. Owner input is never logged (only "used session X"); afterwards the agent's control numbers are reset so it must take a fresh snapshot.
+- Agents are told to send the owner to the Browser tab for CAPTCHAs (before, James pointed the owner at a "browser view" that didn't exist).
+- Also: Kalshi integration copy updated (live trading exists). 111 tests.

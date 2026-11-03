@@ -151,6 +151,7 @@ async function api(req, url) {
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
   if (route === 'capabilities' && m === 'GET') return capabilities();
+  if (route === 'browser' && m === 'POST' && action === 'input') return browser.ownerInput(id, await body(req));
   if (route === 'browser' && m === 'GET') return id ? (await browser.preview(id)) || { error: 'That browser session has closed' } : { sessions: browser.openSessions() };
   if (route === 'markets') { // read-only view + the owner's limits; agents can't change limits
     if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS, live_orders: live.recent(), live_cap: live.cap() };
