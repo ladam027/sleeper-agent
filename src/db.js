@@ -89,6 +89,8 @@ const MIGRATIONS = [
      created_by text, usd real, created_at text default current_timestamp);
    update agents set tools = tools || ',generate_image', purpose = purpose || ' You can create images with generate_image (exception to the provided-URLs rule): at most 3 per site, only where a picture clearly helps; reference them as img/<name>.webp with alt text, width and height.' where name = 'designer' and tools not like '%generate_image%';`,
   `update agents set tools = tools || ',get_site' where name = 'designer' and tools not like '%get_site%';`,
+  `create table if not exists paper_trades (id integer primary key, ts text default current_timestamp, ticker text not null, title text,
+     side text not null, action text not null, count integer not null, price real not null, fee real not null default 0, pnl real not null default 0, by text, reason text);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

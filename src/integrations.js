@@ -163,6 +163,16 @@ export async function kalshiMarkets({ series_ticker, event_ticker, search, limit
       last_price: usd(m.last_price_dollars, m.last_price), volume: Number(m.volume_fp ?? m.volume ?? 0), closes: m.close_time }));
 }
 
+// One market by ticker (public). Prices in dollars; no_* derived from the yes side of the book.
+export async function kalshiMarket(ticker) {
+  if (!/^[A-Z0-9][A-Z0-9.-]{2,80}$/.test(ticker || '')) throw new Error('ticker looks wrong (e.g. KXHIGHLAX-26NOV03-B71.5)');
+  const m = (await kalshiPublic(`/markets/${ticker}`)).market;
+  if (!m) throw new Error(`No Kalshi market ${ticker}`);
+  const yes_bid = usd(m.yes_bid_dollars, m.yes_bid), yes_ask = usd(m.yes_ask_dollars, m.yes_ask);
+  return { ticker: m.ticker, title: short(m.title), bracket: m.yes_sub_title || null, status: m.status, result: m.result || null, closes: m.close_time,
+    yes_bid, yes_ask, no_bid: yes_ask ? +(1 - yes_ask).toFixed(4) : null, no_ask: yes_bid ? +(1 - yes_bid).toFixed(4) : null };
+}
+
 const MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
 const eventDate = (eventTicker) => { const m = /-(\d{2})([A-Z]{3})(\d{2})$/.exec(eventTicker || ''); return m && MONTHS[m[2]] ? `20${m[1]}-${MONTHS[m[2]]}-${m[3]}` : null; };
 

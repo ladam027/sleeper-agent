@@ -1,4 +1,5 @@
 // Background agents: hourly security audit and nightly memory cleanup. One 5-minute tick.
+import * as paper from './paper.js';
 import { db, get, set, log } from './db.js';
 import { summary, record } from './budget.js';
 import { redact } from './vault.js';
@@ -141,6 +142,7 @@ export function start() {
     catch (e) { log('security', 'error', e.message); }
     try { await memoryCleanup(); } catch (e) { log('memory', 'error', e.message); }
     try { if (++ticks % 2 === 0) await checkJamesInbox(); } catch (e) { log('james', 'error', e.message); }
+    try { await paper.settle(); } catch (e) { log('owner', 'error', `paper settle: ${e.message}`); }
     try { await morningDigest(); } catch (e) { log('quick', 'error', e.message); }
     for (const { agent: t } of db.prepare('select distinct agent from chat').all()) try { await compressThread(t); } catch (e) { log('archivist', 'error', e.message); }
   };

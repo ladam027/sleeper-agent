@@ -8,6 +8,7 @@ import * as google from './google.js';
 import * as integ from './integrations.js';
 import { fetchDocument } from './documents.js';
 import * as studio from './studio.js';
+import * as paper from './paper.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -201,6 +202,14 @@ export const TOOLS = {
 
   kalshi_portfolio: tool('kalshi_portfolio', "Read-only: the owner's Kalshi cash balance and open positions. Never imply a trade was placed; trading is not enabled.", {}, [],
     async () => JSON.stringify(await integ.kalshiPortfolio())),
+
+  paper_trade: tool('paper_trade', `PAPER trading on Kalshi (simulated money, real prices). Fills now at the live ask (buy) or bid (sell), Kalshi fee included; no resting orders. Code-enforced limits: max $ per order, max open positions, max daily loss. Use it to test a strategy for the ${paper.PAPER_DAYS}-day paper period; always give your reason. Never call this real trading.`,
+    { ticker: str('market ticker from kalshi_markets'), side: { type: 'string', enum: ['yes', 'no'] }, action: { type: 'string', enum: ['buy', 'sell'] }, count: { type: 'integer', description: 'contracts' },
+      limit_price: { type: 'number', description: 'optional worst acceptable price in dollars, e.g. 0.42' }, reason: str('why: the edge you think you have') }, ['ticker', 'side', 'count', 'reason'],
+    (input, ctx) => paper.trade(input, ctx.agent)),
+
+  paper_account: tool('paper_account', 'The paper trading account: cash, open positions marked at the current bid, realized P&L, win rate, limits, days into the paper period, recent trades.', {}, [],
+    async () => JSON.stringify(await paper.account())),
 
   kalshi_markets: tool('kalshi_markets', 'Open Kalshi markets with current yes bid/ask and last price (in dollars per $1 contract), volume and close time. Public data: works even while the vault is locked. Filter by series_ticker (e.g. KXHIGHLAX) or event_ticker, or pass search words.',
     { series_ticker: str('e.g. KXHIGHLAX'), event_ticker: str('event ticker'), search: str('words that must appear in the market title'), limit: { type: 'integer' } }, [],

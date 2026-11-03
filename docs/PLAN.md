@@ -81,7 +81,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Image generation, short video (Adobe Express/Firefly tools already connected, or Veo/Kling APIs), simple website generation and deploy (static site on Cloudflare Pages/Vercel).
 - Content calendar and post analytics feeding back into memory.
 
-### Build 6: Markets (human-in-the-loop)
+### Build 6: Markets (human-in-the-loop) (part 1 ✅ paper trading)
 - Kalshi API and Schwab Trader API: **read-only first** (positions, P&L in the dashboard).
 - Simulation lab: Claude code execution / Python for Monte Carlo, backtests, regression fits. Results are saved as memory with assumptions.
 - Paper trading for at least 30 days, then live with: max $ per order, max daily loss, max open positions, all enforced in code. **Every order is an approval sent to you by text or call.** Logged and never automatic until you change that yourself.

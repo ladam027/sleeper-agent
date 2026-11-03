@@ -182,7 +182,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
-@media (max-width: 900px) { [data-panel="studio"] { grid-template-columns: 1fr !important; } .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } }
+@media (max-width: 900px) { [data-panel="studio"] { grid-template-columns: 1fr !important; } .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } #mkLimits { grid-template-columns: 1fr !important; } }
 .agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
@@ -417,6 +417,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     <button class="nav" data-view="memory"><svg class="i"><use href="#i-graph"/></svg>Memory</button>
     <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
     <button class="nav" data-view="money"><svg class="i"><use href="#i-wallet"/></svg>Money</button>
+    <button class="nav" data-view="markets"><svg class="i"><use href="#i-trend"/></svg>Markets</button>
     <button class="nav" data-view="clients"><svg class="i"><use href="#i-users"/></svg>Clients</button>
     <button class="nav" data-view="studio"><svg class="i"><use href="#i-palette"/></svg>Studio</button>
     <button class="nav" data-view="stats"><svg class="i"><use href="#i-chart"/></svg>Statistics</button>
@@ -715,6 +716,36 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     </dialog>
 
     <!-- Statistics -->
+    <section class="content" data-panel="markets" hidden style="grid-template-columns:1fr">
+      <div class="stack">
+        <div class="kpis" id="mkKpis"></div>
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-trend"/></svg></span><div><h2>Paper positions</h2><div class="sub" id="mkSub">Simulated money at real Kalshi prices. Ask James to paper trade a strategy.</div></div></div>
+          <table><thead><tr><th>Market</th><th>Side</th><th class="r">Contracts</th><th class="r">Avg cost</th><th class="r">Bid now</th><th class="r">Unrealized</th></tr></thead><tbody id="mkPos"></tbody></table>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><div><h2>Recent paper trades</h2><div class="sub">Every fill, with the agent's reason</div></div></div>
+            <table><thead><tr><th>When</th><th>Trade</th><th class="r">Price</th><th class="r">P&amp;L</th></tr></thead><tbody id="mkTrades"></tbody></table>
+          </div>
+          <div class="stack">
+            <div class="card">
+              <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span><div><h2>Limits</h2><div class="sub">Enforced in code for paper now and live later. Only you can change them.</div></div></div>
+              <form id="mkLimits" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s2);align-items:end">
+                <label>Max per order ($)<input class="input" name="trade_max_order_usd" type="number" min="1" max="500" step="1"></label>
+                <label>Max open positions<input class="input" name="trade_max_open_positions" type="number" min="1" max="50" step="1"></label>
+                <label>Max daily loss ($)<input class="input" name="trade_max_daily_loss_usd" type="number" min="1" max="1000" step="1"></label>
+                <button class="btn sm" style="grid-column:1/-1;justify-self:start">Save limits</button>
+              </form>
+            </div>
+            <div class="card">
+              <div class="card-h"><div><h2>Real Kalshi account</h2><div class="sub">Read-only. No real orders exist yet; live trading comes after the paper period, with your approval on every order.</div></div></div>
+              <div id="mkLive" class="muted"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
     <section class="content" data-panel="stats" hidden style="grid-template-columns:1fr">
       <div class="stack">
         <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
@@ -1097,6 +1128,7 @@ function show(v) {
   if (v === 'guide') renderGuide();
   if (v === 'integrations') renderIntegrations();
   if (v === 'stats') loadStats();
+  if (v === 'markets') loadMarkets();
   if (v === 'studio') loadStudio();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
@@ -1698,6 +1730,25 @@ window.applyTip = async (n) => {
 // ── Studio ──
 let SD = null, designing = false;
 const SITE_STATUS = { draft: ['', 'Draft'], live: ['ok', 'Live'], changed: ['warn', 'Live, unpublished changes'] };
+async function loadMarkets() {
+  const r = await call('markets'); if (r.error) return;
+  const p = r.paper, pnl = (n) => n == null ? '<span class="muted">–</span>' : `<span style="color:var(${n >= 0 ? '--ok' : '--bad'})">${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}</span>`;
+  $('#mkKpis').innerHTML = [['wallet', 'Paper value', '$' + p.value.toFixed(2), `started with $${p.start.toFixed(2)}, cash $${p.cash.toFixed(2)}`], ['trend', 'Total P&L', (p.total_pnl >= 0 ? '+' : '−') + '$' + Math.abs(p.total_pnl).toFixed(2), `realized ${(p.realized_pnl >= 0 ? '+' : '−')}$${Math.abs(p.realized_pnl).toFixed(2)} after fees`],
+    ['check', 'Win rate', p.win_rate == null ? '–' : Math.round(p.win_rate * 100) + '%', `${p.closed_trades} closed trade${p.closed_trades === 1 ? '' : 's'}`], ['clock', 'Paper period', `day ${p.days}`, p.days_left ? `${p.days_left} days before live can be considered` : 'paper period complete']]
+    .map(([i, k, v, sub]) => `<div class="card kpi"><div class="k"><span class="ibox brand">${icon(i)}</span>${k}</div><div class="v num">${v}</div><div class="s">${esc(sub)}</div></div>`).join('');
+  $('#mkPos').innerHTML = p.positions.map((x) => `<tr><td>${esc(x.title || x.ticker)}<div class="muted" style="font-size:12px">${esc(x.ticker)}</div></td><td>${x.side.toUpperCase()}</td><td class="r num">${x.count}</td><td class="r num">$${x.avg_cost.toFixed(2)}</td><td class="r num">${x.bid == null ? '–' : '$' + x.bid.toFixed(2)}</td><td class="r num">${pnl(x.unrealized)}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="muted">No open paper positions. Try: "James, paper trade tomorrow\'s LA high temperature market."</td></tr>';
+  $('#mkTrades').innerHTML = p.recent.map((t) => `<tr title="${esc(t.reason || '')}"><td class="muted">${esc(ago(t.ts))}</td><td>${t.action} ${t.count} ${t.side.toUpperCase()} <span class="muted">${esc(t.ticker)}</span>${t.reason ? `<div class="muted" style="font-size:12px">${esc(t.reason)}</div>` : ''}</td><td class="r num">$${t.price.toFixed(2)}</td><td class="r num">${t.action === 'buy' ? '<span class="muted">–</span>' : pnl(t.pnl)}</td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">No trades yet.</td></tr>';
+  const f = $('#mkLimits'); if (!f.contains(document.activeElement)) for (const [k, v] of Object.entries(p.limits)) f.elements[k].value = v;
+  $('#mkSub').textContent = `Simulated money at real Kalshi prices. Today's losses: $${p.loss_today.toFixed(2)} of $${p.limits.trade_max_daily_loss_usd}.`;
+  $('#mkLive').innerHTML = r.live.error ? esc(r.live.error) : `Balance <b class="num">$${r.live.balance_usd.toFixed(2)}</b> · ${r.live.positions.length} open position${r.live.positions.length === 1 ? '' : 's'}`
+    + r.live.positions.map((x) => `<div style="margin-top:6px">${esc(x.ticker)}: ${x.position} · exposure $${x.exposure_usd.toFixed(2)}</div>`).join('');
+}
+$('#mkLimits').onsubmit = async (e) => {
+  e.preventDefault(); const b = Object.fromEntries([...new FormData(e.target)].map(([k, v]) => [k, Number(v)]));
+  const r = await call('markets/limits', 'POST', b); if (r.error) return alert(r.error); toast('Limits saved'); loadMarkets();
+};
 async function loadStudio() {
   const r = await call('studio'); if (r.error) return;
   SD = r; renderStudio();

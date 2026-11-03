@@ -12,7 +12,7 @@ const running = new Map(); // agent name -> AbortController of its in-flight run
 const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history', 'save_site', 'get_site', 'list_sites', 'generate_image', 'draft_post', 'list_posts']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
 // save_site / draft_post are private drafts (sanitized; publishing is separately approval-gated), so web research can feed them.
-const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts']);
+const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account']); // paper moves no money
 const WEB_SEARCH_USES = 3; // per model request, keeps a research run from burning searches
 const WEB_FETCH_TOKENS = 6000; // cap on how much of each fetched page the model reads
 
@@ -92,7 +92,7 @@ const CORE_TOOLS = new Set(['recall', 'remember', 'link_memory', 'delegate', 'es
 const DEFER_OVER = 20; // James (~35 tools) defers; Pete (~17 everyday tools) keeps them all loaded
 const TOOL_SEARCH = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' };
 const WEB_TOOLS = new Set(['web_search', 'web_fetch']);
-const DEFER_HINT = '\n\nMore tools (Kalshi, weather, Canvas, Gmail, calendar, contacts/CRM, money, projects, websites, posts, documents, vault, agents) load on demand: search for them with tool_search_tool_bm25 when you need one.';
+const DEFER_HINT = '\n\nMore tools (Kalshi, paper trading, weather, Canvas, Gmail, calendar, contacts/CRM, money, projects, websites, posts, documents, vault, agents) load on demand: search for them with tool_search_tool_bm25 when you need one.';
 
 function toolsFor(a, depth, canEscalate) {
   // Per-agent allowlist (null = every non-hidden tool). Delegated runs are further capped at SUB_AGENT_TOOLS.
