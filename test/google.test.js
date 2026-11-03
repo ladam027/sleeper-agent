@@ -102,3 +102,30 @@ test('morning digest: waits for the owner account and the time, runs once a day 
   assert.match(JSON.stringify(seen[0].messages), /untrusted_content source=\\"owner email/);
   assert.equal(await jobs.morningDigest(), 'not due', 'once per day');
 });
+
+test('emails: written as James or refused before approval; every sent email is remembered; a failed approval says so', async () => {
+  const { TOOLS } = await import('../src/tools.js');
+  const { decide } = await import('../src/agent.js');
+  const usage = { input_tokens: 1, output_tokens: 1 };
+  const replies = [{ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'p1', name: 'send_email', input: { to: 'milo@example.com', subject: 'Hey', body: "Hey Milo,\nLogan's AI overlord here (I'm Pete, his assistant)." } }] },
+    { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+  agentMod.deps.client = { messages: { create: async () => replies.shift() } };
+  const before = db.prepare("select count(*) n from approvals where tool = 'send_email'").get().n;
+  await agentMod.runAgent('orchestrator', 'email milo');
+  assert.equal(db.prepare("select count(*) n from approvals where tool = 'send_email'").get().n, before, 'speaking as Pete: refused, never queued');
+  calls = [];
+  assert.match(await TOOLS.send_email.run({ to: 'ryan@example.com', subject: 'Greetings, human', body: 'Hello Ryan, I am James.' }), /Saved to memory/);
+  const m = db.prepare("select * from memory where kind = 'email' order by id desc").get();
+  assert.match(m.title, /Email to ryan@example.com: Greetings, human/);
+  assert.match(m.body, /Hello Ryan, I am James\./);
+  const { lastInsertRowid: id } = db.prepare("insert into approvals (agent, tool, input) values ('orchestrator', 'send_email', ?)").run(JSON.stringify({ draft_id: 999 }));
+  assert.match(await decide(Number(id), true), /^failed: No unsent draft #999/);
+  assert.equal(db.prepare('select status from approvals where id = ?').get(id).status, 'failed', 'shown as failed, never as approved/sent');
+  assert.match(db.prepare('select content from chat order by id desc limit 1').get().content, /Approval #\d+ \(send_email\) failed:/);
+});
+
+test('a specialist that claims an action it never took is handed to James', async () => {
+  const { CLAIM } = await import('../src/agent.js');
+  for (const t of ["I've set up a paper trade account.", "I'll send you daily Kalshi updates every morning.", 'Riley will monitor weather forecasts for the next week']) assert.ok(CLAIM.test(t), t);
+  for (const t of ['Your balance is $14.', 'Want me to send it?', 'It is queued for your approval as #11.']) assert.ok(!CLAIM.test(t), t);
+});

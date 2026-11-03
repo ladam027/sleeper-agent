@@ -16,3 +16,12 @@
 
 ## Next (needs owner decisions)
 - Voice agent (owner chose 2026-11-03: Telnyx + ElevenLabs voice clone). Needs: an ElevenLabs paid plan, an instant voice clone of the owner, its API key in Integrations. Must disclose it's an AI, record only with consent, transcript + outcome afterwards.
+
+## 7.3.0: honest actions, emails as James, sent-email memory
+- Emails leave from James's Gmail, so they're written as James: `send_email` has a pre-approval check (valid recipient, subject/body, draft exists) that refuses text speaking as Pete. Rule added for every agent.
+- Every successfully sent email is saved to memory in code (`kind = 'email'`, title "Email to <addr>: <subject>", body with date and text), so "the email I sent Ryan" can be recalled.
+- Approvals that fail when run are marked `failed` (not approved), the agent's note says "failed", and the owner gets a phone notice that it did NOT go through. A missing draft is now an error, not a quiet message.
+- Every message to an agent carries the vault state ("Vault: LOCKED …"), so agents know before trying key-based tools.
+- No false claims: rule for all agents (never say it was done without a tool result), and in code a specialist reply that claims an action (`CLAIM`) while it ran no action tool is discarded and James answers. Found in the logs: Pete promised daily Riley monitoring and daily updates without doing anything.
+- Morning Telegram briefing now includes a paper-trading line (value, P&L, open/closed, paper day), which the owner asked for and Pete had falsely confirmed.
+- 109 tests.
