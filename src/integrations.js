@@ -19,7 +19,7 @@ export const INTEGRATIONS = {
   },
   kalshi: {
     name: 'Kalshi', vault: 'kalshi', category: 'Markets',
-    blurb: 'Read-only: your balance, positions, and open markets. No trading until Build 6, and then only with your approval on every order.',
+    blurb: 'Your balance, positions and open markets. Real orders only when you ask for live trading, and only with your approval on every order.',
     fields: [{ key: 'username', label: 'API key ID' }, { key: 'value', label: 'Private key (the whole PEM file)', secret: true, multiline: true }],
     help: 'In Kalshi: Account → Profile → API Keys → Create. Kalshi shows the private key once: paste the whole thing, including the BEGIN/END lines.',
     tools: ['kalshi_portfolio', 'kalshi_markets'],
