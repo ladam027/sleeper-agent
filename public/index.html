@@ -1157,7 +1157,7 @@ function show(v) {
   loadView(v);
 }
 const VIEW_LOADERS = { memory: () => loadMemory(), money: () => Promise.all([drawCosts(), loadMoney()]), clients: () => loadMoney(), vault: () => loadVault(), guide: () => renderGuide(),
-  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio(), browser: () => loadBrowser() };
+  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio(), browser: () => loadBrowser(true) };
 const loadView = (v) => VIEW_LOADERS[v]?.();
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 $('#refreshBtn').onclick = async () => {
@@ -1794,9 +1794,10 @@ let SD = null, designing = false;
 const SITE_STATUS = { draft: ['', 'Draft'], live: ['ok', 'Live'], changed: ['warn', 'Live, unpublished changes'] };
 // ── Live browser: polls only while this tab is open and visible. Screenshots never go to a model. ──
 let brSession = null, brTimer = null;
-async function loadBrowser() {
+// first = opened just now: show() swaps `view` after the page transition, so don't trust it on the first call.
+async function loadBrowser(first = false) {
   clearTimeout(brTimer);
-  if (view !== 'browser' || document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible' || (!first && view !== 'browser')) return;
   const list = await call('browser');
   const ss = list.sessions || [];
   if (!ss.some((x) => x.id === brSession)) brSession = ss[0]?.id || null;
