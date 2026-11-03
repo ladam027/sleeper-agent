@@ -84,3 +84,16 @@ test('locked vault: tools explain instead of failing silently', async () => {
   await assert.rejects(integ.canvasGrades(), /vault is locked/);
   vault.unlock('correct horse battery');
 });
+
+test('after a restart, a locked vault with integrations triggers one nudge (not on every deploy)', async () => {
+  const jobs = await import('../src/jobs.js');
+  const { get, set } = await import('../src/db.js');
+  set('vault_nudge_at', 0);
+  assert.equal(await jobs.vaultNudge(), 'not needed', 'unlocked: no nudge');
+  vault.lock();
+  assert.equal(await jobs.vaultNudge(), 'sent');
+  assert.match(db.prepare("select detail from activity where type = 'notify:high' order by id desc").get().detail, /Vault locked after an update.*Canvas and Kalshi/);
+  assert.equal(await jobs.vaultNudge(), 'recently nudged');
+  assert.equal(await jobs.vaultNudge(Date.now() + 31 * 60e3), 'sent', 'again after 30 minutes if still locked');
+  vault.unlock('correct horse battery');
+});

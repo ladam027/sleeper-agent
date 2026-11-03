@@ -43,5 +43,8 @@
 - **Safe documents**: `read_document` (Riley, Cleo). Only PDF / CSV / .xlsx, decided by magic bytes. https + public-internet only (private, tailnet 100.64/10, metadata 169.254 refused, re-checked on each redirect), 10 MB download cap, 30 MB decompressed cap, macro workbooks refused, no files saved. PDFs go as a document block to a tool-less Haiku `reader` agent; spreadsheets become CSV text. Results are untrusted and taint the run.
 - 68 tests.
 
+## 4.6.0
+- Vault nudge: 2 minutes after a restart, if the vault is still locked and integrations are saved, the owner gets one alert (Telegram, or a dashboard pop-up if they're at the desk) naming the affected integrations. At most every 30 minutes. The vault stays passphrase-only (owner's choice).
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).
