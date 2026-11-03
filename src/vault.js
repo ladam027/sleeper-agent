@@ -12,7 +12,16 @@ import { db, get, set, log } from './db.js';
 
 export const KINDS = ['password', 'card', 'personal', 'api_key', 'note'];
 const CHECK = 'sleeper-vault-ok';
-let KEY = null; // in memory only; gone on restart or lock()
+let KEY = null; // in memory only; gone on restart, lock(), or after an hour without use
+export const deps = { now: () => Date.now() }; // tests move the clock
+export const IDLE_MS = 60 * 60e3;
+let lastUse = 0;
+const touch = () => { lastUse = deps.now(); };
+// Locks itself after an hour in which no key was used. Using a key (integrations, agents, the owner) restarts the hour.
+function expireIfIdle() {
+  if (KEY && deps.now() - lastUse >= IDLE_MS) { KEY = null; cache = null; log('owner', 'vault', 'locked automatically after an hour without use'); }
+}
+setInterval(expireIfIdle, 60e3).unref();
 
 const derive = (pass, saltHex) => scryptSync(String(pass).normalize('NFKC'), Buffer.from(saltHex, 'hex'), 32,
   { N: 2 ** 16, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
@@ -28,10 +37,11 @@ function decrypt(key, row) {
 }
 const hex = (o) => JSON.stringify({ iv: o.iv.toString('hex'), tag: o.tag.toString('hex'), data: o.data.toString('hex') });
 const unhex = (s) => { const o = JSON.parse(s); return { iv: Buffer.from(o.iv, 'hex'), tag: Buffer.from(o.tag, 'hex'), data: Buffer.from(o.data, 'hex') }; };
-function need() { if (!KEY) throw new Error('Vault is locked. Unlock it with your passphrase on the Vault page.'); }
+function need() { expireIfIdle(); if (!KEY) throw new Error('Vault is locked. Unlock it with your passphrase on the Vault page.'); touch(); }
 
-export const ready = () => !!KEY;
-export const status = () => ({ setup: !!get('vault_salt'), unlocked: !!KEY, items: db.prepare('select count(*) n from secrets').get().n });
+export const ready = () => { expireIfIdle(); return !!KEY; };
+export const status = () => { expireIfIdle();
+  return { setup: !!get('vault_salt'), unlocked: !!KEY, items: db.prepare('select count(*) n from secrets').get().n, locks_at: KEY ? new Date(lastUse + IDLE_MS).toISOString() : null }; };
 
 export function setup(pass) {
   if (get('vault_salt')) throw new Error('Vault already has a passphrase');
@@ -40,7 +50,7 @@ export function setup(pass) {
   const salt = randomBytes(16).toString('hex'), key = derive(pass, salt);
   set('vault_salt', salt);
   set('vault_check', hex(encrypt(key, CHECK)));
-  KEY = key; cache = null;
+  KEY = key; cache = null; touch();
   log('owner', 'vault', 'passphrase set');
 }
 
@@ -52,13 +62,13 @@ export function unlock(pass) {
   try { if (decrypt(key, unhex(get('vault_check'))) !== CHECK) throw 0; } catch { throw new Error('Wrong passphrase'); }
   if (KEY && !timingSafeEqual(KEY, key)) throw new Error('Wrong passphrase');
   if (!KEY) log('owner', 'vault', 'unlocked');
-  KEY = key; cache = null;
+  KEY = key; cache = null; touch();
 }
 
 export function lock() { if (KEY) log('owner', 'vault', 'locked'); KEY = null; cache = null; }
 
 let cache = null; // [{ name, value }] longest first, rebuilt after every change
-const values = () => !KEY ? [] : cache ??= db.prepare('select * from secrets').all()
+const values = () => (expireIfIdle(), !KEY) ? [] : cache ??= db.prepare('select * from secrets').all()
   .map((r) => ({ name: r.name, value: decrypt(KEY, r).value })).filter((s) => s.value?.length >= 4)
   .sort((a, b) => b.value.length - a.value.length);
 
@@ -79,7 +89,7 @@ export function save({ name, kind = 'password', value, username = '', url = '', 
 // details=true only for a passphrase session: adds a safe one-line summary (never the value itself).
 export const list = (details = false) => db.prepare('select * from secrets order by kind, name').all().map((r) => {
   const item = { name: r.name, kind: r.kind, updated_at: r.updated_at };
-  if (!details || !KEY) return item;
+  if (!details || !ready()) return item;
   const d = decrypt(KEY, r);
   const summary = r.kind === 'card' ? [d.username, d.value && `•••• ${d.value.replace(/\D/g, '').slice(-4)}`, d.expiry && `exp ${d.expiry}`]
     : r.kind === 'password' ? [d.username, d.url] : r.kind === 'api_key' ? [d.url] : [];

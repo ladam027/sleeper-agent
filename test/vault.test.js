@@ -9,7 +9,7 @@ const { deps, runAgent } = await import('../src/agent.js');
 const PASS = 'correct horse battery';
 
 test('locked until a passphrase is set; nothing works without it', () => {
-  assert.deepEqual({ ...vault.status() }, { setup: false, unlocked: false, items: 0 });
+  assert.deepEqual({ ...vault.status() }, { setup: false, unlocked: false, items: 0, locks_at: null });
   assert.throws(() => vault.save({ name: 'x', value: 'y' }), /locked/);
   assert.throws(() => vault.setup('short'), /12 characters/);
   vault.setup(PASS);
@@ -73,4 +73,21 @@ test('cards keep expiry/CVV encrypted; the summary shows only the last 4 digits'
   assert.equal(vault.reveal('visa').cvv, '123');
   assert.throws(() => vault.save({ name: 'bad', kind: 'card', value: '4111111111111111', expiry: '13/29' }), /MM\/YY/);
   assert.throws(() => vault.save({ name: 'Bad Name', value: 'x' }));
+});
+
+test('auto-locks after an hour without use; every key use restarts the hour', () => {
+  let t = Date.now();
+  vault.deps.now = () => t;
+  vault.unlock(PASS);
+  t += 50 * 60e3;
+  assert.equal(vault.reveal('schwab').value, 'hunter2-Secret!', 'used at 50 min: hour restarts');
+  t += 50 * 60e3;
+  assert.equal(vault.ready(), true, '100 min after unlock but only 50 since last use');
+  assert.match(vault.status().locks_at, /^\d{4}-/);
+  t += 61 * 60e3;
+  assert.equal(vault.ready(), false, 'an hour with no use: locked');
+  assert.throws(() => vault.reveal('schwab'), /locked/);
+  assert.equal(vault.redact('pw hunter2-Secret!'), 'pw hunter2-Secret!', 'saved values cannot be matched while locked (card/SSN patterns still apply)');
+  vault.deps.now = () => Date.now();
+  vault.unlock(PASS);
 });

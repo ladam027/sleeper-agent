@@ -47,14 +47,15 @@ async function body(req) {
 
 const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit'];
 
-// Vault sessions: issued only for the passphrase, kept in memory, 15 minutes sliding. The dashboard token
+// Vault sessions: issued only for the passphrase, kept in memory, 1 hour sliding. The dashboard token
 // alone (which is on disk in .env) can list item names but never see or change vault contents.
 const sessions = new Map(), failures = [];
-const newSession = () => { const t = randomBytes(32).toString('hex'); sessions.set(t, Date.now() + 15 * 60e3); return t; };
+const SESSION_MS = 60 * 60e3;
+const newSession = () => { const t = randomBytes(32).toString('hex'); sessions.set(t, Date.now() + SESSION_MS); return t; };
 function hasSession(req) {
   const t = req.headers['x-vault-session'], exp = t && sessions.get(t);
   if (!exp || exp < Date.now() || !vault.ready()) { if (t) sessions.delete(t); return false; }
-  sessions.set(t, Date.now() + 15 * 60e3);
+  sessions.set(t, Date.now() + SESSION_MS);
   return true;
 }
 

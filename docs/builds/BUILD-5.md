@@ -13,5 +13,8 @@
 - Netlify: sign up (free) → User settings → Applications → **Personal access tokens** → New → paste in Integrations → Netlify.
 - Optional: Ayrshare account, link social profiles there, API key → Integrations → Ayrshare. Free plans are limited; videos need a paid plan.
 
+## 5.1.0
+- Vault idle lock: the in-memory key is dropped after 1 hour in which no key was used; every use (`need()`: reveal, resolve, save, remove, unlock) restarts the hour. A minute timer enforces it. `status().locks_at` is shown on the Vault page. The dashboard vault session is 1 hour sliding (was 15 minutes). Restarts still lock. 84 tests.
+
 ## Part 2 (later)
 - Image generation (needs a provider key), short video, custom domains, post analytics into memory.
