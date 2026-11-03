@@ -92,6 +92,25 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Browser automation (Playwright) for form filling using vault references. Pauses for CAPTCHAs and 2FA, and you finish those.
 - Self-knowledge: auto-generated `/capabilities` page from the tool and agent registry, which the agent reads.
 
+### Build 8: Performance + token efficiency (measure first, then cut)
+Ideas from OpenJarvis (traces, cost as a first-class metric), HuggingGPT/EasyTool (concise tool instructions), ethanplusai/jarvis (runs dashboard, sentence streaming). Every change is measured before/after with `promptFor` + count_tokens and the Statistics page; no change ships if answer quality drops.
+- **Runs view:** one timeline per task (each model call and tool step, tokens, cost, time, and "waiting on you: approval / code / CAPTCHA"). This is the measuring tool for everything below.
+- **Shorter tool descriptions:** James's ~4.5k tokens of tool definitions rewritten tight (EasyTool showed concise instructions also improve tool choice). Target −20–30% of his fixed prompt.
+- **Browser snapshot diffs:** after the first snapshot, send only what changed plus the controls near the last action (the DMV task used 38 calls / $0.49, mostly re-sent pages).
+- **Riley's web reading:** tune per-page and per-search caps against a few saved research questions (Riley is the most expensive agent per task).
+- **Batch API for background jobs:** archivist compression, memory cleanup and the security audit run at 50% off where minutes of delay don't matter.
+- **Routing test set:** turn logged routing decisions into a replayable check run before every deploy (fewer Pete→James bounces, each a wasted call).
+- **Streaming replies on the dashboard:** words appear as they're written instead of after the whole reply (latency, not tokens).
+
+### Build 9: Autonomy + visibility
+Ideas from OpenJarvis (scheduled and continuous agents, skills), thevickypedia/Jarvis (schedulers), adewaskar and ethanplusai (voice loop, memory index, agent-drawn panels).
+- **Scheduled and monitoring tasks:** "every morning do X", "watch this market/listing/price and text me when Y". Real cron-style runs with a per-run budget, results saved to memory and sent to the owner. (Replaces the false "I'll monitor daily" promises.)
+- **Memory index:** titles of all memories in the cached prompt so James knows what he knows; details still come from recall.
+- **Skills / playbooks:** step-by-step guides for repeat jobs (DMV vehicle add, local-business pitch, Kalshi weather check) loaded only when needed; a guide can be saved from a run that worked. Owner-written or vetted only, never bulk community imports.
+- **Voice on the dashboard:** push-to-talk with Chrome's built-in speech recognition and spoken replies sentence by sentence, no new services or cost.
+- **Result cards:** James can post sanitized tables/charts in chat.
+- Phone voice (Telnyx + ElevenLabs clone, Build 7 part 3) uses the same lessons: sentence-chunked speech, barge-in, permissions decided before the call (read-only on calls, anything risky goes to approvals).
+
 ## 5. Cost estimate (monthly, USD, verify vendor prices before buying)
 
 | Item | Lean | Typical | Notes |
