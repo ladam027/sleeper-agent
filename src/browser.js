@@ -11,7 +11,7 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { randomBytes } from 'node:crypto';
-import { log } from './db.js';
+import { log, get } from './db.js';
 import * as vault from './vault.js';
 
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= '/opt/ms-playwright'; // shared install (deploy.sh), readable by the service user
@@ -78,7 +78,11 @@ function snapshotInPage({ textMax, elementsMax }) {
   const els = [...document.querySelectorAll('a[href],button,input,select,textarea,[role=button],[role=link],[role=checkbox],[role=tab],summary')]
     .filter((e) => e.type !== 'hidden' && visible(e)).slice(0, elementsMax);
   return { title: document.title, url: location.href, text: (document.body?.innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, textMax),
-    captcha: !!document.querySelector('iframe[src*="recaptcha"],iframe[src*="hcaptcha"],iframe[src*="turnstile"],.g-recaptcha,.h-captcha,.cf-turnstile'),
+    // Only a CAPTCHA a person would actually see: invisible reCAPTCHA (v3 / size=invisible / the corner badge) runs in the
+    // background and needs nothing from anyone.
+    captcha: [...document.querySelectorAll('iframe[src*="recaptcha"],iframe[src*="hcaptcha"],iframe[src*="turnstile"],iframe[src*="captcha"],.g-recaptcha,.h-captcha,.cf-turnstile')]
+      .some((e) => { const r = e.getBoundingClientRect(); return visible(e) && r.width >= 120 && r.height >= 60 && !e.closest('.grecaptcha-badge')
+        && !/size=invisible|recaptcha\/api2\/bframe/.test(e.src || '') && getComputedStyle(e).opacity !== '0'; }),
     elements: els.map((e, i) => {
       e.setAttribute('data-sa-ref', String(i + 1));
       const tag = e.tagName.toLowerCase(), type = (e.getAttribute('type') || '').toLowerCase(), role = e.getAttribute('role') || '';
@@ -124,7 +128,8 @@ async function open(url, agent) {
   const hosts = new Map();
   await publicUrl(url, hosts);
   browser ??= await deps.launch();
-  const ctx = await browser.newContext({ acceptDownloads: false, serviceWorkers: 'block', viewport: { width: 1280, height: 900 } });
+  // US English + owner's timezone: the server is in Germany, and sites otherwise offer German pages.
+  const ctx = await browser.newContext({ acceptDownloads: false, serviceWorkers: 'block', viewport: { width: 1280, height: 900 }, locale: 'en-US', timezoneId: get('timezone') || 'America/Los_Angeles', extraHTTPHeaders: { 'accept-language': 'en-US,en;q=0.9' } });
   await ctx.route('**/*', (route) => publicUrl(route.request().url(), hosts).then(() => route.continue(), () => route.abort('blockedbyclient')));
   const signedIn = await loadSignIns(ctx, url).catch(() => []);
   const page = await ctx.newPage(), id = randomBytes(4).toString('hex');
