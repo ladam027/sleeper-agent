@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { db, get, log, agent, setStatus } from './db.js';
-import { MAX_STEPS, blocked, record } from './budget.js';
+import { MAX_STEPS, blocked, record, limitHit, today, spentToday, agentCap, globalCap } from './budget.js';
 import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
 import { notify } from './phone.js';
@@ -9,9 +9,9 @@ export const deps = { client: null }; // tests swap in a fake
 export const client = () => (deps.client ??= new Anthropic());
 const running = new Map(); // agent name -> AbortController of its in-flight run
 
-const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner']); // ceiling for delegated runs
+const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
-const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch']);
+const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document']);
 const WEB_SEARCH_USES = 5; // per model request, keeps a research run from burning searches
 
 // Anthropic-hosted web tools. Newer models get the dynamic-filtering variants.
@@ -108,7 +108,9 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
     && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k))));
   if (opts.canEscalate) allowed.add('escalate');
   const tools = [...[...allowed].map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : [])];
-  const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted };
+  // The owner's original request, so a budget-stopped task can resume after the owner approves more budget.
+  const root = opts.root || (depth === 0 ? { agent: name, text, thread } : null);
+  const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted, root };
   ctx.taint = () => { if (!ctx.tainted) log(name, 'tainted', 'read web content: state-changing actions now need approval'); ctx.tainted = true; opts.onTaint?.(); };
   if (ctx.tainted) opts.onTaint?.();
   const messages = depth || opts.ephemeral ? [] : history(thread);
@@ -116,12 +118,18 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   // earlier thinking blocks if the system prompt changes under them. Changes apply from the next message.
   const sys = systemFor(a);
   let spent = 0;
-  push(messages, 'user', `${nowLine()}\n${text}`);
+  // opts.attachments: content blocks (e.g. a PDF document) placed before the text.
+  push(messages, 'user', opts.attachments ? [...opts.attachments, { type: 'text', text: `${nowLine()}\n${text}` }] : `${nowLine()}\n${text}`);
 
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
       const why = blocked(name);
-      if (why) { log(name, 'blocked', why); return `Stopped: ${why}`; }
+      if (why) {
+        log(name, 'blocked', why);
+        const target = limitHit(name);
+        if (target) requestRaise(target, root);
+        return `Stopped: ${why}${target ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
+      }
       const res = await client().messages.create({
         model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, cache_control: { type: 'ephemeral' },
         system: sys, tools, messages,
@@ -184,6 +192,26 @@ export async function auto(text) {
   if (typeof r === 'string') return r;
   log('router', 'route', `orchestrator (quick escalated: ${r.escalated})`);
   return runAgent('orchestrator', text, 0, { thread });
+}
+
+// One approval per limit per day (none after a denial). Approving raises today's limit and resumes the task.
+function requestRaise(target, root) {
+  const day = today();
+  const prior = db.prepare(`select 1 from approvals where tool = 'raise_budget' and json_extract(input, '$.target') = ?
+    and json_extract(input, '$.day') = ? and status in ('pending', 'denied')`).get(target, day);
+  if (prior) return;
+  const a = target === 'global' ? null : agent(target);
+  const label = target === 'global' ? 'The overall daily budget' : (a.display_name || target);
+  // Enough to cover what's already over the limit, plus one more normal day's budget.
+  const base = target === 'global' ? Number(get('global_daily_budget_usd')) : a.daily_budget_usd;
+  const extra = Math.round((Math.max(0, spentToday(target) - (target === 'global' ? globalCap() : agentCap(a))) + base) * 100) / 100;
+  const resume = root ? { agent: root.agent, text: String(root.text).slice(0, 4000), thread: root.thread } : null;
+  const { lastInsertRowid: id } = db.prepare("insert into approvals (agent, tool, input, reason) values (?, 'raise_budget', ?, ?)")
+    .run(target === 'global' ? 'orchestrator' : target, JSON.stringify({ target, extra_usd: extra, day, resume }),
+      `${label} hit today's limit. Approve +$${extra} for today${resume ? ' and resume the task' : ''}?`);
+  log(target === 'global' ? 'owner' : target, 'approval', `#${id} raise_budget waiting for owner`);
+  notify('high', `Approval #${id}: ${label} hit today's limit${resume ? ` while working on "${resume.text.replace(/^\[[^\]]*\]\s*/, '').slice(0, 80)}"` : ''}. Reply Y ${id} <PIN> to add $${extra} for today and continue, or N ${id} <PIN>.`, { agent: 'orchestrator' })
+    .catch(() => {});
 }
 
 export function kill(name) {

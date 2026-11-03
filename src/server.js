@@ -12,7 +12,7 @@ import * as money from './money.js';
 import * as google from './google.js';
 import * as integrations from './integrations.js';
 import { TOOLS } from './tools.js';
-import { summary, PRICES } from './budget.js';
+import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
 
 
@@ -74,6 +74,8 @@ async function api(req, url) {
     google: google.status(),
     integrations: { defs: integrations.INTEGRATIONS, status: integrations.status(), anthropic: !!process.env.ANTHROPIC_API_KEY },
     phone: phone.status(),
+    boosts: Object.fromEntries([['global', boost('global')], ...db.prepare('select name from agents').all().map((a) => [a.name, boost(a.name)])]),
+    globalCap: globalCap(),
     reminders: scheduler.upcoming(),
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
@@ -138,6 +140,14 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'boost' && m === 'POST') { // the owner's own click: raise a limit for today, no approval needed
+    const { target, extra } = await body(req);
+    if (target !== 'global' && !db.prepare('select 1 from agents where name = ?').get(target)) throw new Error('Unknown agent');
+    if (!(extra > 0 && extra <= 50)) throw new Error('Extra must be between $0 and $50');
+    const total = addBoost(target, extra);
+    log('owner', 'budget', `${target} limit raised by $${extra} for today (extra today: $${total})`);
+    return { ok: true, total };
+  }
   if (route === 'phone' && m === 'POST' && id === 'test') {
     const { kind } = await body(req);
     if (kind === 'call') await phone.call('This is Sleeper Agent. Your phone calls are working.');

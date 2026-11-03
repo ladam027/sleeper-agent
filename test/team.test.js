@@ -24,8 +24,8 @@ const reset = () => db.exec("delete from approvals; delete from memory; delete f
 
 test('team is seeded with names, models and least-privilege tools', () => {
   const a = Object.fromEntries(db.prepare('select * from agents').all().map((r) => [r.name, r]));
-  assert.equal(a.researcher.display_name, 'Riley'); assert.equal(a.researcher.web, 1); assert.equal(a.researcher.tools, '');
-  assert.equal(a.critic.display_name, 'Cleo'); assert.equal(a.critic.tools, 'recall');
+  assert.equal(a.researcher.display_name, 'Riley'); assert.equal(a.researcher.web, 1); assert.equal(a.researcher.tools, 'read_document');
+  assert.equal(a.critic.display_name, 'Cleo'); assert.equal(a.critic.tools, 'recall,read_document');
   assert.equal(a.security.display_name, 'Sam'); assert.equal(a.security.tools, 'notify_owner,trip_kill_switch');
 });
 
@@ -34,13 +34,13 @@ test('web search costs are counted; batch pricing halves tokens', () => {
   assert.equal(costOf('claude-haiku-4-5', { input_tokens: 1e6 }, { batch: true }), 0.5);
 });
 
-test('researcher gets hosted web tools (with caps) and no client tools', async () => {
+test('researcher gets hosted web tools (with caps) and only the safe document reader', async () => {
   reset();
   const calls = fake({ 'claude-sonnet-5': [webReply('Etsy charges 6.5%.')] });
   assert.equal(await runAgent('researcher', 'what are etsy fees'), 'Etsy charges 6.5%.');
   const names = calls[0].tools.map((t) => t.type || t.name);
-  assert.deepEqual(names, ['web_search_20260209', 'web_fetch_20260209']);
-  assert.ok(calls[0].tools.every((t) => t.max_uses === 5));
+  assert.deepEqual(names, ['read_document', 'web_search_20260209', 'web_fetch_20260209']);
+  assert.ok(calls[0].tools.filter((t) => t.type).every((t) => t.max_uses === 5));
   assert.ok(db.prepare("select count(*) n from activity where type = 'web'").get().n >= 1, 'searches show in the activity feed');
 });
 
@@ -72,7 +72,7 @@ test('a delegated run can never exceed its own allowlist; hidden tools stay hidd
   await runAgent('orchestrator', 'critique my idea');
   const orch = calls[0].tools.map((t) => t.name), critic = calls[1].tools.map((t) => t.name);
   assert.ok(!orch.includes('trip_kill_switch') && !orch.includes('apply_memory_cleanup'), 'hidden from the all-tools default');
-  assert.deepEqual(critic, ['recall', 'web_search', 'web_fetch']);
+  assert.deepEqual(critic, ['recall', 'read_document', 'web_search', 'web_fetch']);
 });
 
 test('security audit: free when idle, runs on new activity, can trip the kill switch', async () => {

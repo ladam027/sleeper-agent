@@ -1,4 +1,4 @@
-import { db, get, agent } from './db.js';
+import { db, get, set, agent } from './db.js';
 
 // $ per million tokens. cacheWrite = 5-minute cache write (1.25x input).
 export const PRICES = {
@@ -41,13 +41,33 @@ const spent = (where, ...args) =>
 
 // Returns a reason string if the agent may NOT make another call, else null.
 // ponytail: checks spend before the call, so one call can overshoot the cap by at most max_tokens worth.
+// Owner-approved extra spend for today only ("global" or an agent name). Resets at the owner's midnight.
+export const boost = (target) => Number(get(`boost:${target}:${today()}`) || 0);
+export function addBoost(target, usd) {
+  const v = Math.round((boost(target) + Number(usd)) * 100) / 100;
+  set(`boost:${target}:${today()}`, v);
+  return v;
+}
+export const agentCap = (a) => a.daily_budget_usd + boost(a.name);
+export const globalCap = () => Number(get('global_daily_budget_usd')) + boost('global');
+
 export function blocked(name) {
   if (get('global_halt') === '1') return 'global kill switch is on';
   const a = agent(name);
   if (!a) return `unknown agent ${name}`;
   if (a.status === 'killed') return `${name} was killed`;
-  if (spent('and agent = ?', name) >= a.daily_budget_usd) return `${name} hit its daily budget ($${a.daily_budget_usd})`;
-  if (spent('') >= Number(get('global_daily_budget_usd'))) return 'global daily budget reached';
+  if (spent('and agent = ?', name) >= agentCap(a)) return `${name} hit its daily budget ($${agentCap(a)})`;
+  if (spent('') >= globalCap()) return 'global daily budget reached';
+  return null;
+}
+export const spentToday = (target) => target === 'global' ? spent('') : spent('and agent = ?', target);
+
+// Which limit stopped it, if any: an agent name, 'global', or null.
+export function limitHit(name) {
+  const a = agent(name);
+  if (!a || get('global_halt') === '1' || a.status === 'killed') return null;
+  if (spent('and agent = ?', name) >= agentCap(a)) return name;
+  if (spent('') >= globalCap()) return 'global';
   return null;
 }
 

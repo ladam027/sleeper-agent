@@ -71,6 +71,7 @@ const MIGRATIONS = [
   `alter table reminders add column delivered_at text;
    alter table reminders add column result text;
    update agents set concise = 2 where name in ('orchestrator', 'quick');`,
+  `update agents set tools = case when tools = '' then 'read_document' else tools || ',read_document' end where name in ('researcher', 'critic') and tools not like '%read_document%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -99,8 +100,9 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, '', 1, 'Riley');
-seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall', 1, 'Cleo');
+seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document', 1, 'Riley');
+seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall,read_document', 1, 'Cleo');
+seed.run('reader', 'claude-haiku-4-5', null, 'Reads one downloaded PDF and answers a question about it. Has no tools.', 1, 4096, '', 0, 'Reader');
 seed.run('security', 'claude-haiku-4-5', null, 'Hourly security audit of the activity log. Looks for prompt injection being acted on, unexpected tool use, repeated blocked messages or wrong PINs, spending spikes, and anything off-pattern. Reports only real problems; trips the kill switch only for clear compromise.', 0.5, 2048, 'notify_owner,trip_kill_switch', 0, 'Sam');
 
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;

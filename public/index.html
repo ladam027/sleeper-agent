@@ -589,7 +589,7 @@ td.r, th.r { text-align: right; }
             <ul>
               <li><b>Pin carefully.</b> Pin stable facts only. Editing a pinned memory resets the cache, so the next message costs a bit more.</li>
               <li><b>Watch the Costs tab.</b> If a day spikes, the Activity feed shows which agent and step did it.</li>
-              <li><b>Budgets are hard stops.</b> Each agent has a daily cap and there's a global cap in Settings. Agents stop at the cap instead of overspending, and one runaway loop is cut off after 8 steps.</li>
+              <li><b>Budgets are hard stops, with an override.</b> Each agent has a daily cap and there's an overall cap in Settings. When one is hit, the task pauses and you get an approval request (dashboard or Telegram, <code>Y 12 PIN</code>). Approving raises that limit <b>for today only</b> and the task continues. One request per limit per day; after a "no" it won't ask again until tomorrow. You can also press <b>Raise limit</b> on an agent card. A runaway loop is still cut off after 8 steps.</li>
             </ul>
             <ul>
               <li><b>Phrases that stay cheap on Auto:</b> questions, lookups, "remember that…", quick edits.</li>
@@ -624,7 +624,7 @@ td.r, th.r { text-align: right; }
             <tbody>
               <tr><td><b>James</b> · Orchestrator</td><td class="muted">Plans, remembers, delegates, handles anything complex</td><td class="muted">Opus 5.5</td><td class="muted">"Plan my week", "help me decide…"</td></tr>
               <tr><td><b>Pete</b> · Quick</td><td class="muted">Fast cheap answers, memory lookups, reminders</td><td class="muted">Haiku 4.5</td><td class="muted">"What do you know about me?", "remind me at 5…"</td></tr>
-              <tr><td><b>Riley</b> · Researcher</td><td class="muted">Searches the web and reads pages, reports back with links. Takes no actions.</td><td class="muted">Sonnet 5 + web</td><td class="muted">"Research Etsy fees for digital prints", "what's the latest on…"</td></tr>
+              <tr><td><b>Riley</b> · Researcher</td><td class="muted">Searches the web, reads pages and <b>PDF, CSV and Excel files</b>, reports back with links. Takes no actions. Files are only read as data, never opened or run; macro workbooks are refused; public internet only; 10 MB max.</td><td class="muted">Sonnet 5 + web</td><td class="muted">"Research Etsy fees for digital prints", "what's the latest on…"</td></tr>
               <tr><td><b>Cleo</b> · Critic</td><td class="muted">Finds holes, risks, legal and platform-rule problems, then improves the idea</td><td class="muted">Opus 5.5 + web</td><td class="muted">"Critique this idea: …", "tear apart my plan"</td></tr>
               <tr><td><b>Sam</b> · Security</td><td class="muted">Audits the activity log hourly (only when something happened). Alerts you, and trips the kill switch for clear compromise.</td><td class="muted">Haiku 4.5</td><td class="muted">Runs by itself</td></tr>
             </tbody>
@@ -730,6 +730,7 @@ td.r, th.r { text-align: right; }
           <label class="f" for="sBudget">Global daily API budget (USD)</label>
           <input id="sBudget" name="global_daily_budget_usd" type="number" step="0.5" min="0">
           <div class="help">Hard stop for all agents combined. Each agent also has its own cap.</div>
+          <div style="margin-top:6px"><button type="button" class="btn sm" onclick="raiseLimit('global', +$('#sBudget').value)">Raise today's cap</button> <span class="help" id="globalBoost"></span></div>
           <label class="f" for="sTheme">Appearance</label>
           <select id="sTheme"><option value="">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>
           <div style="margin-top:var(--s5)"><button class="btn primary">Save settings</button></div>
@@ -872,8 +873,8 @@ function show(v) {
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
-const TYPE_ICON = { email: 'mail', integration: 'plug', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
-const TYPE_LABEL = { 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
+const TYPE_ICON = { budget: 'trend', email: 'mail', integration: 'plug', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
+const TYPE_LABEL = { budget: 'Budget', 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
@@ -912,7 +913,7 @@ async function refresh() {
   $('#tBars').innerHTML = week.map((d) => `<i style="height:${Math.max(3, d.usd / wmax * 22)}px"></i>`).join('');
 
   // KPIs
-  const cap = +settings.global_daily_budget_usd, monthCap = cap * 30;
+  const cap = s.globalCap ?? +settings.global_daily_budget_usd, monthCap = +settings.global_daily_budget_usd * 30;
   const now = new Date(), dom = now.getDate(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   $('#kToday').textContent = money(costs.today); $('#kTodaySub').textContent = `of ${money(cap)} daily cap`;
   const pt = pct(costs.today, cap); $('#kTodayPct').textContent = pt.toFixed(0) + '%'; setBar('#kTodayBar', pt);
@@ -934,14 +935,14 @@ async function refresh() {
   // Agents
   const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));
   const STATUS = { running: ['ok', 'Working'], idle: ['', 'Idle'], killed: ['bad', 'Killed'] };
-  if (!openAgent) $('#agents').innerHTML = agents.map((a) => { const sp = spentBy[a.name]?.usd || 0, p = pct(sp, a.daily_budget_usd), [cls, label] = STATUS[a.status] || ['', a.status];
+  if (!openAgent) $('#agents').innerHTML = agents.filter((a) => a.name !== 'reader').map((a) => { const extra = s.boosts?.[a.name] || 0, cap = a.daily_budget_usd + extra, sp = spentBy[a.name]?.usd || 0, p = pct(sp, cap), [cls, label] = STATUS[a.status] || ['', a.status];
     return `<div class="agent">
       <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(agentLabel(a.name))}</div><div class="model">${esc(MODEL_NAME[a.model] || a.model)}</div></div>
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
-      <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(a.daily_budget_usd)} today</span></div>
+      <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(cap)} today</span>${extra ? `<span class="pill warn" title="Raised for today only">+${money(extra)} today</span>` : ''}</div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
       <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${['full replies', 'concise', 'ultra concise'][Number(a.concise)] || 'concise'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
-      <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
+      <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="raiseLimit('${esc(a.name)}', ${a.daily_budget_usd})" title="Raise today's limit">${icon('trend')}Raise limit</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
       <form class="cfg" data-agent="${esc(a.name)}" hidden onsubmit="agentSave(event)">
         <div><label class="f">Effort</label><select name="effort" ${isHaiku(a) ? 'disabled' : ''}>${['low', 'medium', 'high'].map((e) => `<option ${(a.effort || 'medium') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
           <div class="help">${isHaiku(a) ? "Haiku doesn't think, so effort doesn't apply." : 'How hard it thinks. Thinking is billed as output.'}</div></div>
@@ -1010,6 +1011,7 @@ async function refresh() {
   const f = $('#setForm');
   const nf = $('#namesForm');
   if (!nf.contains(document.activeElement)) $('#namesFields').innerHTML = agents.map((a) => `<label class="f" for="nm-${esc(a.name)}">${esc(roleOf(a.name))} <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)}</span></label><input id="nm-${esc(a.name)}" data-agent="${esc(a.name)}" value="${esc(a.display_name || '')}" maxlength="24" placeholder="Name">`).join('');
+  $('#globalBoost').textContent = s.boosts?.global ? `Raised by ${money(s.boosts.global)} today` : '';
   if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
   if (view === 'money') drawCosts();
   if (view === 'money' || view === 'clients') loadMoney();
@@ -1069,6 +1071,13 @@ function toast(text, cls = '', sticky = false) {
   if (!sticky) setTimeout(() => el.remove(), 12000);
 }
 window.decide = async (id, approve) => { await call('approvals/' + id, 'POST', { approve }); refresh(); };
+window.raiseLimit = async (target, suggested) => {
+  const label = target === 'global' ? "today's overall cap" : `${agentLabel(target)}'s limit for today`;
+  const v = prompt(`Raise ${label} by how many dollars? (resets at midnight)`, String(suggested || 1));
+  if (!v) return;
+  const r = await call('boost', 'POST', { target, extra: Number(v) }); if (r.error) return alert(r.error);
+  refresh();
+};
 window.agentAct = async (name, action) => {
   if (action === 'kill' && !confirm(`Kill ${name}? It stops immediately and stays stopped until you restart it.`)) return;
   await call(`agents/${encodeURIComponent(name)}/${action}`, 'POST'); refresh();

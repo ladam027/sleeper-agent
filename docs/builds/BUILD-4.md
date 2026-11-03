@@ -38,5 +38,10 @@
 ## 4.4.0
 - Presence-aware alerts: the page reports `x-owner-active` (visible tab + input in the last 2 min). While the owner is at the desk, `notify` high skips Telegram (pop-up notice on the dashboard instead) and critical calls without the text. A Telegram message in the last 15 min means "on the phone" and wins. Owner-set reminders (`explicit`) always deliver as chosen. Dashboard pop-ups for new alerts and approvals.
 
+## 4.5.0
+- **Limit override**: when an agent or the overall daily cap stops a task, a `raise_budget` approval is filed (once per limit per day, none after a denial) with the original request. Approving adds today-only extra budget (`boost:<target>:<day>`: the overage plus one normal day) and resumes the task, delivering the result through `notify`. Manual "Raise limit" on agent cards and "Raise today's cap" in Settings.
+- **Safe documents**: `read_document` (Riley, Cleo). Only PDF / CSV / .xlsx, decided by magic bytes. https + public-internet only (private, tailnet 100.64/10, metadata 169.254 refused, re-checked on each redirect), 10 MB download cap, 30 MB decompressed cap, macro workbooks refused, no files saved. PDFs go as a document block to a tool-less Haiku `reader` agent; spreadsheets become CSV text. Results are untrusted and taint the run.
+- 68 tests.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).
