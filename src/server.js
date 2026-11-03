@@ -142,6 +142,7 @@ async function api(req, url) {
     if (m === 'GET' && !id) return { status: vault.status(), session: ok, items: vault.list(ok) };
     if (!ok) throw new Error('Vault session expired. Enter your passphrase again.');
     if (m === 'GET') return vault.reveal(decodeURIComponent(id)) || { error: 'not found' };
+    if (m === 'POST' && id === 'idle') return vault.setIdleHours((await body(req)).hours), { ok: true };
     if (m === 'POST') return vault.save(await body(req)), { ok: true };
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }

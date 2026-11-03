@@ -11,6 +11,7 @@
 
 ## Not yet
 - **Live orders**: only after the 30-day paper period, behind a high-risk approval with your PIN on every order, plus the same code limits. Not built until then.
+  - **Decided (owner, 2026-11-03): approve-to-unlock.** If the vault is locked when an order is approved on the dashboard, the approval dialog asks for the passphrase, unlocks, then places the order. A phone (Telegram) approval while locked keeps the order waiting and pings "unlock to place it"; on unlock it re-checks the live price against the order's limit price (and the code limits) before placing, and expires if the market moved or closed. No Kalshi key outside the vault.
 - **Schwab**: waiting on Schwab's developer app approval (then OAuth + read-only positions, weekly re-auth reminder).
 - **Simulation lab**: James already has code execution and `kalshi_backtest_data` / `weather_history`; no extra code needed yet.
 - Paper limitation: daily loss counts realized losses only; unrealized losses on open positions don't block new buys yet.
@@ -18,3 +19,6 @@
 ## 6.1.0
 - `weather_forecast`: National Weather Service point forecast (free, no key; highs, lows, rain chance, sky) for the Kalshi weather spots or any US lat/lon. Point lookups cached. Not tainting (numbers and NWS short phrases only), same as weather_history.
 - Dashboard: Refresh button in the header reloads the current page's data (useful in the home-screen app, which has no browser reload). 97 tests.
+
+## 6.2.0
+- Vault idle lock is a choice on the Vault page: 1 (default), 4, 8 or 24 hours without use. Changing it needs a passphrase session. Restarts/updates still always lock. (src/vault.js change, called out to the owner.) 98 tests.

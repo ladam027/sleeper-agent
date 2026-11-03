@@ -14,12 +14,19 @@ export const KINDS = ['password', 'card', 'personal', 'api_key', 'note'];
 const CHECK = 'sleeper-vault-ok';
 let KEY = null; // in memory only; gone on restart, lock(), or after an hour without use
 export const deps = { now: () => Date.now() }; // tests move the clock
-export const IDLE_MS = 60 * 60e3;
+// Idle lock: 1 hour by default; the owner can pick a longer one (passphrase session required, see server.js).
+export const IDLE_HOURS = [1, 4, 8, 24];
+export const idleHours = () => IDLE_HOURS.includes(Number(get('vault_idle_hours'))) ? Number(get('vault_idle_hours')) : 1;
+const idleMs = () => idleHours() * 3600e3;
+export function setIdleHours(h) {
+  if (!IDLE_HOURS.includes(Number(h))) throw new Error(`Choose ${IDLE_HOURS.join(', ')} hours`);
+  set('vault_idle_hours', Number(h)); log('owner', 'vault', `idle lock set to ${h} h`);
+}
 let lastUse = 0;
 const touch = () => { lastUse = deps.now(); };
-// Locks itself after an hour in which no key was used. Using a key (integrations, agents, the owner) restarts the hour.
+// Locks itself after the idle period (default an hour) in which no key was used. Using a key (integrations, agents, the owner) restarts the hour.
 function expireIfIdle() {
-  if (KEY && deps.now() - lastUse >= IDLE_MS) { KEY = null; cache = null; log('owner', 'vault', 'locked automatically after an hour without use'); }
+  if (KEY && deps.now() - lastUse >= idleMs()) { KEY = null; cache = null; log('owner', 'vault', `locked automatically after ${idleHours()} h without use`); }
 }
 setInterval(expireIfIdle, 60e3).unref();
 
@@ -41,7 +48,7 @@ function need() { expireIfIdle(); if (!KEY) throw new Error('Vault is locked. Un
 
 export const ready = () => { expireIfIdle(); return !!KEY; };
 export const status = () => { expireIfIdle();
-  return { setup: !!get('vault_salt'), unlocked: !!KEY, items: db.prepare('select count(*) n from secrets').get().n, locks_at: KEY ? new Date(lastUse + IDLE_MS).toISOString() : null }; };
+  return { setup: !!get('vault_salt'), unlocked: !!KEY, items: db.prepare('select count(*) n from secrets').get().n, locks_at: KEY ? new Date(lastUse + idleMs()).toISOString() : null, idle_hours: idleHours() }; };
 
 export function setup(pass) {
   if (get('vault_salt')) throw new Error('Vault already has a passphrase');

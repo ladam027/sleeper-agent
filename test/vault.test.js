@@ -9,7 +9,7 @@ const { deps, runAgent } = await import('../src/agent.js');
 const PASS = 'correct horse battery';
 
 test('locked until a passphrase is set; nothing works without it', () => {
-  assert.deepEqual({ ...vault.status() }, { setup: false, unlocked: false, items: 0, locks_at: null });
+  assert.deepEqual({ ...vault.status() }, { setup: false, unlocked: false, items: 0, locks_at: null, idle_hours: 1 });
   assert.throws(() => vault.save({ name: 'x', value: 'y' }), /locked/);
   assert.throws(() => vault.setup('short'), /12 characters/);
   vault.setup(PASS);
@@ -88,6 +88,22 @@ test('auto-locks after an hour without use; every key use restarts the hour', ()
   assert.equal(vault.ready(), false, 'an hour with no use: locked');
   assert.throws(() => vault.reveal('schwab'), /locked/);
   assert.equal(vault.redact('pw hunter2-Secret!'), 'pw hunter2-Secret!', 'saved values cannot be matched while locked (card/SSN patterns still apply)');
+  vault.deps.now = () => Date.now();
+  vault.unlock(PASS);
+});
+
+test('owner can choose a longer idle lock; only listed values are accepted', () => {
+  let t = Date.now();
+  vault.deps.now = () => t;
+  vault.unlock(PASS);
+  assert.throws(() => vault.setIdleHours(1000), /Choose 1, 4, 8, 24/);
+  vault.setIdleHours(8);
+  t += 7 * 3600e3;
+  assert.equal(vault.ready(), true, '7 h idle with an 8 h lock: still open');
+  assert.equal(vault.status().idle_hours, 8);
+  t += 61 * 60e3;
+  assert.equal(vault.ready(), false, 'past 8 h idle: locked');
+  vault.setIdleHours(1);
   vault.deps.now = () => Date.now();
   vault.unlock(PASS);
 });
