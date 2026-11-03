@@ -14,3 +14,7 @@
 - **Schwab**: waiting on Schwab's developer app approval (then OAuth + read-only positions, weekly re-auth reminder).
 - **Simulation lab**: James already has code execution and `kalshi_backtest_data` / `weather_history`; no extra code needed yet.
 - Paper limitation: daily loss counts realized losses only; unrealized losses on open positions don't block new buys yet.
+
+## 6.1.0
+- `weather_forecast`: National Weather Service point forecast (free, no key; highs, lows, rain chance, sky) for the Kalshi weather spots or any US lat/lon. Point lookups cached. Not tainting (numbers and NWS short phrases only), same as weather_history.
+- Dashboard: Refresh button in the header reloads the current page's data (useful in the home-screen app, which has no browser reload). 97 tests.

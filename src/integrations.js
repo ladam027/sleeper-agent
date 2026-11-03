@@ -173,6 +173,24 @@ export async function kalshiMarket(ticker) {
     yes_bid, yes_ask, no_bid: yes_ask ? +(1 - yes_ask).toFixed(4) : null, no_ask: yes_bid ? +(1 - yes_bid).toFixed(4) : null };
 }
 
+// National Weather Service forecast (free, no key, US only). Daytime periods carry the forecast high.
+// Not tainting, like weather_history: numbers and NWS's short phrases only, no free text from third parties.
+export const WEATHER_SPOTS = { LAX: [33.9425, -118.4081], 'LA Downtown': [34.0236, -118.2911], 'NYC Central Park': [40.7789, -73.9692], 'Chicago Midway': [41.7861, -87.7522],
+  Miami: [25.7881, -80.3169], Austin: [30.1831, -97.6799], Denver: [39.8466, -104.6562], Philadelphia: [39.8733, -75.2268] };
+const NWS = { 'user-agent': 'SleeperAgent/6 (personal assistant)', accept: 'application/geo+json' };
+export async function weatherForecast({ place = 'LAX', lat, lon } = {}) {
+  const [la, lo] = lat != null && lon != null ? [Number(lat), Number(lon)] : WEATHER_SPOTS[place] || [];
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) throw new Error(`place must be one of ${Object.keys(WEATHER_SPOTS).join(', ')}, or pass lat and lon`);
+  const key = `nws:point:${la.toFixed(4)},${lo.toFixed(4)}`;
+  let url = cache.get(key);
+  if (!url) { url = (await getJson(`https://api.weather.gov/points/${la.toFixed(4)},${lo.toFixed(4)}`, NWS, 'Weather service')).properties?.forecast; if (url) cache.set(key, url); }
+  if (!url) throw new Error('The weather service has no forecast for that spot (US only)');
+  const p = (await getJson(url, NWS, 'Weather service')).properties || {};
+  return { place: lat != null ? `${la},${lo}` : place, source: 'National Weather Service forecast (point forecast for this spot; Kalshi settles on the official station reading)', updated: p.updateTime,
+    periods: (p.periods || []).slice(0, 10).map((x) => ({ name: x.name, date: String(x.startTime).slice(0, 10), [x.isDaytime ? 'high_f' : 'low_f']: x.temperature,
+      rain_chance: x.probabilityOfPrecipitation?.value ?? 0, wind: x.windSpeed, sky: short(x.shortForecast, 60) })) };
+}
+
 const MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
 const eventDate = (eventTicker) => { const m = /-(\d{2})([A-Z]{3})(\d{2})$/.exec(eventTicker || ''); return m && MONTHS[m[2]] ? `20${m[1]}-${MONTHS[m[2]]}-${m[3]}` : null; };
 

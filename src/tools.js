@@ -219,6 +219,10 @@ export const TOOLS = {
     { series_ticker: str('e.g. KXHIGHLAX'), days: { type: 'integer' }, at_local_time: str('HH:MM, default 10:00'), day_offset: { type: 'integer', description: '0 = event day, -1 = day before' }, tz: str("IANA timezone of the market's city, e.g. America/Los_Angeles (default: owner's)") }, ['series_ticker'],
     async (input) => JSON.stringify(await integ.kalshiBacktestData(input))),
 
+  weather_forecast: tool('weather_forecast', `National Weather Service forecast (free, US): highs, lows, rain chance and sky for the next ~5 days. Use it for weather markets (compare the forecast high with Kalshi's brackets; NWS point forecasts often miss by 1-3°F, so check recent misses with weather_history). place: ${Object.keys(integ.WEATHER_SPOTS).join(', ')}; or lat/lon.`,
+    { place: { type: 'string', enum: Object.keys(integ.WEATHER_SPOTS) }, lat: { type: 'number' }, lon: { type: 'number' } }, [],
+    async (input) => JSON.stringify(await integ.weatherForecast(input))),
+
   weather_history: tool('weather_history', 'Official daily high/low temperature and precipitation from NOAA for a weather station and date range. Use it to verify temperatures from other sources and to backtest weather markets. Stations: LAX USW00023174 (default; the Kalshi LA high-temperature markets KXHIGHLAX settle in line with LAX, not downtown), LA Downtown USW00093134 (runs several degrees hotter), NYC Central Park USW00094728, Chicago Midway USW00014819, Miami USW00012839, Austin USW00013904, Denver USW00003017, Philadelphia USW00013739. Check the Kalshi market rules for which station it settles on.',
     { station: str('GHCN-Daily station id'), start: str('YYYY-MM-DD'), end: str('YYYY-MM-DD') }, ['start', 'end'],
     async (input) => JSON.stringify(await integ.weatherHistory(input))),

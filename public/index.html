@@ -443,6 +443,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
       <div class="top-right">
         <span class="status" id="clock"><svg class="i"><use href="#i-clock"/></svg><span></span></span>
         <span class="status" id="sys"><span class="dot live"></span><span>All systems normal</span></span>
+        <button class="btn sm" id="refreshBtn" title="Reload this page's data"><svg class="i"><use href="#i-rotate"/></svg>Refresh</button>
         <button class="btn danger halt" id="mobileHalt" style="display:none" aria-label="Kill switch"><svg class="i"><use href="#i-power"/></svg></button>
       </div>
     </header>
@@ -1121,17 +1122,16 @@ function show(v) {
   if (document.startViewTransition && motionOk() && v !== view && document.visibilityState === 'visible') {
     const t = document.startViewTransition(swap); t.ready.catch(() => {}); t.finished.catch(() => {});
   } else swap();
-  if (v === 'memory') loadMemory();
-  if (v === 'money') { drawCosts(); loadMoney(); }
-  if (v === 'clients') loadMoney();
-  if (v === 'vault') loadVault();
-  if (v === 'guide') renderGuide();
-  if (v === 'integrations') renderIntegrations();
-  if (v === 'stats') loadStats();
-  if (v === 'markets') loadMarkets();
-  if (v === 'studio') loadStudio();
+  loadView(v);
 }
+const VIEW_LOADERS = { memory: () => loadMemory(), money: () => Promise.all([drawCosts(), loadMoney()]), clients: () => loadMoney(), vault: () => loadVault(), guide: () => renderGuide(),
+  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio() };
+const loadView = (v) => VIEW_LOADERS[v]?.();
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
+$('#refreshBtn').onclick = async () => {
+  const b = $('#refreshBtn'), i = b.querySelector('svg'); b.disabled = true; i.style.animation = 'spin .8s linear infinite';
+  try { await Promise.all([refresh(), loadView(view)]); } finally { b.disabled = false; i.style.animation = ''; }
+};
 
 const TYPE_ICON = { site: 'palette', post: 'message', budget: 'trend', email: 'mail', integration: 'plug', calendar: 'clock', money: 'wallet', project: 'trend', crm: 'users', draft: 'mail', web: 'search', tainted: 'shield', cleanup: 'graph', msg: 'message', call: 'phone', reminder: 'clock', notify: 'bell', phone: 'phone', route: 'route', escalated: 'route', task: 'message', delegated: 'bot', tool: 'wrench', llm: 'zap', done: 'check', blocked: 'alert', error: 'alert', refusal: 'alert', approval: 'shield', killed: 'power', restarted: 'rotate', halt: 'power' };
 const TYPE_LABEL = { site: 'Website', post: 'Social post', budget: 'Budget', 'email:in': 'Email to James', 'email:out': 'James sent', calendar: 'Calendar', money: 'Money', project: 'Project', crm: 'Client', draft: 'Email draft', web: 'Web', tainted: 'Read web content', cleanup: 'Memory cleanup', 'msg:out': 'Messaged you', 'call:out': 'Called you', 'msg:in': 'Message from you', 'msg:blocked': 'Blocked message', reminder: 'Reminder', 'notify:low': 'Note for you', 'notify:high': 'Alert', 'notify:critical': 'Urgent alert', route: 'Routed to', escalated: 'Handed off', task: 'New task', delegated: 'Delegated task', tool: 'Used a tool', llm: 'Model call', done: 'Replied', blocked: 'Stopped', error: 'Error', refusal: 'Declined', approval: 'Approval', killed: 'Killed', restarted: 'Restarted', halt: 'Kill switch' };

@@ -130,3 +130,20 @@ test('weather history from NOAA is parsed and validated', async () => {
   assert.deepEqual((await integ.weatherHistory({ start: '2026-10-05', end: '2026-10-05' })).days, [{ date: '2026-10-05', high_f: 104, low_f: 77, precip_in: 0 }]);
   await assert.rejects(integ.weatherHistory({ station: 'LAX', start: '2026-10-01', end: '2026-10-02' }), /GHCN/);
 });
+
+test('weather forecast: NWS point lookup is cached, periods become highs/lows', async () => {
+  const urls = [];
+  integ.deps.fetch = async (url, o) => {
+    urls.push(url); assert.match(o.headers['user-agent'], /SleeperAgent/);
+    const ok = (j) => ({ ok: true, status: 200, json: async () => j });
+    if (url.includes('/points/')) return ok({ properties: { forecast: 'https://api.weather.gov/gridpoints/LOX/148,41/forecast' } });
+    return ok({ properties: { updateTime: '2026-11-03T10:00:00Z', periods: [
+      { name: 'Today', startTime: '2026-11-03T06:00:00-08:00', isDaytime: true, temperature: 74, probabilityOfPrecipitation: { value: null }, windSpeed: '10 mph', shortForecast: 'Sunny' },
+      { name: 'Tonight', startTime: '2026-11-03T18:00:00-08:00', isDaytime: false, temperature: 58, probabilityOfPrecipitation: { value: 10 }, windSpeed: '5 mph', shortForecast: 'Clear' }] } });
+  };
+  const f = await integ.weatherForecast({ place: 'LAX' });
+  assert.deepEqual(f.periods.map((p) => [p.date, p.high_f ?? p.low_f, p.rain_chance]), [['2026-11-03', 74, 0], ['2026-11-03', 58, 10]]);
+  await integ.weatherForecast({ place: 'LAX' });
+  assert.equal(urls.filter((u) => u.includes('/points/')).length, 1, 'point lookup cached');
+  await assert.rejects(integ.weatherForecast({ place: 'Mars' }), /place must be one of/);
+});
