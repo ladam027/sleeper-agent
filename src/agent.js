@@ -83,6 +83,14 @@ function push(msgs, role, content) {
   else msgs.push({ role, content });
 }
 
+// The fixed part of every request for an agent (tools + system prompt), e.g. for measuring token overhead.
+export function promptFor(name, depth = 0) {
+  const a = agent(name);
+  const own = a.tools != null ? new Set(a.tools.split(',').filter(Boolean)) : null;
+  const allowed = Object.keys(TOOLS).filter((k) => k !== 'escalate' && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k)));
+  return { model: a.model, system: systemFor(a), tools: [...allowed.map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : a.code ? [{ type: 'code_execution_20260521', name: 'code_execution' }] : [])] };
+}
+
 async function exec(use, ctx, allowed) {
   const t = TOOLS[use.name];
   if (!t || !allowed.has(use.name)) return { content: `Tool ${use.name} is not available to you`, is_error: true };
