@@ -46,5 +46,12 @@
 ## 4.6.0
 - Vault nudge: 2 minutes after a restart, if the vault is still locked and integrations are saved, the owner gets one alert (Telegram, or a dashboard pop-up if they're at the desk) naming the affected integrations. At most every 30 minutes. The vault stays passphrase-only (owner's choice).
 
+## 4.7.0 (early piece of Build 6: data for backtests)
+- `kalshi_backtest_data`: settled markets in a series over the last N days (≤90) with the yes bid/ask from hourly candlesticks at a chosen local time before the outcome (DST-safe), the result, and each day's favorite. Public data (works with the vault locked), cached in a `cache` table, rate-limit backoff.
+- `kalshi_markets` fixed for Kalshi's switch to dollar-string fields (`*_dollars`); it's public now too. Portfolio parsing accepts both formats.
+- `weather_history`: official NOAA NCEI daily highs/lows. Verified that KXHIGHLAX settles in line with **LAX (USW00023174)**, not downtown (which runs ~5°F hotter); LAX is the default.
+- James has Anthropic code execution (`agents.code`) for exact backtest math. Riley has the three data tools.
+- 73 tests.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

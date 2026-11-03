@@ -72,6 +72,10 @@ const MIGRATIONS = [
    alter table reminders add column result text;
    update agents set concise = 2 where name in ('orchestrator', 'quick');`,
   `update agents set tools = case when tools = '' then 'read_document' else tools || ',read_document' end where name in ('researcher', 'critic') and tools not like '%read_document%';`,
+  `create table if not exists cache (key text primary key, value text, created_at text default current_timestamp);
+   alter table agents add column code integer not null default 0;
+   update agents set code = 1 where name = 'orchestrator';
+   update agents set tools = tools || ',kalshi_markets,kalshi_backtest_data,weather_history' where name = 'researcher' and tools not like '%kalshi_backtest_data%';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -91,8 +95,8 @@ const defaults = { timezone: 'America/Chicago', global_halt: '0', global_daily_b
 for (const [k, v] of Object.entries(defaults))
   db.prepare('insert or ignore into settings values (?, ?)').run(k, v);
 
-db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, display_name, concise)
-  values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3, 'James', 2)`).run();
+db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, display_name, concise, code)
+  values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3, 'James', 2, 1)`).run();
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name, concise)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
@@ -100,7 +104,7 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document', 1, 'Riley');
+seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history', 1, 'Riley');
 seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall,read_document', 1, 'Cleo');
 seed.run('reader', 'claude-haiku-4-5', null, 'Reads one downloaded PDF and answers a question about it. Has no tools.', 1, 4096, '', 0, 'Reader');
 seed.run('security', 'claude-haiku-4-5', null, 'Hourly security audit of the activity log. Looks for prompt injection being acted on, unexpected tool use, repeated blocked messages or wrong PINs, spending spikes, and anything off-pattern. Reports only real problems; trips the kill switch only for clear compromise.', 0.5, 2048, 'notify_owner,trip_kill_switch', 0, 'Sam');

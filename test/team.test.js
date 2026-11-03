@@ -24,7 +24,8 @@ const reset = () => db.exec("delete from approvals; delete from memory; delete f
 
 test('team is seeded with names, models and least-privilege tools', () => {
   const a = Object.fromEntries(db.prepare('select * from agents').all().map((r) => [r.name, r]));
-  assert.equal(a.researcher.display_name, 'Riley'); assert.equal(a.researcher.web, 1); assert.equal(a.researcher.tools, 'read_document');
+  assert.equal(a.researcher.display_name, 'Riley'); assert.equal(a.researcher.web, 1); assert.equal(a.researcher.tools, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history');
+  assert.equal(a.orchestrator.code, 1, 'James has code execution');
   assert.equal(a.critic.display_name, 'Cleo'); assert.equal(a.critic.tools, 'recall,read_document');
   assert.equal(a.security.display_name, 'Sam'); assert.equal(a.security.tools, 'notify_owner,trip_kill_switch');
 });
@@ -39,7 +40,7 @@ test('researcher gets hosted web tools (with caps) and only the safe document re
   const calls = fake({ 'claude-sonnet-5': [webReply('Etsy charges 6.5%.')] });
   assert.equal(await runAgent('researcher', 'what are etsy fees'), 'Etsy charges 6.5%.');
   const names = calls[0].tools.map((t) => t.type || t.name);
-  assert.deepEqual(names, ['read_document', 'web_search_20260209', 'web_fetch_20260209']);
+  assert.deepEqual(names, ['read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history', 'web_search_20260209', 'web_fetch_20260209']);
   assert.ok(calls[0].tools.filter((t) => t.type).every((t) => t.max_uses === 5));
   assert.ok(db.prepare("select count(*) n from activity where type = 'web'").get().n >= 1, 'searches show in the activity feed');
 });

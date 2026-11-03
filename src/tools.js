@@ -18,7 +18,7 @@ const str = (description) => ({ type: 'string', description });
 // Tools a created worker agent may be given (never create_agent, delegate, or the hidden internal ones).
 export const WORKER_TOOLS = ['remember', 'recall', 'link_memory', 'notify_owner', 'set_reminder', 'list_reminders', 'cancel_reminder', 'list_secrets',
   'project', 'list_projects', 'log_money', 'contact', 'list_contacts', 'draft_email', 'read_email', 'calendar_events', 'calendar_add',
-  'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets', 'read_document'];
+  'canvas_upcoming', 'canvas_grades', 'kalshi_portfolio', 'kalshi_markets', 'read_document', 'kalshi_backtest_data', 'weather_history'];
 
 export const TOOLS = {
   remember: tool('remember', 'Save or update a long-term memory about the owner, a project, a person, or a decision. Pass id to update. pinned=true puts it in every prompt (use for core facts only).',
@@ -169,9 +169,17 @@ export const TOOLS = {
   kalshi_portfolio: tool('kalshi_portfolio', "Read-only: the owner's Kalshi cash balance and open positions. Never imply a trade was placed; trading is not enabled.", {}, [],
     async () => JSON.stringify(await integ.kalshiPortfolio())),
 
-  kalshi_markets: tool('kalshi_markets', 'Read-only: open Kalshi markets with current yes bid/ask (in cents), volume and close time. Filter by series_ticker or event_ticker, or pass search words to match titles.',
-    { series_ticker: str('e.g. KXFED'), event_ticker: str('event ticker'), search: str('words that must appear in the market title'), limit: { type: 'integer' } }, [],
+  kalshi_markets: tool('kalshi_markets', 'Open Kalshi markets with current yes bid/ask and last price (in dollars per $1 contract), volume and close time. Public data: works even while the vault is locked. Filter by series_ticker (e.g. KXHIGHLAX) or event_ticker, or pass search words.',
+    { series_ticker: str('e.g. KXHIGHLAX'), event_ticker: str('event ticker'), search: str('words that must appear in the market title'), limit: { type: 'integer' } }, [],
     async (input) => JSON.stringify(await integ.kalshiMarkets(input))),
+
+  kalshi_backtest_data: tool('kalshi_backtest_data', 'For backtests: every settled market in a Kalshi series over the last N days (max 90), with the yes bid/ask at a chosen local time BEFORE the outcome was known (e.g. 10:00 on the day, or day_offset -1 at 20:00 for the evening before) and how each settled. Also lists each day\'s favorite at that time. Public data, cached. Fees not included.',
+    { series_ticker: str('e.g. KXHIGHLAX'), days: { type: 'integer' }, at_local_time: str('HH:MM, default 10:00'), day_offset: { type: 'integer', description: '0 = event day, -1 = day before' }, tz: str("IANA timezone of the market's city, e.g. America/Los_Angeles (default: owner's)") }, ['series_ticker'],
+    async (input) => JSON.stringify(await integ.kalshiBacktestData(input))),
+
+  weather_history: tool('weather_history', 'Official daily high/low temperature and precipitation from NOAA for a weather station and date range. Use it to verify temperatures from other sources and to backtest weather markets. Stations: LAX USW00023174 (default; Kalshi's LA high-temperature markets KXHIGHLAX settle in line with LAX, not downtown), LA Downtown USW00093134 (runs several degrees hotter), NYC Central Park USW00094728, Chicago Midway USW00014819, Miami USW00012839, Austin USW00013904, Denver USW00003017, Philadelphia USW00013739. Check the Kalshi market rules for which station it settles on.',
+    { station: str('GHCN-Daily station id'), start: str('YYYY-MM-DD'), end: str('YYYY-MM-DD') }, ['start', 'end'],
+    async (input) => JSON.stringify(await integ.weatherHistory(input))),
 
   delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea.',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],

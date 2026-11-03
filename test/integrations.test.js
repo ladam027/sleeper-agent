@@ -97,3 +97,36 @@ test('after a restart, a locked vault with integrations triggers one nudge (not 
   assert.equal(await jobs.vaultNudge(Date.now() + 31 * 60e3), 'sent', 'again after 30 minutes if still locked');
   vault.unlock('correct horse battery');
 });
+
+test('backtest data: settled markets with the pre-outcome price at the chosen local time, cached; dollars parsed', async () => {
+  const seen = [];
+  integ.deps.fetch = async (url) => {
+    seen.push(url);
+    const ok = (j) => ({ ok: true, status: 200, json: async () => j });
+    if (url.includes('/markets?')) return ok({ markets: [
+      { ticker: 'KXHIGHLAX-26NOV01-B69.5', event_ticker: 'KXHIGHLAX-26NOV01', yes_sub_title: '69° to 70°', result: 'no', close_time: new Date().toISOString() },
+      { ticker: 'KXHIGHLAX-26NOV01-T70', event_ticker: 'KXHIGHLAX-26NOV01', yes_sub_title: '71° or above', result: 'yes', close_time: new Date().toISOString() },
+    ] });
+    if (url.includes('/candlesticks')) {
+      const end = Number(new URL(url).searchParams.get('end_ts'));
+      return ok({ candlesticks: [{ end_period_ts: end - 3600, yes_ask: { close_dollars: url.includes('T70') ? '0.3700' : '0.4500' }, yes_bid: { close_dollars: '0.3500' }, price: { close_dollars: '0.3600' }, volume_fp: '12.00' }] });
+    }
+    return ok({});
+  };
+  const d = await integ.kalshiBacktestData({ series_ticker: 'KXHIGHLAX', days: 5, at_local_time: '10:00', tz: 'America/Los_Angeles' });
+  assert.equal(d.rows.length, 2);
+  assert.deepEqual(d.favorites[0], { date: '2026-11-01', favorite: '69° to 70°', ask: 0.45, won: false });
+  const candle = new URL(seen.find((u) => u.includes('T70/candlesticks')));
+  assert.equal(Number(candle.searchParams.get('end_ts')), Date.parse('2026-11-01T18:00:00Z') / 1000, '10:00 PST on the event day (DST ended at 2am)');
+  const before = seen.length;
+  await integ.kalshiBacktestData({ series_ticker: 'KXHIGHLAX', days: 5, at_local_time: '10:00', tz: 'America/Los_Angeles' });
+  assert.equal(seen.filter((u) => u.includes('candlesticks')).length, 2, 'second run uses the cache');
+  assert.ok(seen.length > before);
+  await assert.rejects(integ.kalshiBacktestData({ series_ticker: 'bad ticker!' }), /series_ticker/);
+});
+
+test('weather history from NOAA is parsed and validated', async () => {
+  integ.deps.fetch = async (url) => ({ ok: true, status: 200, json: async () => (assert.match(url, /stations=USW00023174/), [{ DATE: '2026-10-05', TMAX: '104', TMIN: '77', PRCP: '0.00' }]) });
+  assert.deepEqual((await integ.weatherHistory({ start: '2026-10-05', end: '2026-10-05' })).days, [{ date: '2026-10-05', high_f: 104, low_f: 77, precip_in: 0 }]);
+  await assert.rejects(integ.weatherHistory({ station: 'LAX', start: '2026-10-01', end: '2026-10-02' }), /GHCN/);
+});

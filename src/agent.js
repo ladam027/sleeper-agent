@@ -9,7 +9,7 @@ export const deps = { client: null }; // tests swap in a fake
 export const client = () => (deps.client ??= new Anthropic());
 const running = new Map(); // agent name -> AbortController of its in-flight run
 
-const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document']); // ceiling for delegated runs
+const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
 const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document']);
 const WEB_SEARCH_USES = 5; // per model request, keeps a research run from burning searches
@@ -107,7 +107,9 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
   const allowed = new Set(Object.keys(TOOLS).filter((k) => k !== 'escalate'
     && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k))));
   if (opts.canEscalate) allowed.add('escalate');
-  const tools = [...[...allowed].map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : [])];
+  // Code execution (Anthropic's sandbox, no internet) for exact math on data already in the conversation.
+  // Not combined with the web tools, which run their own sandbox.
+  const tools = [...[...allowed].map((k) => TOOLS[k].def), ...(a.web ? webTools(a.model) : a.code ? [{ type: 'code_execution_20260521', name: 'code_execution' }] : [])];
   // The owner's original request, so a budget-stopped task can resume after the owner approves more budget.
   const root = opts.root || (depth === 0 ? { agent: name, text, thread } : null);
   const ctx = { agent: name, depth, run: runAgent, tainted: !!opts.tainted, root };
