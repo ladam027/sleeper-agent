@@ -6,45 +6,56 @@
 <title>Sleeper Agent</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 /* ── Tokens: primitive → semantic. Components only use semantic tokens. See docs/DESIGN.md ── */
 :root {
-  --violet-50:#f3f0ff; --violet-100:#e9e3ff; --violet-400:#8b72ff; --violet-500:#6d4aff; --violet-600:#5a37ef;
-  --night-900:#140f2e; --night-700:#2a1f66; --night-600:#3b2a8c;
-  --gray-0:#ffffff; --gray-25:#fafafe; --gray-50:#f4f3fb; --gray-100:#eceaf5; --gray-200:#e3e0ef; --gray-500:#5d5a74; --gray-900:#17152b;
-  --green-600:#13804a; --amber-600:#b45309; --red-600:#c42b2b; --blue-600:#2563eb;
+  --violet-400:#8b72ff; --violet-500:#6d4aff; --violet-600:#5a37ef; --cyan-400:#22d3ee; --cyan-500:#06b6d4;
+  --night-900:#0d0a24; --night-700:#22195c; --night-600:#33248a;
 
-  --bg: var(--gray-50);
-  --surface: var(--gray-0);
-  --surface-2: var(--gray-25);
-  --sunken: var(--gray-100);
-  --ink: var(--gray-900);
-  --ink-2: var(--gray-500);
-  --line: var(--gray-200);
+  --bg: #f6f6f9;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-2: #fafafc;
+  --sunken: #f0f0f4;
+  --ink: #09090b;
+  --ink-2: #5d5d6b;
+  --line: #e5e5ec;
+  --line-strong: #d4d4de;
   --brand: var(--violet-500);
   --brand-hover: var(--violet-600);
-  --brand-soft: var(--violet-50);
+  --brand-2: var(--cyan-500);
+  --brand-soft: rgb(109 74 255 / .08);
   --brand-ink: #fff;
-  --ok: var(--green-600); --warn: var(--amber-600); --bad: var(--red-600); --info: var(--blue-600);
+  --ok: #138a4f; --warn: #b45309; --bad: #c42b2b; --info: #2563eb;
   --hero-a: var(--night-900); --hero-b: var(--night-600);
-  --shadow: 0 1px 2px rgb(23 21 43 / .04), 0 4px 16px rgb(23 21 43 / .04);
-  --ring: 0 0 0 3px rgb(109 74 255 / .35);
+  --glass: rgb(255 255 255 / .72);
+  --shadow: 0 1px 0 rgb(9 9 11 / .03), 0 1px 3px rgb(9 9 11 / .04), 0 10px 30px -14px rgb(9 9 11 / .14);
+  --shadow-hover: 0 1px 0 rgb(9 9 11 / .03), 0 4px 10px rgb(9 9 11 / .05), 0 22px 44px -18px rgb(109 74 255 / .28);
+  --ring: 0 0 0 3px rgb(109 74 255 / .30);
+  --aurora-1: rgb(109 74 255 / .16); --aurora-2: rgb(6 182 212 / .12); --grid: rgb(9 9 11 / .045);
 
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-pill: 999px;
+  --font: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
-  --ease: cubic-bezier(.16, 1, .3, 1);
+  --ease: cubic-bezier(.16, 1, .3, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg:#0c0b14; --surface:#15131f; --surface-2:#1a1826; --sunken:#211e30; --ink:#ecebf5; --ink-2:#a3a0ba; --line:#2a2740;
-  --brand: var(--violet-400); --brand-hover:#a08cff; --brand-soft: rgb(139 114 255 / .14);
-  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --shadow: none;
+  --bg:#050508; --surface: rgb(18 18 25 / .72); --surface-solid:#111118; --surface-2:#13131b; --sunken:#1b1b25; --ink:#ededf2; --ink-2:#9d9db0; --line: rgb(255 255 255 / .08); --line-strong: rgb(255 255 255 / .14);
+  --brand: var(--violet-400); --brand-hover:#a28fff; --brand-2: var(--cyan-400); --brand-soft: rgb(139 114 255 / .14);
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --glass: rgb(12 12 18 / .62);
+  --shadow: 0 0 0 1px rgb(255 255 255 / .02), 0 18px 40px -22px rgb(0 0 0 / .8);
+  --shadow-hover: 0 0 0 1px rgb(139 114 255 / .18), 0 24px 50px -22px rgb(139 114 255 / .35);
+  --aurora-1: rgb(139 114 255 / .22); --aurora-2: rgb(34 211 238 / .12); --grid: rgb(255 255 255 / .035);
 } }
 :root[data-theme="dark"] {
-  --bg:#0c0b14; --surface:#15131f; --surface-2:#1a1826; --sunken:#211e30; --ink:#ecebf5; --ink-2:#a3a0ba; --line:#2a2740;
-  --brand: var(--violet-400); --brand-hover:#a08cff; --brand-soft: rgb(139 114 255 / .14);
-  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --shadow: none;
+  --bg:#050508; --surface: rgb(18 18 25 / .72); --surface-solid:#111118; --surface-2:#13131b; --sunken:#1b1b25; --ink:#ededf2; --ink-2:#9d9db0; --line: rgb(255 255 255 / .08); --line-strong: rgb(255 255 255 / .14);
+  --brand: var(--violet-400); --brand-hover:#a28fff; --brand-2: var(--cyan-400); --brand-soft: rgb(139 114 255 / .14);
+  --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --info:#60a5fa; --glass: rgb(12 12 18 / .62);
+  --shadow: 0 0 0 1px rgb(255 255 255 / .02), 0 18px 40px -22px rgb(0 0 0 / .8);
+  --shadow-hover: 0 0 0 1px rgb(139 114 255 / .18), 0 24px 50px -22px rgb(139 114 255 / .35);
+  --aurora-1: rgb(139 114 255 / .22); --aurora-2: rgb(34 211 238 / .12); --grid: rgb(255 255 255 / .035);
 }
 
 /* ── Base ── */
@@ -231,11 +242,25 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .login form { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s5); text-align: left; }
 
 /* Memory + costs */
-#graph { width: 100%; height: 62vh; min-height: 360px; border-radius: var(--r-md); background: var(--surface-2); touch-action: none; display: block; }
-#graph text { fill: var(--ink); font: 500 11.5px var(--font); }
-#graph line { stroke: var(--ink-2); stroke-opacity: .35; }
-#graph text.lbl { fill: var(--ink-2); font-size: 10.5px; }
-#graph circle { stroke: var(--surface); stroke-width: 3; }
+/* Memory graph */
+.graph-wrap { position: relative; }
+#graph { width: 100%; height: 64vh; min-height: 380px; border-radius: var(--r-md); touch-action: none; display: block; cursor: grab; user-select: none;
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 65%), var(--surface-2);
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 22px 22px; border: 1px solid var(--line); }
+#graph.panning { cursor: grabbing; }
+#gview.easing { transition: transform .4s var(--ease); }
+#graph text { fill: var(--ink); font: 500 11.5px var(--font); pointer-events: none; paint-order: stroke; stroke: var(--surface-2); stroke-width: 3px; stroke-linejoin: round; }
+#graph text.lbl { fill: var(--ink-2); font-size: 10px; letter-spacing: .02em; }
+#graph line.edge { stroke: color-mix(in srgb, var(--ink-2) 55%, transparent); stroke-width: 1.2; }
+#graph .node { cursor: pointer; animation: nodeIn .6s var(--ease) both; animation-delay: var(--d); }
+#graph .node .core { stroke: var(--surface); stroke-width: 2.5; transition: transform .2s var(--ease); }
+#graph .node .halo { opacity: 0; transition: opacity .2s; }
+#graph .node:hover .halo, #graph .node:focus-visible .halo, #graph .node.dragging .halo { opacity: .22; }
+#graph .node:hover .core, #graph .node.dragging .core { transform: scale(1.15); }
+#graph .node.dragging { cursor: grabbing; }
+@keyframes nodeIn { from { opacity: 0; } to { opacity: 1; } }
+.graph-tools { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.graph-tools .btn { backdrop-filter: blur(10px); background: color-mix(in srgb, var(--surface) 80%, transparent); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--s3); font-size: 12px; color: var(--ink-2); margin-top: var(--s3); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 50%; }
@@ -270,13 +295,101 @@ td.r, th.r { text-align: right; }
 .seg button { border: 0; background: none; padding: 5px 12px; border-radius: var(--r-pill); cursor: pointer; font-size: 13px; color: var(--ink-2); }
 .seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
 #statAgents th, #statAgents td { padding-right: 14px; } #statAgents th:last-child, #statAgents td:last-child { padding-right: 0; }
-dialog.preview { width: min(1200px, 96vw); height: 92vh; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0; background: var(--surface); color: var(--ink); }
+dialog.preview { width: min(1200px, 96vw); height: 92vh; border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0; background: var(--surface-solid); color: var(--ink); }
 dialog.preview::backdrop { background: rgb(0 0 0 / .55); }
 dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 auto; height: calc(92vh - 58px); transition: width .2s var(--ease); }
 .stack-bar { display: flex; height: 14px; border-radius: var(--r-pill); overflow: hidden; background: var(--sunken); }
 .stack-bar i { display: block; height: 100%; }
 @media (max-width: 560px) { .kpis { gap: var(--s3); } .kpi .v { font-size: 22px; } .tiles { flex-wrap: wrap; } .tile { min-width: calc(50% - 6px); } .hero { padding: var(--s4); } .top h1 { font-size: 18px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ═══ Enterprise layer: depth, glass, motion. Overrides the base rules above. ═══ */
+html { color-scheme: light dark; }
+body { letter-spacing: -.005em; }
+::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+body::before { content: ''; position: fixed; inset: -20vmax; z-index: -2; pointer-events: none;
+  background: radial-gradient(40vmax 30vmax at 15% 10%, var(--aurora-1), transparent 60%), radial-gradient(36vmax 28vmax at 85% 15%, var(--aurora-2), transparent 60%),
+    radial-gradient(30vmax 30vmax at 60% 100%, var(--aurora-1), transparent 65%);
+  filter: blur(20px); animation: aurora 28s ease-in-out infinite alternate; }
+body::after { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%); -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 75%); }
+@keyframes aurora { 0% { transform: translate3d(0, 0, 0) rotate(0deg); } 50% { transform: translate3d(3vmax, 2vmax, 0) rotate(6deg); } 100% { transform: translate3d(-2vmax, 3vmax, 0) rotate(-4deg); } }
+
+.num, .kpi .v, .tile .v, .agent .budget b, td.num, .budget .num { font-family: var(--mono); font-feature-settings: 'tnum'; letter-spacing: -.02em; }
+.side { background: var(--glass); backdrop-filter: saturate(170%) blur(18px); -webkit-backdrop-filter: saturate(170%) blur(18px); view-transition-name: sidebar; }
+.top { background: var(--glass); backdrop-filter: saturate(170%) blur(18px); -webkit-backdrop-filter: saturate(170%) blur(18px); position: sticky; top: 0; z-index: 5; }
+.top h1 { font-size: 22px; letter-spacing: -.025em; background: linear-gradient(90deg, var(--ink), color-mix(in srgb, var(--ink) 60%, var(--brand))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo .mark { background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--brand) 70%, transparent), inset 0 1px 0 rgb(255 255 255 / .35); }
+.logo { letter-spacing: -.02em; }
+.nav { position: relative; transition: background .2s, color .2s, transform .2s var(--ease); }
+.nav:hover { transform: translateX(2px); }
+.nav[aria-current="page"] { background: linear-gradient(90deg, var(--brand-soft), transparent 120%); color: var(--ink); }
+.nav[aria-current="page"] svg.i { color: var(--brand); }
+.nav[aria-current="page"]::before { content: ''; position: absolute; left: -16px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0;
+  background: linear-gradient(var(--brand), var(--brand-2)); box-shadow: 0 0 12px var(--brand); animation: navIn .35s var(--ease); }
+@keyframes navIn { from { transform: scaleY(0); opacity: 0; } }
+.nav .count { background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 50%, transparent); }
+
+.card { position: relative; transition: transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.card::before { content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .35s;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 70%, transparent), transparent 40%, transparent 60%, color-mix(in srgb, var(--brand-2) 60%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.card:not(.chat):hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.card:hover::before { opacity: 1; }
+[data-panel]:not([hidden]) .card { animation: cardIn .7s var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.card-h h2 { letter-spacing: -.015em; }
+.ibox.brand { background: linear-gradient(135deg, var(--brand-soft), color-mix(in srgb, var(--brand-2) 10%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 18%, transparent); }
+
+.btn { position: relative; overflow: hidden; transition: background .2s, border-color .2s, transform .15s var(--spring), box-shadow .2s; }
+.btn:hover { background: var(--sunken); }
+.btn.primary { border-color: transparent; background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, var(--brand-2)));
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--brand) 80%, transparent), inset 0 1px 0 rgb(255 255 255 / .25); }
+.btn.primary:hover { background: linear-gradient(135deg, var(--brand-hover), color-mix(in srgb, var(--brand-hover) 50%, var(--brand-2))); box-shadow: 0 10px 26px -10px color-mix(in srgb, var(--brand) 90%, transparent), inset 0 1px 0 rgb(255 255 255 / .3); }
+.btn::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .28) 50%, transparent 65%); transform: translateX(-120%); pointer-events: none; }
+.btn:hover::after { transform: translateX(120%); transition: transform .7s var(--ease); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.progress { background: color-mix(in srgb, var(--ink) 7%, transparent); position: relative; }
+.progress > i { background: linear-gradient(90deg, var(--brand), var(--brand-2)); position: relative; overflow: hidden; transition: width 1s var(--ease); }
+.progress > i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .35), transparent); animation: shimmer 2.4s infinite; }
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.progress.warn > i { background: linear-gradient(90deg, var(--warn), #f59e0b); } .progress.bad > i { background: linear-gradient(90deg, var(--bad), #fb7185); }
+
+.hero { background: radial-gradient(120% 140% at 0% 0%, var(--hero-b) 0%, var(--hero-a) 58%), var(--hero-a); background-size: 200% 200%; animation: heroShift 16s ease-in-out infinite alternate; box-shadow: 0 30px 60px -30px rgb(51 36 138 / .6); }
+.hero::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgb(255 255 255 / .05) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .05) 1px, transparent 1px); background-size: 28px 28px; mask-image: linear-gradient(90deg, #000, transparent 70%); -webkit-mask-image: linear-gradient(90deg, #000, transparent 70%); pointer-events: none; }
+@keyframes heroShift { to { background-position: 100% 50%; } }
+.orb { position: relative; isolation: isolate; }
+.orb::before { content: ''; position: absolute; inset: -7px; border-radius: 50%; z-index: -1; background: conic-gradient(from 0deg, var(--brand), var(--brand-2), transparent 60%, var(--brand)); animation: spin 6s linear infinite;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px)); }
+.orb::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 25%, rgb(255 255 255 / .55), transparent 45%); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tile { backdrop-filter: blur(8px); transition: transform .3s var(--ease), background .3s; }
+.tile:hover { transform: translateY(-2px); background: rgb(255 255 255 / .1); }
+
+input, textarea, select { transition: border-color .2s, box-shadow .2s, background .2s; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: color-mix(in srgb, var(--brand) 60%, var(--line)); box-shadow: var(--ring); background: var(--surface-solid); }
+.pill { border: 1px solid transparent; }
+.pill.ok { border-color: color-mix(in srgb, var(--ok) 25%, transparent); } .pill.bad { border-color: color-mix(in srgb, var(--bad) 25%, transparent); }
+.pill.warn { border-color: color-mix(in srgb, var(--warn) 25%, transparent); } .pill.brand { border-color: color-mix(in srgb, var(--brand) 25%, transparent); }
+.status { background: var(--glass); backdrop-filter: blur(10px); }
+.msg.user { background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 70%, var(--brand-2))); box-shadow: 0 8px 20px -12px var(--brand); }
+.toast { background: var(--glass); backdrop-filter: saturate(170%) blur(16px); animation: toastIn .45s var(--spring); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(24px) scale(.96); } }
+.agent, .ap { transition: border-color .25s, background .25s; }
+.agent:hover, .ap:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); }
+.row { transition: background .2s; }
+#feed .row:hover, #reminders .row:hover, #contacts .row:hover { background: color-mix(in srgb, var(--brand) 4%, transparent); }
+.grow rect { transform-box: fill-box; transform-origin: bottom; animation: barGrow .8s var(--ease) both; }
+.grow rect:nth-child(odd) { animation-delay: .04s; } .grow rect:nth-child(3n) { animation-delay: .08s; }
+@keyframes barGrow { from { transform: scaleY(0); } }
+::view-transition-old(root) { animation: .22s var(--ease) both vtOut; } ::view-transition-new(root) { animation: .4s var(--ease) both vtIn; }
+@keyframes vtOut { to { opacity: 0; transform: translateY(-6px); } } @keyframes vtIn { from { opacity: 0; transform: translateY(10px); } }
+.login .card { animation: cardIn .8s var(--ease) both; }
+.ready .orb { box-shadow: 0 0 60px color-mix(in srgb, var(--brand) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } .progress > i::after { display: none; } ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
 </style>
 </head>
 <body>
@@ -414,8 +527,16 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
     <!-- Memory -->
     <section class="content view-full" data-panel="memory" hidden>
       <div class="card">
-        <div class="card-h"><div><h2>Memory graph</h2><div class="sub">Click a node to edit · drag to rearrange</div></div></div>
-        <svg id="graph" role="img" aria-label="Memory graph"></svg>
+        <div class="card-h"><div><h2>Memory graph</h2><div class="sub">Click a memory to edit · drag to move it · drag the background to pan · scroll or pinch to zoom</div></div></div>
+        <div class="graph-wrap">
+          <svg id="graph" role="img" aria-label="Memory graph. Drag memories, drag empty space to pan, scroll to zoom."></svg>
+          <div class="graph-tools" role="toolbar" aria-label="Graph controls">
+            <button class="btn sm icon" type="button" aria-label="Zoom in" title="Zoom in" onclick="graphZoom(1.25)"><svg class="i"><use href="#i-plus"/></svg></button>
+            <button class="btn sm icon" type="button" aria-label="Zoom out" title="Zoom out" onclick="graphZoom(0.8)"><svg class="i"><use href="#i-minus"/></svg></button>
+            <button class="btn sm icon" type="button" aria-label="Fit to screen" title="Fit to screen" onclick="fitGraph()"><svg class="i"><use href="#i-fit"/></svg></button>
+            <button class="btn sm icon" type="button" aria-label="Shake layout" title="Shake layout" onclick="shuffleGraph()"><svg class="i"><use href="#i-rotate"/></svg></button>
+          </div>
+        </div>
         <div class="legend" id="legend"></div>
       </div>
       <div class="stack">
@@ -901,6 +1022,8 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-9"/></symbol>
   <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6C22 6 17.5 2 12 2z"/></symbol>
   <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -942,10 +1065,31 @@ async function call(path, method = 'GET', body) {
 $('#loginForm').onsubmit = (e) => { e.preventDefault(); token = $('#tokenIn').value.trim(); store.set('token', token); refresh(); };
 $('#logout').onclick = () => { store.set('token', ''); token = ''; refresh(); };
 
+// Cards enter one after another: each card's position in its panel sets its delay.
+document.querySelectorAll('[data-panel]').forEach((panel) => panel.querySelectorAll('.card').forEach((c, i) => c.style.setProperty('--i', Math.min(i, 10))));
+const motionOk = () => !matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Numbers ease from their previous value to the new one.
+function countTo(el, to, fmt) {
+  const from = Number(el.dataset.v ?? to), target = Number(to) || 0;
+  el.dataset.v = target;
+  if (!motionOk() || from === target) { el.textContent = fmt(target); return; }
+  const t0 = performance.now(), dur = 700, isInt = Number.isInteger(target) && Number.isInteger(from);
+  const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3), v = from + (target - from) * e;
+    el.textContent = fmt(isInt ? Math.round(v) : v); if (k < 1 && Number(el.dataset.v) === target) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 function show(v) {
-  view = v;
-  document.querySelectorAll('.nav').forEach((b) => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
-  document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== v);
+  const swap = () => {
+    view = v;
+    document.querySelectorAll('.nav').forEach((b) => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+    document.querySelectorAll('[data-panel]').forEach((p) => p.hidden = p.dataset.panel !== v);
+    // Charts grow in when a page opens (not on every 4-second refresh).
+    document.querySelectorAll(`[data-panel="${v}"] svg[role="img"]`).forEach((g) => { g.classList.remove('grow'); void g.getBoundingClientRect(); g.classList.add('grow'); setTimeout(() => g.classList.remove('grow'), 1500); });
+    scrollTo({ top: 0 });
+  };
+  if (document.startViewTransition && motionOk() && v !== view && document.visibilityState === 'visible') {
+    const t = document.startViewTransition(swap); t.ready.catch(() => {}); t.finished.catch(() => {});
+  } else swap();
   if (v === 'memory') loadMemory();
   if (v === 'money') { drawCosts(); loadMoney(); }
   if (v === 'clients') loadMoney();
@@ -990,22 +1134,22 @@ async function refresh() {
   $('#heroTag').textContent = halted ? 'Halted' : busy.length ? 'Agent · live' : 'Agent · standing by';
   $('#heroLine').textContent = halted ? 'All agents are paused by the kill switch' : busy.length ? `${busy.map((a) => a.display_name || roleOf(a.name)).join(', ')} working on: ${lastTask?.detail || 'a task'}` : lastTask ? `Last task: ${lastTask.detail}` : 'Ready when you are';
   $('#heroChips').innerHTML = [orch && `${orch.model}`, ...activity.filter((a) => a.type === 'tool').slice(0, 2).map((a) => a.detail.split(' ')[0])].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('');
-  $('#tTasks').textContent = stats.tasks24h ?? 0;
-  $('#tTools').textContent = stats.tools24h ?? 0;
-  $('#tSpend').textContent = money(costs.today);
+  countTo($('#tTasks'), stats.tasks24h ?? 0, String);
+  countTo($('#tTools'), stats.tools24h ?? 0, String);
+  countTo($('#tSpend'), costs.today, money);
   const week = [...costs.daily].slice(0, 10).reverse(), wmax = Math.max(.0001, ...week.map((d) => d.usd));
   $('#tBars').innerHTML = week.map((d) => `<i style="height:${Math.max(3, d.usd / wmax * 22)}px"></i>`).join('');
 
   // KPIs
   const cap = s.globalCap ?? +settings.global_daily_budget_usd, monthCap = +settings.global_daily_budget_usd * 30;
   const now = new Date(), dom = now.getDate(), dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  $('#kToday').textContent = money(costs.today); $('#kTodaySub').textContent = `of ${money(cap)} daily cap`;
+  countTo($('#kToday'), costs.today, money); $('#kTodaySub').textContent = `of ${money(cap)} daily cap`;
   const pt = pct(costs.today, cap); $('#kTodayPct').textContent = pt.toFixed(0) + '%'; setBar('#kTodayBar', pt);
   $('#kMonth').textContent = money(costs.month); $('#kMonthSub').textContent = `on track for ${money(costs.month / dom * dim)}`;
   const pm = pct(costs.month, monthCap); $('#kMonthPct').textContent = pm.toFixed(0) + '%'; setBar('#kMonthBar', pm);
-  $('#kMem').textContent = stats.memories ?? '—'; $('#kMemSub').textContent = `${stats.pinned ?? 0} pinned core facts`;
+  countTo($('#kMem'), stats.memories ?? 0, String); $('#kMemSub').textContent = `${stats.pinned ?? 0} pinned core facts`;
   $('#kPinPct').textContent = `${stats.pinned ?? 0}/10`; $('#kPinBar').firstElementChild.style.width = pct(stats.pinned, 10) + '%';
-  $('#kAp').textContent = approvals.length; $('#kApSub').textContent = approvals.length ? `oldest ${ago(approvals[0].ts)}` : 'nothing waiting';
+  countTo($('#kAp'), approvals.length, String); $('#kApSub').textContent = approvals.length ? `oldest ${ago(approvals[0].ts)}` : 'nothing waiting';
   const visible = agents.filter((a) => !INTERNAL.has(a.name)), live = visible.filter((a) => a.status !== 'killed').length;
   $('#kActive').textContent = `${live}/${visible.length}`; $('#kActiveBar').firstElementChild.style.width = pct(live, visible.length) + '%';
 
@@ -1242,36 +1386,101 @@ $('#setForm').onsubmit = async (e) => {
   if (r.error) alert(r.error); refresh();
 };
 
-// ── Memory graph: tiny force layout, no library ──
-const KINDS = { person: '#e11d48', project: '#6d4aff', preference: '#0891b2', fact: '#16a34a', decision: '#d97706', note: '#7c7a92' };
+// ── Memory graph: live force simulation, drag nodes, pan, zoom (no library) ──
+// ponytail: O(n²) repulsion each frame; smooth to a few hundred memories, use a quadtree (Barnes-Hut) beyond that.
+const KINDS = { person: '#f43f5e', project: '#8b5cf6', preference: '#06b6d4', fact: '#22c55e', decision: '#f59e0b', note: '#94a3b8' };
 $('#legend').innerHTML = Object.entries(KINDS).map(([k, c]) => `<span><i style="background:${c}"></i>${k}</span>`).join('');
 let mem = { nodes: [], links: [] }, pos = {};
-async function loadMemory() { const m = await call('memory'); if (m.error) return; mem = m; renderList(); layout(); }
-function layout() {
+const GV = { x: 0, y: 0, k: 1, alpha: 0, raf: 0, drag: null, pan: null, pointers: new Map(), pinch: null, els: null };
+async function loadMemory() { const m = await call('memory'); if (m.error) return; mem = m; renderList(); buildGraph(); }
+const SVGNS = 'http://www.w3.org/2000/svg', svgEl = (t, a = {}) => { const e = document.createElementNS(SVGNS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+function buildGraph() {
   const svg = $('#graph'), W = svg.clientWidth || 800, H = svg.clientHeight || 500;
-  mem.nodes.forEach((n) => pos[n.id] ??= { x: W / 2 + (Math.random() - .5) * W * .6, y: H / 2 + (Math.random() - .5) * H * .6 });
-  for (let it = 0; it < 200; it++) { // ponytail: O(n²) repulsion; fine to ~500 memories, use d3-force beyond that
-    for (const a of mem.nodes) for (const b of mem.nodes) if (a.id < b.id) {
-      const p = pos[a.id], q = pos[b.id], dx = p.x - q.x || .1, dy = p.y - q.y || .1, f = 900 / (dx * dx + dy * dy);
-      p.x += dx * f; p.y += dy * f; q.x -= dx * f; q.y -= dy * f;
-    }
-    for (const l of mem.links) { const p = pos[l.src], q = pos[l.dst]; if (!p || !q) continue; const dx = q.x - p.x, dy = q.y - p.y; p.x += dx * .02; p.y += dy * .02; q.x -= dx * .02; q.y -= dy * .02; }
-    for (const n of mem.nodes) { const p = pos[n.id]; p.x += (W / 2 - p.x) * .01; p.y += (H / 2 - p.y) * .01; p.x = Math.max(24, Math.min(W - 120, p.x)); p.y = Math.max(24, Math.min(H - 24, p.y)); }
+  mem.nodes.forEach((n, i) => { const a = i * 2.399963; pos[n.id] ??= { x: W / 2 + Math.cos(a) * 30 * Math.sqrt(i + 1), y: H / 2 + Math.sin(a) * 30 * Math.sqrt(i + 1), vx: 0, vy: 0 }; });
+  svg.innerHTML = `<defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  const view = svgEl('g', { id: 'gview' }), gl = svgEl('g'), gn = svgEl('g');
+  view.append(gl, gn); svg.append(view);
+  if (!mem.nodes.length) { svg.append(Object.assign(svgEl('text', { x: '50%', y: '50%', 'text-anchor': 'middle', class: 'lbl' }), { textContent: 'No memories yet. Chat with your agent or add one on the right.' })); return; }
+  const links = mem.links.filter((l) => pos[l.src] && pos[l.dst]).map((l) => {
+    const line = svgEl('line', { class: 'edge' }), label = svgEl('text', { class: 'lbl', 'text-anchor': 'middle' });
+    label.textContent = l.label; gl.append(line, label); return { l, line, label };
+  });
+  const deg = {}; for (const l of mem.links) { deg[l.src] = (deg[l.src] || 0) + 1; deg[l.dst] = (deg[l.dst] || 0) + 1; }
+  const nodes = mem.nodes.map((n, i) => {
+    const g = svgEl('g', { class: 'node', tabindex: '0', role: 'button', 'aria-label': n.title, 'data-id': n.id, style: `--d:${i * 25}ms` });
+    const r = (n.pinned ? 11 : 8) + Math.min(deg[n.id] || 0, 6);
+    g.append(svgEl('circle', { class: 'halo', r: r + 7, fill: KINDS[n.kind] || KINDS.note }), svgEl('circle', { class: 'core', r, fill: KINDS[n.kind] || KINDS.note, ...(n.pinned ? { filter: 'url(#glow)' } : {}) }));
+    const t = svgEl('text', { x: r + 7, y: 4 }); t.textContent = n.title.slice(0, 32); g.append(t);
+    g.onkeydown = (e) => { if (e.key === 'Enter') editMem(n); };
+    gn.append(g); return { n, g, r };
+  });
+  GV.els = { view, links, nodes };
+  applyView(); kick(1);
+  clearTimeout(GV.fitT); GV.fitT = setTimeout(fitGraph, 1400); // frame everything once the layout has mostly settled
+}
+const applyView = () => GV.els?.view.setAttribute('transform', `translate(${GV.x} ${GV.y}) scale(${GV.k})`);
+function kick(a = 0.5) { GV.alpha = Math.max(GV.alpha, a); if (!GV.raf) GV.raf = requestAnimationFrame(tick); }
+function tick() {
+  GV.raf = 0;
+  const { nodes, links } = GV.els || {}; if (!nodes) return;
+  const svg = $('#graph'), W = svg.clientWidth, H = svg.clientHeight, a = GV.alpha;
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+    const p = pos[nodes[i].n.id], q = pos[nodes[j].n.id], dx = p.x - q.x || 0.01, dy = p.y - q.y || 0.01, d2 = Math.max(dx * dx + dy * dy, 80), f = 5200 / d2 * a;
+    p.vx += dx * f / Math.sqrt(d2); p.vy += dy * f / Math.sqrt(d2); q.vx -= dx * f / Math.sqrt(d2); q.vy -= dy * f / Math.sqrt(d2);
   }
-  draw();
+  for (const { l } of links) { const p = pos[l.src], q = pos[l.dst], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1, f = (d - 150) * 0.025 * a;
+    p.vx += dx / d * f; p.vy += dy / d * f; q.vx -= dx / d * f; q.vy -= dy / d * f; }
+  for (const { n } of nodes) { const p = pos[n.id];
+    if (GV.drag?.id === n.id) { p.vx = p.vy = 0; continue; }
+    p.vx += ((W / 2 - GV.x) / GV.k - p.x) * 0.0015 * a; p.vy += ((H / 2 - GV.y) / GV.k - p.y) * 0.0015 * a;
+    p.vx *= 0.82; p.vy *= 0.82; p.x += p.vx; p.y += p.vy; }
+  for (const { l, line, label } of links) { const p = pos[l.src], q = pos[l.dst];
+    line.setAttribute('x1', p.x); line.setAttribute('y1', p.y); line.setAttribute('x2', q.x); line.setAttribute('y2', q.y);
+    label.setAttribute('x', (p.x + q.x) / 2); label.setAttribute('y', (p.y + q.y) / 2 - 5); }
+  for (const { n, g } of nodes) g.setAttribute('transform', `translate(${pos[n.id].x} ${pos[n.id].y})`);
+  GV.alpha *= GV.drag ? 1 : 0.975;
+  if (GV.alpha > 0.005 || GV.drag) GV.raf = requestAnimationFrame(tick);
 }
-function draw() {
-  const svg = $('#graph');
-  svg.innerHTML = mem.links.filter((l) => pos[l.src] && pos[l.dst]).map((l) => { const p = pos[l.src], q = pos[l.dst];
-    return `<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}"/><text class="lbl" x="${(p.x + q.x) / 2}" y="${(p.y + q.y) / 2 - 4}" text-anchor="middle">${esc(l.label)}</text>`; }).join('')
-    + mem.nodes.map((n) => `<g data-id="${n.id}" style="cursor:pointer" tabindex="0" role="button" aria-label="${esc(n.title)}"><circle cx="${pos[n.id].x}" cy="${pos[n.id].y}" r="${n.pinned ? 12 : 9}" fill="${KINDS[n.kind] || KINDS.note}"/><text x="${pos[n.id].x + 16}" y="${pos[n.id].y + 4}">${esc(n.title.slice(0, 30))}</text></g>`).join('')
-    || `<text x="50%" y="50%" text-anchor="middle" class="lbl">No memories yet. Chat with your agent or add one on the right.</text>`;
-  svg.querySelectorAll('g').forEach((g) => g.onkeydown = (e) => { if (e.key === 'Enter') editMem(mem.nodes.find((n) => n.id === +g.dataset.id)); });
+const toWorld = (e) => { const r = $('#graph').getBoundingClientRect(); return { x: (e.clientX - r.left - GV.x) / GV.k, y: (e.clientY - r.top - GV.y) / GV.k }; };
+function zoomAt(cx, cy, factor) {
+  const k = Math.min(3, Math.max(0.25, GV.k * factor)); factor = k / GV.k;
+  GV.x = cx - (cx - GV.x) * factor; GV.y = cy - (cy - GV.y) * factor; GV.k = k; applyView();
 }
-let drag = null, moved = false;
-$('#graph').onpointerdown = (e) => { const g = e.target.closest('g'); if (g) { drag = +g.dataset.id; moved = false; $('#graph').setPointerCapture(e.pointerId); } };
-$('#graph').onpointermove = (e) => { if (drag == null) return; const r = $('#graph').getBoundingClientRect(); pos[drag] = { x: e.clientX - r.left, y: e.clientY - r.top }; moved = true; draw(); };
-$('#graph').onpointerup = () => { if (drag != null && !moved) editMem(mem.nodes.find((n) => n.id === drag)); drag = null; };
+const graph = $('#graph');
+graph.addEventListener('pointerdown', (e) => {
+  try { graph.setPointerCapture(e.pointerId); } catch {} GV.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (GV.pointers.size === 2) { const [a, b] = [...GV.pointers.values()]; GV.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; GV.drag = GV.pan = null; return; }
+  const g = e.target.closest('g.node');
+  if (g) { const id = +g.dataset.id, w = toWorld(e); GV.drag = { id, dx: pos[id].x - w.x, dy: pos[id].y - w.y, sx: e.clientX, sy: e.clientY, moved: false }; g.classList.add('dragging'); kick(0.3); }
+  else { GV.pan = { sx: e.clientX, sy: e.clientY, x: GV.x, y: GV.y }; graph.classList.add('panning'); }
+});
+graph.addEventListener('pointermove', (e) => {
+  if (!GV.pointers.has(e.pointerId)) return;
+  GV.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (GV.pinch && GV.pointers.size === 2) { const [a, b] = [...GV.pointers.values()], d = Math.hypot(a.x - b.x, a.y - b.y), r = graph.getBoundingClientRect();
+    zoomAt((a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top, d / GV.pinch.d); GV.pinch.d = d; return; }
+  if (GV.drag) { const w = toWorld(e), p = pos[GV.drag.id]; p.x = w.x + GV.drag.dx; p.y = w.y + GV.drag.dy;
+    if (Math.hypot(e.clientX - GV.drag.sx, e.clientY - GV.drag.sy) > 4) GV.drag.moved = true; kick(0.3); }
+  else if (GV.pan) { GV.x = GV.pan.x + e.clientX - GV.pan.sx; GV.y = GV.pan.y + e.clientY - GV.pan.sy; applyView(); }
+});
+const endPointer = (e) => {
+  GV.pointers.delete(e.pointerId);
+  if (GV.pointers.size < 2) GV.pinch = null;
+  if (GV.drag) { const d = GV.drag; GV.drag = null; graph.querySelector(`g.node[data-id="${d.id}"]`)?.classList.remove('dragging'); if (!d.moved) editMem(mem.nodes.find((n) => n.id === d.id)); kick(0.2); }
+  GV.pan = null; graph.classList.remove('panning');
+};
+graph.addEventListener('pointerup', endPointer); graph.addEventListener('pointercancel', endPointer);
+graph.addEventListener('wheel', (e) => { e.preventDefault(); const r = graph.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015))); }, { passive: false });
+function fitGraph() {
+  const ids = mem.nodes.map((n) => pos[n.id]).filter(Boolean); if (!ids.length) return;
+  const xs = ids.map((p) => p.x), ys = ids.map((p) => p.y), W = graph.clientWidth, H = graph.clientHeight;
+  const minX = Math.min(...xs) - 40, maxX = Math.max(...xs) + 180, minY = Math.min(...ys) - 40, maxY = Math.max(...ys) + 40;
+  GV.k = Math.min(2, Math.max(0.25, Math.min(W / (maxX - minX), H / (maxY - minY)))); GV.x = (W - (minX + maxX) * GV.k) / 2; GV.y = (H - (minY + maxY) * GV.k) / 2;
+  GV.els?.view.classList.add('easing'); applyView(); setTimeout(() => GV.els?.view.classList.remove('easing'), 400);
+}
+window.graphZoom = (f) => { zoomAt(graph.clientWidth / 2, graph.clientHeight / 2, f); };
+window.fitGraph = fitGraph;
+window.shuffleGraph = () => { for (const n of mem.nodes) { const p = pos[n.id]; p.vx += (Math.random() - .5) * 30; p.vy += (Math.random() - .5) * 30; } kick(1); };
 function renderList() {
   const q = $('#memSearch').value.toLowerCase();
   $('#memList').innerHTML = mem.nodes.filter((n) => (n.title + n.body + n.tags).toLowerCase().includes(q))

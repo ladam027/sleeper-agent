@@ -18,3 +18,6 @@
 
 ## Part 2 (later)
 - Image generation (needs a provider key), short video, custom domains, post analytics into memory.
+
+## 5.2.0
+- Enterprise redesign (Geist, glass, aurora, gradient accent, motion layer; see docs/DESIGN.md) and a draggable memory graph (live physics, pan, zoom, pinch, fit).

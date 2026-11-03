@@ -1,18 +1,26 @@
-# Dashboard design system
+# Dashboard design system (v5.2 "enterprise")
 
-Inspired by Molar AI (layout, hero card, KPI cards, chat rail), AI Agent Control Centre (agent and approval cards, "AI is ready" orb), and Crypto AI Agent (dark hero, live feed). Generated with ui-ux-pro-max (style: Modern Dark / soft light, density 8, motion 3), then tuned.
+Reference points: Linear / Vercel-style consoles. Deep neutral surfaces, glass panels, hairline borders, one gradient accent (violet → cyan), restrained but rich motion.
 
-**Tokens** live in `:root` at the top of `public/index.html`: primitives (`--violet-500`, `--gray-50`…) feed semantic tokens (`--bg`, `--surface`, `--ink`, `--brand`, `--ok/--warn/--bad`). Components use only semantic tokens. Dark mode overrides the semantic layer (system preference, or `data-theme` set from Settings).
+**Tokens** (top of `public/index.html`, `:root`; dark overrides under `prefers-color-scheme` and `data-theme`). Components use only semantic tokens.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--brand` | #6d4aff | #8b72ff | primary actions, active nav, progress |
-| `--bg` / `--surface` | #f4f3fb / #fff | #0c0b14 / #15131f | page / cards |
-| `--ink` / `--ink-2` | #17152b / #5d5a74 | #ecebf5 / #a3a0ba | text / secondary (≥4.5:1) |
-| hero | #140f2e → #3b2a8c | same | the one dark "agent live" card |
+| `--brand` / `--brand-2` | #6d4aff / #06b6d4 | #8b72ff / #22d3ee | accent; gradients run brand → brand-2 |
+| `--bg` | #f6f6f9 | #050508 | page (with aurora + grid backdrop) |
+| `--surface` / `--surface-solid` | #fff | rgb(18 18 25 / .72) / #111118 | cards (glass in dark) / dialogs, focused inputs |
+| `--glass` | rgb(255 255 255 / .72) | rgb(12 12 18 / .62) | sidebar, header, toasts (with backdrop blur) |
+| `--ink` / `--ink-2` | #09090b / #5d5d6b | #ededf2 / #9d9db0 | text / secondary (≥4.5:1) |
+| `--line` / `--line-strong` | #e5e5ec / #d4d4de | 8% / 14% white | hairlines |
 
-**Type:** Inter 400/500/600/700, 14px base, tabular numbers for money. **Radius:** 8 / 12 / 18. **Spacing:** 4-pt scale (`--s1`…`--s8`). **Icons:** inline Lucide SVG sprite, no emoji.
+**Type:** Geist 400–700 (UI), Geist Mono (numbers, money, KPIs). **Radius:** 9 / 12 / 16. **Spacing:** 4-pt scale.
 
-**Components:** `.card`, `.btn` (`primary`, `danger`, `sm`, `icon`), `.pill` (`ok`, `warn`, `bad`, `brand`), `.progress` (auto warn ≥70%, bad ≥90%), `.ibox`, `.row` (feed/list), `.agent`, `.ap` (approval), `.hero`, `.tile`, `.kpi`.
+**Motion** (all off under `prefers-reduced-motion`):
+- Aurora backdrop drifts (28s), faint grid masked from the top.
+- Cards rise in staggered (`--i` per panel), with a gradient border and lift on hover.
+- Page changes use the View Transitions API (sidebar stays put).
+- Numbers count up (`countTo`), progress bars fill and shimmer, charts grow on page open (`.grow`, not on refresh).
+- Primary buttons have a light sweep; the agent orb has a rotating conic ring; toasts spring in.
+- Memory graph: live force simulation; drag nodes (neighbors follow), pan, wheel/pinch zoom, fit, shake.
 
-**Rules:** no new CSS colors outside `:root`; 36px+ hit targets (52px in the mobile tab bar); visible focus ring; respect `prefers-reduced-motion`; layout collapses at 1280px (chat moves below), 900px (bottom tab bar), 560px.
+**Rules:** no new colors outside `:root`; dynamic lists (agents, feed) don't animate on the 4-second refresh; 36px+ hit targets; visible focus ring; a dashboard script syntax test runs before every deploy.
