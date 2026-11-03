@@ -169,13 +169,15 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     await loc.press(String(key), { timeout: 10e3 }); return snap(s);
   }
   if (action === 'fill_secret') {
-    if (!['value', 'username'].includes(field)) throw new Error('field must be value (the password/key) or username');
     const item = vault.reveal(secret); // throws while locked
     if (!item) throw new Error(`No vault item "${secret}". Use list_secrets.`);
     const host = new URL(s.page.url()).hostname;
     if (!item.url || !sameSite(host, item.url)) throw new Error(`"${secret}" is saved for ${item.url || 'no website'}, not ${host}. Secrets are only typed on their own site (the owner can set the website on the vault item).`);
-    if (!item[field]) throw new Error(`"${secret}" has no ${field}`);
-    await loc.fill(item[field], { timeout: 10e3 });
+    // field: value / username, or one labeled part of the value ("Plate: 8ABC123 · VIN: 1HG…" → field "VIN").
+    const parts = Object.fromEntries(String(item.value || '').split(/\n|·|;|\|/).map((p) => /^\s*([^:]{1,40}):\s*(.+?)\s*$/.exec(p)).filter(Boolean).map((m) => [m[1].trim().toLowerCase(), m[2]]));
+    const fill = ['value', 'username'].includes(field) ? item[field] : parts[String(field).toLowerCase()];
+    if (!fill) throw new Error(`"${secret}" has no ${field}. Parts you can type: value${item.username ? ', username' : ''}${Object.keys(parts).length ? ', ' + Object.keys(parts).join(', ') : ''}.`);
+    await loc.fill(fill, { timeout: 10e3 });
     await loc.evaluate((e) => { e.dataset.saSecret = '1'; });
     s.logins.add(secret);
     log(agent, 'browser', `typed ${secret} ${field} into "${info.label}" on ${host}`); // never the value

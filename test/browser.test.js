@@ -127,3 +127,15 @@ test('after an approved browser step, the agent continues on its own and reports
   assert.match(db.prepare("select content from chat where role = 'assistant' order by id desc").get().content, /wrong password/);
   await b.close(id);
 });
+
+test('fill_secret types one labeled part of a personal item, only on its site, never shown', async () => {
+  vault.save({ name: 'car-details', kind: 'personal', value: 'Plate: 8ABC123 · VIN: 1HGTEST12345', url: 'https://canvas.example.edu' });
+  const o = await b.act({ action: 'open', url: 'https://canvas.example.edu/login' });
+  const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  did.length = 0;
+  const out = await b.act({ action: 'fill_secret', session: id, ref: 1, secret: 'car-details', field: 'VIN' });
+  assert.ok(did.includes('fill [data-sa-ref="1"] 1HGTEST12345'));
+  assert.ok(!out.includes('1HGTEST'));
+  await assert.rejects(b.act({ action: 'fill_secret', session: id, ref: 1, secret: 'car-details', field: 'color' }), /Parts you can type: value, plate, vin/);
+  await b.close(id);
+});

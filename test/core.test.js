@@ -119,6 +119,20 @@ test('auto mode: simple question stays on Haiku, heavy request goes to Opus, esc
   assert.equal(rows.length, 6, 'escalated attempt is not saved twice');
 });
 
+test('follow-ups to James stay with James; a fresh question still goes to Pete; vault-asking replies hand off', async () => {
+  reset();
+  const { auto, CANT } = await import('../src/agent.js');
+  let calls = fake([text('Plan ready')]);
+  await auto('plan my week around the Etsy launch');
+  calls = fake([text('Done')]);
+  await auto('add the car now');
+  assert.equal(calls[0].model, 'claude-opus-5-5', 'short instruction right after James answered');
+  calls = fake([text('Logan')]);
+  await auto('what is my name?');
+  assert.equal(calls[0].model, 'claude-haiku-4-5', 'a new question is still cheap');
+  for (const t of ["I see the car-details in your vault, but I can't read it", 'You need to pull the details from the vault and give me the VIN']) assert.ok(CANT.test(t), t);
+});
+
 test('system prompt stays identical within a run even when a tool edits a pinned memory', async () => {
   reset();
   const calls = fake([toolUse('remember', { title: 'Owner profile', body: 'Logan, 18', pinned: true }), text('saved')]);
