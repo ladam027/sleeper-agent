@@ -53,5 +53,13 @@
 - James has Anthropic code execution (`agents.code`) for exact backtest math. Riley has the three data tools.
 - 73 tests.
 
+## 4.8.0: Statistics + cost cuts
+- **Statistics tab** (`src/stats.js`, `/api/stats?span=`): spend, per-day, projected month and average call over today / 7 / 30 days / all; a per-agent table (calls, spend, share, per call, cache hits); a breakdown of what money paid for (output, cache writes, uncached input, cache reads, web searches, phone); daily spend by agent; Auto routing split; ranked insights with estimated monthly savings and one-click fixes (James low effort, shorter history).
+- **Cost fixes** (from the real ledger: cache writes were ~45% of James's spend; Pete had 19 cache writes and 0 reads):
+  - Prompt caching: the stable prefix (tools + system) is cached; the conversation is cached only from step 2 of a run.
+  - History: last 12 messages by default (`history_limit`, 2–40).
+  - Riley: 3 searches per step, fetched pages capped at 6,000 tokens.
+- Mobile tab bar shows icons only under 480px. 74 tests.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

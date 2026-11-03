@@ -11,6 +11,7 @@ import * as jobs from './jobs.js';
 import * as money from './money.js';
 import * as google from './google.js';
 import * as integrations from './integrations.js';
+import { stats } from './stats.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide } from './agent.js';
@@ -43,7 +44,7 @@ async function body(req) {
   return s ? JSON.parse(s) : {};
 }
 
-const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time'];
+const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit'];
 
 // Vault sessions: issued only for the passphrase, kept in memory, 15 minutes sliding. The dashboard token
 // alone (which is on disk in .env) can list item names but never see or change vault contents.
@@ -118,6 +119,7 @@ async function api(req, url) {
     if (b.timezone) TOOLS.set_timezone.run({ timezone: b.timezone });
     if (b.global_daily_budget_usd >= 0) set('global_daily_budget_usd', b.global_daily_budget_usd);
     for (const k of ['quiet_start', 'quiet_end']) if (b[k] !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b[k])) throw new Error('Quiet hours must be HH:MM'); set(k, b[k]); }
+    if (b.history_limit !== undefined) { const n = Number(b.history_limit); if (!(n >= 2 && n <= 40)) throw new Error('History must be 2-40 messages'); set('history_limit', Math.round(n)); }
     if (b.digest_time !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b.digest_time)) throw new Error('Briefing time must be HH:MM'); set('digest_time', b.digest_time); }
     if (b.sms_pin) { phone.setPin(b.sms_pin); log('owner', 'settings', 'SMS PIN changed'); }
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
@@ -140,6 +142,7 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'stats' && m === 'GET') return stats(url.searchParams.get('span') || '7d');
   if (route === 'boost' && m === 'POST') { // the owner's own click: raise a limit for today, no approval needed
     const { target, extra } = await body(req);
     if (target !== 'global' && !db.prepare('select 1 from agents where name = ?').get(target)) throw new Error('Unknown agent');

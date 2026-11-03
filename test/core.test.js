@@ -2,6 +2,7 @@
 process.env.DB_PATH = ':memory:';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+const sysText = (c) => typeof c.system === 'string' ? c.system : c.system.map((b) => b.text).join('');
 
 const { db, set } = await import('../src/db.js');
 const { costOf, record } = await import('../src/budget.js');
@@ -123,10 +124,10 @@ test('system prompt stays identical within a run even when a tool edits a pinned
   const calls = fake([toolUse('remember', { title: 'Owner profile', body: 'Logan, 18', pinned: true }), text('saved')]);
   assert.equal(await runAgent('orchestrator', 'here is my profile'), 'saved');
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].system, calls[1].system, 'changing it mid-run invalidates Opus thinking blocks (400)');
+  assert.equal(sysText(calls[0]), sysText(calls[1]), 'changing it mid-run invalidates Opus thinking blocks (400)');
   const next = fake([text('hi')]);
   await runAgent('orchestrator', 'hello');
-  assert.match(next[0].system, /Logan, 18/, 'the new pinned fact applies from the next message');
+  assert.match(sysText(next[0]), /Logan, 18/, 'the new pinned fact applies from the next message');
 });
 
 test('concise mode, effort and max reply length reach the API; a cut-off reply says so', async () => {
@@ -134,14 +135,14 @@ test('concise mode, effort and max reply length reach the API; a cut-off reply s
   db.exec("update agents set concise = 1, effort = 'low', max_tokens = 2000 where name = 'orchestrator'");
   let calls = fake([text('ok')]);
   await runAgent('orchestrator', 'hi');
-  assert.match(calls[0].system, /Reply style: concise/);
+  assert.match(sysText(calls[0]), /Reply style: concise/);
   assert.equal(calls[0].output_config.effort, 'low');
   assert.equal(calls[0].max_tokens, 2000);
 
   db.exec("update agents set concise = 0, effort = 'medium', max_tokens = null where name = 'orchestrator'");
   calls = fake([{ stop_reason: 'max_tokens', usage, content: [{ type: 'text', text: 'partial' }] }]);
   assert.match(await runAgent('orchestrator', 'long please'), /partial[\s\S]*cut off at orchestrator's 16000-token limit/);
-  assert.doesNotMatch(calls[0].system, /Reply style: concise/);
+  assert.doesNotMatch(sysText(calls[0]), /Reply style: concise/);
 
   calls = fake([text('x')]);
   await runAgent('quick', 'hi');
@@ -153,6 +154,19 @@ test('agents know their display names and their teammates', async () => {
   reset();
   const calls = fake([text('hi')]);
   await runAgent('orchestrator', 'who are you');
-  assert.match(calls[0].system, /Your name is James/);
-  assert.match(calls[0].system, /Pete, id quick/);
+  assert.match(sysText(calls[0]), /Your name is James/);
+  assert.match(sysText(calls[0]), /Pete, id quick/);
+});
+
+test('caching: stable prefix always cached; the conversation only within multi-step runs; history is limited', async () => {
+  reset();
+  for (let i = 0; i < 30; i++) db.prepare('insert into chat (agent, role, content) values (?, ?, ?)').run('orchestrator', i % 2 ? 'assistant' : 'user', `m${i}`);
+  const calls = [];
+  const replies = [toolUse('recall', { query: 'x' }), text('done')];
+  deps.client = { messages: { create: async (p) => (calls.push(structuredClone(p)), replies.shift()) } };
+  await runAgent('orchestrator', 'hello');
+  assert.equal(calls[0].system[0].cache_control.type, 'ephemeral', 'stable prefix marked');
+  assert.equal(calls[0].cache_control, undefined, 'first step: conversation not written to cache');
+  assert.equal(calls[1].cache_control.type, 'ephemeral', 'later steps reuse it within seconds');
+  assert.ok(calls[0].messages.length <= 13, `12 past messages + the new one (got ${calls[0].messages.length})`);
 });

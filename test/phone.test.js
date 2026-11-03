@@ -3,6 +3,7 @@ process.env.DB_PATH = ':memory:';
 Object.assign(process.env, { TELNYX_API_KEY: 'KEY_test', TELNYX_CONNECTION_ID: '123', TELNYX_FROM: '+15550000001', OWNER_PHONE: '+15550000002', TELEGRAM_BOT_TOKEN: 'bot_test' });
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+const sysText = (c) => typeof c.system === 'string' ? c.system : c.system.map((b) => b.text).join('');
 
 const { db, set } = await import('../src/db.js');
 const phone = await import('../src/phone.js');
@@ -206,8 +207,8 @@ test('ultra concise style reaches the model for James and Pete by default', asyn
   const calls = [];
   agentMod.deps.client = { messages: { create: async (p) => (calls.push(p), { stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'text', text: 'ok' }] }) } };
   await agentMod.runAgent('quick', 'hi');
-  assert.match(calls[0].system, /ULTRA CONCISE/);
-  assert.match(calls[0].system, /Never mention what you fixed/);
+  assert.match(sysText(calls[0]), /ULTRA CONCISE/);
+  assert.match(sysText(calls[0]), /Never mention what you fixed/);
 });
 
 test('no Telegram while the owner is active on the dashboard, unless they are working from the phone', async () => {

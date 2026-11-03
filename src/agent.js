@@ -12,12 +12,13 @@ const running = new Map(); // agent name -> AbortController of its in-flight run
 const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
 const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document']);
-const WEB_SEARCH_USES = 5; // per model request, keeps a research run from burning searches
+const WEB_SEARCH_USES = 3; // per model request, keeps a research run from burning searches
+const WEB_FETCH_TOKENS = 6000; // cap on how much of each fetched page the model reads
 
 // Anthropic-hosted web tools. Newer models get the dynamic-filtering variants.
 const webTools = (model) => model.startsWith('claude-haiku')
-  ? [{ type: 'web_search_20250305', name: 'web_search', max_uses: WEB_SEARCH_USES }, { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: WEB_SEARCH_USES }]
-  : [{ type: 'web_search_20260209', name: 'web_search', max_uses: WEB_SEARCH_USES }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: WEB_SEARCH_USES }];
+  ? [{ type: 'web_search_20250305', name: 'web_search', max_uses: WEB_SEARCH_USES }, { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: WEB_SEARCH_USES, max_content_tokens: WEB_FETCH_TOKENS }]
+  : [{ type: 'web_search_20260209', name: 'web_search', max_uses: WEB_SEARCH_USES }, { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: WEB_SEARCH_USES, max_content_tokens: WEB_FETCH_TOKENS }];
 
 const RULES = `You are part of Sleeper Agent, a 24/7 personal assistant system working for one owner.
 Goals: help the owner make money efficiently, keep their life and projects organized, keep costs low.
@@ -57,7 +58,8 @@ const systemFor = (a) => redact(system(a));
 
 // Saved history is plain user/assistant text only (tool internals aren't replayed; memory carries facts).
 function history(name) {
-  const rows = db.prepare('select role, content from (select * from chat where agent = ? order by id desc limit 20) order by id').all(name);
+  const limit = Math.min(Math.max(Number(get('history_limit') || 12), 2), 40); // fewer past messages = cheaper calls; memory keeps long-term facts
+  const rows = db.prepare('select role, content from (select * from chat where agent = ? order by id desc limit ?) order by id').all(name, limit);
   const out = [];
   for (const r of rows) push(out, r.role, redact(r.content)); // also covers chats saved before a vault entry existed
   while (out[0]?.role === 'assistant') out.shift();
@@ -133,8 +135,11 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
         return `Stopped: ${why}${target ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
       }
       const res = await client().messages.create({
-        model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, cache_control: { type: 'ephemeral' },
-        system: sys, tools, messages,
+        // Caching: the stable prefix (tools + system) is always marked. The conversation itself is cached only from the
+        // second step of a run, when it's reused within seconds; caching it between messages minutes apart just pays
+        // the write premium for a cache that expires (5 min) before the owner replies.
+        model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, ...(step > 0 ? { cache_control: { type: 'ephemeral' } } : {}),
+        system: [{ type: 'text', text: sys, cache_control: { type: 'ephemeral' } }], tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       }, { signal: ctrl.signal });
       const usd = record(name, a.model, res.usage);

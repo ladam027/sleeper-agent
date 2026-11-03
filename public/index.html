@@ -265,6 +265,13 @@ td.r, th.r { text-align: right; }
   .grid2 { grid-template-columns: 1fr; }
   #mobileHalt { display: inline-flex !important; }
 }
+@media (max-width: 480px) { .side .nav { font-size: 0; gap: 0; } .side .nav svg.i { width: 22px; height: 22px; } .side .nav .count { font-size: 10px; } }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-pill); padding: 3px; gap: 2px; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 5px 12px; border-radius: var(--r-pill); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+#statAgents th, #statAgents td { padding-right: 14px; } #statAgents th:last-child, #statAgents td:last-child { padding-right: 0; }
+.stack-bar { display: flex; height: 14px; border-radius: var(--r-pill); overflow: hidden; background: var(--sunken); }
+.stack-bar i { display: block; height: 100%; }
 @media (max-width: 560px) { .kpis { gap: var(--s3); } .kpi .v { font-size: 22px; } .tiles { flex-wrap: wrap; } .tile { min-width: calc(50% - 6px); } .hero { padding: var(--s4); } .top h1 { font-size: 18px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
@@ -295,6 +302,7 @@ td.r, th.r { text-align: right; }
     <button class="nav" data-view="vault"><svg class="i"><use href="#i-lock"/></svg>Vault</button>
     <button class="nav" data-view="money"><svg class="i"><use href="#i-wallet"/></svg>Money</button>
     <button class="nav" data-view="clients"><svg class="i"><use href="#i-users"/></svg>Clients</button>
+    <button class="nav" data-view="stats"><svg class="i"><use href="#i-chart"/></svg>Statistics</button>
     <div class="navlabel">Manage</div>
     <button class="nav" data-view="integrations"><svg class="i"><use href="#i-plug"/></svg>Integrations</button>
     <button class="nav" data-view="guide"><svg class="i"><use href="#i-book"/></svg>Guide</button>
@@ -549,6 +557,37 @@ td.r, th.r { text-align: right; }
       </div>
     </section>
 
+    <!-- Statistics -->
+    <section class="content" data-panel="stats" hidden style="grid-template-columns:1fr">
+      <div class="stack">
+        <div style="display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap">
+          <div class="seg" id="statSpan" role="group" aria-label="Time span"><button data-span="today">Today</button><button data-span="7d">7 days</button><button data-span="30d">30 days</button><button data-span="all">All time</button></div>
+          <span class="muted" id="statSince" style="font-size:13px"></span>
+        </div>
+        <div class="kpis" id="statKpis"></div>
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span><div><h2>How to spend less</h2><div class="sub">Worked out from your actual usage in this time span, biggest savings first</div></div></div>
+          <div id="statTips"></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h"><div><h2>Where the money goes</h2><div class="sub">What each dollar paid for</div></div></div>
+            <div class="stack-bar" id="statBar"></div>
+            <table id="statParts" style="margin-top:var(--s3)"></table>
+          </div>
+          <div class="card">
+            <div class="card-h"><div><h2>Daily spend by agent</h2></div></div>
+            <svg id="statChart" style="width:100%;height:220px;display:block" role="img" aria-label="Daily spend by agent"></svg>
+            <div class="legend" id="statLegend"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div><h2>By agent</h2><div class="sub" id="statRouting"></div></div></div>
+          <div style="overflow-x:auto"><table id="statAgents"></table></div>
+        </div>
+      </div>
+    </section>
+
     <!-- Integrations -->
     <section class="content" data-panel="integrations" hidden style="grid-template-columns:1fr">
       <div class="stack">
@@ -588,7 +627,7 @@ td.r, th.r { text-align: right; }
             </ul>
             <ul>
               <li><b>Pin carefully.</b> Pin stable facts only. Editing a pinned memory resets the cache, so the next message costs a bit more.</li>
-              <li><b>Watch the Costs tab.</b> If a day spikes, the Activity feed shows which agent and step did it.</li>
+              <li><b>Check Statistics.</b> It shows spend per agent over today, 7 days, 30 days or all time, what the money paid for, and tips worked out from your own usage, most with a one-click fix.</li>
               <li><b>Budgets are hard stops, with an override.</b> Each agent has a daily cap and there's an overall cap in Settings. When one is hit, the task pauses and you get an approval request (dashboard or Telegram, <code>Y 12 PIN</code>). Approving raises that limit <b>for today only</b> and the task continues. One request per limit per day; after a "no" it won't ask again until tomorrow. You can also press <b>Raise limit</b> on an agent card. A runaway loop is still cut off after 8 steps.</li>
             </ul>
             <ul>
@@ -819,6 +858,7 @@ td.r, th.r { text-align: right; }
   <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></symbol>
   <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16V8M17 16v-9"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -870,6 +910,7 @@ function show(v) {
   if (v === 'vault') loadVault();
   if (v === 'guide') renderGuide();
   if (v === 'integrations') renderIntegrations();
+  if (v === 'stats') loadStats();
 }
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 
@@ -1358,6 +1399,46 @@ window.integSave = async (e) => {
   openIntegration = null; await refresh(); renderIntegrations();
 };
 window.integTest = async (id, btn) => { btn.disabled = true; const r = await call(`integrations/${id}/test`, 'POST'); btn.disabled = false; alert(r.error || r.result); };
+
+// ── Statistics ──
+let statSpan = store.get('statSpan') || '7d', ST = null;
+const AGENT_COLORS = ['#6d4aff', '#0891b2', '#16a34a', '#d97706', '#e11d48', '#7c7a92', '#2563eb'];
+const PART = { output: ['Thinking & replies (output)', '#6d4aff'], cache_write: ['Writing to the prompt cache', '#d97706'], input: ['Uncached input', '#0891b2'], cache_read: ['Reading from cache', '#16a34a'], web_search: ['Web searches', '#e11d48'], phone: ['Phone calls', '#7c7a92'] };
+document.querySelectorAll('#statSpan button').forEach((b) => b.onclick = () => { statSpan = b.dataset.span; store.set('statSpan', statSpan); loadStats(); });
+async function loadStats() {
+  const r = await call('stats?span=' + statSpan); if (r.error) return;
+  ST = r; renderStats();
+}
+function renderStats() {
+  const s = ST;
+  document.querySelectorAll('#statSpan button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.span === statSpan));
+  $('#statSince').textContent = s.span === 'all' ? 'Everything so far' : `Since ${s.since}`;
+  $('#statKpis').innerHTML = [['wallet', 'Spent', money(s.total), `${s.calls} model calls`], ['clock', 'Per day', money(s.per_day), `over ${s.days} day${s.days > 1 ? 's' : ''} with activity`],
+    ['trend', 'Projected month', money(s.projected_month), 'at this pace'], ['zap', 'Average call', money(s.calls ? s.total / s.calls : 0), 'all agents']]
+    .map(([i, k, v, sub]) => `<div class="card kpi"><div class="k"><span class="ibox brand">${icon(i)}</span>${k}</div><div class="v num">${v}</div><div class="s">${esc(sub)}</div></div>`).join('');
+  $('#statTips').innerHTML = s.insights.map((t, n) => `<div class="row" style="align-items:flex-start"><span class="ibox ${t.saves ? 'brand' : ''}">${icon(t.saves ? 'trend' : 'check')}</span>
+      <div class="body"><div class="title">${esc(t.title)} ${t.saves >= 0.01 ? `<span class="pill ok">saves ~${money(t.saves)}/mo</span>` : ''}</div><div class="meta" style="font-size:13px;line-height:1.5">${esc(t.detail)}</div></div>
+      ${t.apply ? `<button class="btn sm primary" onclick="applyTip(${n})">${icon('check')}${esc(t.apply.label)}</button>` : ''}</div>`).join('');
+  const parts = Object.entries(s.breakdown).filter(([, v]) => v > 0.0001).sort((a, b) => b[1] - a[1]), tot = parts.reduce((t, [, v]) => t + v, 0) || 1;
+  $('#statBar').innerHTML = parts.map(([k, v]) => `<i style="width:${v / tot * 100}%;background:${PART[k][1]}" title="${esc(PART[k][0])}: ${money(v)}"></i>`).join('');
+  $('#statParts').innerHTML = parts.map(([k, v]) => `<tr><td><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${PART[k][1]};margin-right:8px"></i>${esc(PART[k][0])}</td><td class="r num">${money(v)}</td><td class="r num muted">${Math.round(v / tot * 100)}%</td></tr>`).join('') || '<tr><td class="empty">No spend in this span.</td></tr>';
+  const ids = s.agents.map((a) => a.agent), color = (id) => AGENT_COLORS[ids.indexOf(id) % AGENT_COLORS.length];
+  const svg = $('#statChart'), W = svg.clientWidth || 500, H = 220, pad = 22, ds = s.daily.slice(-31), max = Math.max(0.01, ...ds.map((d) => ids.reduce((t, id) => t + (d[id] || 0), 0))), bw = (W - 8) / Math.max(ds.length, 1);
+  svg.innerHTML = ds.map((d, i) => { let y = H - pad; return ids.map((id) => { const h = (d[id] || 0) / max * (H - pad - 10); y -= h; return h > 0 ? `<rect x="${i * bw + 4}" y="${y}" width="${Math.max(2, bw - 6)}" height="${h}" fill="${color(id)}"><title>${d.day} ${esc(agentLabel(id))}: ${money(d[id])}</title></rect>` : ''; }).join(''); }).join('')
+    + ds.filter((_, i) => i % Math.ceil(ds.length / 6 || 1) === 0).map((d) => `<text x="${ds.indexOf(d) * bw + 4}" y="${H - 6}" style="fill:var(--ink-2);font-size:11px">${d.day.slice(5)}</text>`).join('')
+    || '<text x="50%" y="50%" text-anchor="middle" style="fill:var(--ink-2)">No spend yet</text>';
+  $('#statLegend').innerHTML = ids.map((id) => `<span><i style="background:${color(id)}"></i>${esc(agentLabel(id))}</span>`).join('');
+  const r = s.routing; $('#statRouting').textContent = r.to_james + r.to_pete ? `Auto routing: ${r.to_pete} to Pete, ${r.to_james} to James${r.escalated ? `, ${r.escalated} handed up by Pete` : ''}` : 'Per-agent usage in this span';
+  $('#statAgents').innerHTML = `<thead><tr><th>Agent</th><th>Model</th><th class="r">Calls</th><th class="r">Spend</th><th style="min-width:120px">Share</th><th class="r">Per call</th><th class="r" title="Share of input served from cache">Cache hits</th></tr></thead><tbody>`
+    + s.agents.map((a) => `<tr><td><b>${esc(agentLabel(a.agent))}</b></td><td class="muted">${esc(a.models.map((m) => MODEL_NAME[m] || m).join(', '))}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td>
+      <td><div class="progress"><i style="width:${a.share * 100}%;background:${color(a.agent)}"></i></div></td><td class="r num">${money(a.per_call)}</td><td class="r num">${a.cache_hit == null ? '—' : Math.round(a.cache_hit * 100) + '%'}</td></tr>`).join('') + '</tbody>';
+}
+window.applyTip = async (n) => {
+  const t = ST.insights[n].apply;
+  const r = t.kind === 'agent' ? await call(`agents/${t.agent}`, 'POST', t.body) : await call('settings', 'POST', t.body);
+  if (r.error) return alert(r.error);
+  toast(`Done: ${t.label}`); refresh(); loadStats();
+};
 
 // ── Vault ──
 const KIND_LABEL = { password: 'Login', card: 'Card', personal: 'Personal', api_key: 'API key', note: 'Note' };
