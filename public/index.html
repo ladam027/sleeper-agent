@@ -792,6 +792,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     <section class="content" data-panel="guide" hidden style="grid-template-columns:1fr">
       <div class="stack guide">
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-bot"/></svg></span><div><h2>What your agents can do</h2><div class="sub">Generated live from the system itself, so it is always current. <span class="pill warn">approval</span> means the action waits for your OK.</div></div></div>
+          <div id="capList" class="stack" style="gap:var(--s3)"></div>
+        </div>
+        <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-book"/></svg></span><div><h2>How to get the most out of Sleeper Agent</h2><div class="sub">Short version: leave chat on Auto, pin your core facts, and let the budgets do their job.</div></div></div>
           <div class="tips">
             <div><h3>1. Teach it who you are (once)</h3><p>Tell it your name, job, city, goals, projects and preferences in one message. Then go to <b>Memory</b> and <b>pin</b> the 5–10 facts it needs constantly. A single "Owner profile" memory works best. Pinned facts ride along with every message for about $0.00004 each and save a paid search on every question.</p></div>
@@ -1544,7 +1548,13 @@ function drawCosts() {
 // ── Guide ──
 const MODEL_NAME = { 'claude-haiku-4-5': 'Haiku 4.5', 'claude-sonnet-5': 'Sonnet 5', 'claude-opus-5-5': 'Opus 5.5', 'claude-fable-5-1': 'Fable 5.1' };
 const GUIDE_PROMPTS = ["Here's my profile: name, job, city, goals… Save it as one pinned 'Owner profile' memory.", 'What do you know about me?', 'I moved to Denver, update my timezone', 'Plan my week: here are my projects and deadlines…', 'Find the holes in this business idea: …'];
+async function renderCapabilities() {
+  const c = await call('capabilities'); if (c.error) return;
+  $('#capList').innerHTML = `<div class="help">Connected: ${esc(c.connected.join(', ') || 'nothing yet (see Integrations)')}</div>` + c.agents.map((a) => `<details><summary><b>${esc(a.display)}</b> <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)} · ${a.tools.length} tool${a.tools.length === 1 ? '' : 's'}</span><div class="muted" style="font-size:13px;margin-top:2px">${esc(a.purpose || '')}</div></summary>
+    <ul style="margin:var(--s2) 0 0;padding-left:18px;font-size:13px;line-height:1.6">${a.tools.map((t) => `<li><code>${esc(t)}</code> ${esc(c.tools[t]?.summary || '')} ${c.tools[t]?.approval ? '<span class="pill warn">approval</span>' : ''}</li>`).join('') || '<li class="muted">No tools: answers from what it knows.</li>'}</ul></details>`).join('');
+}
 function renderGuide() {
+  renderCapabilities();
   const P = state?.prices || {};
   $('#priceTable').innerHTML = '<thead><tr><th>Model</th><th>Used for</th><th class="r">Input</th><th class="r">Cached input</th><th class="r">Output</th></tr></thead><tbody>'
     + Object.entries(P).sort((a, b) => a[1].input - b[1].input).map(([id, p]) => `<tr><td><b>${esc(MODEL_NAME[id] || id)}</b></td><td class="muted">${{ 'claude-haiku-4-5': 'Quick agent, simple asks', 'claude-sonnet-5': 'Future workers', 'claude-opus-5-5': 'Orchestrator, hard work', 'claude-fable-5-1': 'Rare, hardest problems' }[id] || ''}</td><td class="r num">$${p.input}</td><td class="r num">$${p.cacheRead}</td><td class="r num">$${p.output}</td></tr>`).join('') + '</tbody>';

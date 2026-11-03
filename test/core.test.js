@@ -278,3 +278,13 @@ test('Auto: website work goes straight to Mia; mixed requests go to James', asyn
   await auto('build a website for Corner Bakery and email it to Dana');
   assert.equal(calls[0].model, 'claude-opus-5-5');
 });
+
+test('capabilities come from the live registry: per-agent tools, approval flags', async () => {
+  const { capabilities, TOOLS } = await import('../src/tools.js');
+  const c = capabilities();
+  assert.ok(c.agents.find((a) => a.name === 'designer').tools.includes('save_site'));
+  assert.equal(c.tools.publish_site.approval, true);
+  assert.equal(c.tools.recall.approval, false);
+  assert.ok(!('raise_budget' in c.tools), 'hidden internal tools are not listed');
+  assert.match(await TOOLS.list_capabilities.run({}), /Mia \(designer/);
+});

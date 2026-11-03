@@ -309,3 +309,19 @@ export function applyCleanup({ merges = [], remove = [] }) {
   } catch (e) { db.exec('rollback'); throw e; }
   return `Memory cleanup applied: ${merged} merged, ${removed} removed`;
 }
+
+// Self-knowledge, generated from the live registry (never hand-maintained): who can do what, what needs approval,
+// which integrations are connected. Feeds the list_capabilities tool and the Guide's "What your agents can do".
+export function capabilities() {
+  const first = (d) => d.split(/(?<=[.!?])\s/)[0].slice(0, 160);
+  const agents = db.prepare("select name, display_name, model, purpose, tools from agents where status != 'killed' order by rowid").all().map((a) => ({
+    name: a.name, display: a.display_name || a.name, model: a.model, purpose: a.purpose,
+    tools: a.tools != null ? a.tools.split(',').filter((t) => TOOLS[t]) : Object.keys(TOOLS).filter((k) => !TOOLS[k].hidden && k !== 'escalate') }));
+  const tools = Object.fromEntries(Object.entries(TOOLS).filter(([, t]) => !t.hidden).map(([k, t]) => [k, { summary: first(t.def.description), approval: t.risk === 'high' }]));
+  const connected = Object.entries(integ.status()).filter(([, v]) => v.saved).map(([k]) => integ.INTEGRATIONS[k].name);
+  return { agents, tools, connected };
+}
+TOOLS.list_capabilities = tool('list_capabilities', 'What this system can do right now: every agent with its tools, which actions need the owner\'s approval, and which integrations are connected. Use it to answer "can you…?" questions or to find the right tool or agent.', {}, [],
+  () => { const c = capabilities();
+    return [`Connected integrations: ${c.connected.join(', ') || 'none'}`, ...c.agents.map((a) => `${a.display} (${a.name}, ${a.model}): ${a.tools.join(', ') || 'no tools'}`),
+      'Tools:', ...Object.entries(c.tools).map(([k, t]) => `- ${k}: ${t.summary}${t.approval ? ' [needs owner approval]' : ''}`)].join('\n'); });

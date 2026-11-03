@@ -14,7 +14,7 @@ import * as integrations from './integrations.js';
 import { stats } from './stats.js';
 import * as studio from './studio.js';
 import * as paper from './paper.js';
-import { TOOLS } from './tools.js';
+import { TOOLS, capabilities } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide, getSummary } from './agent.js';
 
@@ -147,6 +147,7 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'capabilities' && m === 'GET') return capabilities();
   if (route === 'markets') { // read-only view + the owner's limits; agents can't change limits
     if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS };
     if (m === 'POST' && id === 'limits') return paper.setLimits(await body(req)), { ok: true };
