@@ -44,3 +44,6 @@
 ## 5.8.1
 - `get_site` (read-only, taint-safe): Mia reads a draft before editing it. "Request changes" in Studio previously could not show her the current page. Schema v19.
 - 5.8.2: tool errors are written to the activity log (redacted), so failures can be diagnosed without the agent's paraphrase.
+
+## 5.9.0
+- History clipping: earlier messages over 1,500 characters are clipped when re-sent (a long paste is sent in full once, on its own turn). Full text stays in chat. 92 tests.

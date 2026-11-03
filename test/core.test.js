@@ -203,6 +203,18 @@ test('recall clips long memories unless asked for by title', async () => {
   assert.ok(one.find((m) => m.title === 'Website design spec').body.length > 3000, 'full by title');
 });
 
+test('long earlier messages are clipped in history; the new message is sent in full', async () => {
+  reset();
+  const long = 'spec '.repeat(1000);
+  db.prepare('insert into chat (agent, role, content) values (?, ?, ?), (?, ?, ?)').run('orchestrator', 'user', long, 'orchestrator', 'assistant', 'ok');
+  const calls = fake([text('done')]);
+  await runAgent('orchestrator', long);
+  const [old, , now] = calls[0].messages;
+  assert.ok(old.content.length < 1700 && old.content.includes('clipped'), 'earlier paste clipped');
+  assert.ok(now.content.includes(long.trim()), 'new message intact');
+  assert.equal(db.prepare('select length(content) n from chat where id = (select min(id) from chat)').get().n, long.length, 'full text kept in chat');
+});
+
 test('compression: older messages become memories + a short summary that leads the history', async () => {
   reset();
   const { compressThread, getSummary } = await import('../src/agent.js');

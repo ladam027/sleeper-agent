@@ -69,11 +69,14 @@ const systemFor = (a) => redact(system(a));
 // Older messages are folded into a short rolling summary by the archivist (see compressThread).
 const historyLimit = () => Math.min(Math.max(Number(get('history_limit') || 12), 2), 40);
 export const getSummary = (thread) => { try { return JSON.parse(get(`summary:${thread}`) || 'null'); } catch { return null; } };
+const CLIP = 1500;
+const clip = (t) => t?.length > CLIP ? `${t.slice(0, CLIP)}\n[… ${t.length - CLIP} more characters clipped from this earlier message; ask the owner or recall memory if you need them]` : t;
 function history(name) {
   const rows = db.prepare('select role, content from (select * from chat where agent = ? order by id desc limit ?) order by id').all(name, historyLimit());
   const out = [], sum = getSummary(name);
   if (sum?.text) push(out, 'user', `[Summary of the earlier conversation, for context]\n${sum.text}`);
-  for (const r of rows) push(out, r.role, redact(r.content)); // also covers chats saved before a vault entry existed
+  // Past messages only (the new one is added after), so long pastes are sent in full once, then clipped. Full text stays in chat.
+  for (const r of rows) push(out, r.role, clip(redact(r.content))); // redact also covers chats saved before a vault entry existed
   while (out[0]?.role === 'assistant') out.shift();
   return out;
 }
