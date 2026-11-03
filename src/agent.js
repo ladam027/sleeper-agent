@@ -361,5 +361,13 @@ function finish(ap, status, result) {
   db.prepare('insert into chat (agent, role, content) values (?, ?, ?)')
     .run(ap.agent, 'user', `[system note] Approval #${id} (${ap.tool}) ${status}: ${result}`);
   log(ap.agent, 'approval', `#${id} ${status}: ${result}`);
+  // Multi-step browser tasks pick up where they left off: the agent looks at the page and carries on, or says
+  // exactly what it needs (wrong password, CAPTCHA, code). Tainted: it's working on a web page.
+  if (ap.tool === 'browser_submit' && ['approved', 'failed'].includes(status)) setImmediate(() => continueAfter(ap).catch((e) => log(ap.agent, 'error', `continue after #${id}: ${e.message}`)));
   return result;
+}
+async function continueAfter(ap) {
+  const r = await runAgent(ap.agent, `Approval #${ap.id} (${ap.tool}) ${ap.tool === 'browser_submit' ? 'was pressed' : 'ran'}; see the note above. Continue the task: take a browser snapshot to check what actually happened, then keep going. If it failed, or you need the owner (wrong login, CAPTCHA, a code), stop and say exactly what's needed.`, 0, { tainted: true });
+  const reply = typeof r === 'string' ? r : r?.reply;
+  if (reply) await notify('high', `${ap.agent === 'orchestrator' ? 'James' : ap.agent}: ${reply}`, { agent: ap.agent }).catch(() => {});
 }

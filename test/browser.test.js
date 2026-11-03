@@ -112,3 +112,18 @@ test('live view: the owner sees the page and the agent\'s last action, and can c
   assert.equal((await b.preview(id)).ownerUsing, true);
   await b.close(id);
 });
+
+test('after an approved browser step, the agent continues on its own and reports back', async () => {
+  const { decide } = await import('../src/agent.js');
+  const o = await b.act({ action: 'open', url: 'https://canvas.example.edu/login' });
+  const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  const usage = { input_tokens: 1, output_tokens: 1 }, seen = [];
+  deps.client = { messages: { create: async (p) => (seen.push(p.messages.at(-1)), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'The login was rejected: wrong password. Please update canvas-login.' }] }) } };
+  const { lastInsertRowid: ap } = db.prepare("insert into approvals (agent, tool, input) values ('orchestrator', 'browser_submit', ?)").run(JSON.stringify({ session: id, ref: 3, reason: 'Sign in' }));
+  await decide(Number(ap), true);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(seen.length, 1, 'the agent was woken up to continue');
+  assert.match(JSON.stringify(seen[0]), /Continue the task/);
+  assert.match(db.prepare("select content from chat where role = 'assistant' order by id desc").get().content, /wrong password/);
+  await b.close(id);
+});

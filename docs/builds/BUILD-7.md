@@ -35,3 +35,4 @@
 - The owner can click, type, press a few safe keys and scroll on the page (`POST /api/browser/<id>/input`), which is how CAPTCHAs and other human-only steps get done. Owner input is never logged (only "used session X"); afterwards the agent's control numbers are reset so it must take a fresh snapshot.
 - Agents are told to send the owner to the Browser tab for CAPTCHAs (before, James pointed the owner at a "browser view" that didn't exist).
 - Also: Kalshi integration copy updated (live trading exists). 111 tests.
+- 7.5.1: after an approved browser_submit, the agent is woken automatically to check the page and continue, or report exactly what it needs (it used to stop until the owner wrote again; a failed DMV login went unreported). 112 tests.
