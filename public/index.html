@@ -1710,8 +1710,9 @@ function renderStudio() {
   $('#sites').innerHTML = SD.sites.map((s) => { const [cls, label] = SITE_STATUS[s.status] || ['', s.status];
     return `<div class="agent" style="margin:0"><div class="agent-h"><div style="min-width:0"><div class="name">${esc(s.title)}</div><div class="model">${esc(s.contact || s.slug)} · ${esc(ago(s.updated_at))}</div></div><span class="pill ${cls} right">${label}</span></div>
       ${s.url ? `<div class="help" style="margin-top:6px;overflow-wrap:anywhere"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.url.replace('https://', ''))}</a></div>` : ''}
-      ${!s.url ? `<div class="help" style="margin-top:6px">Not public yet: only you can see this draft.</div>` : ''}
+      ${!s.url ? `<div class="help" style="margin-top:6px">Not public yet: only you can see this draft (Open draft works on your Tailscale devices, including your phone).</div>` : ''}
       <div class="actions"><button class="btn sm" onclick="previewSite('${esc(s.slug)}', '${esc(s.title).replace(/'/g, '')}')">${icon('eye')}Preview</button>
+        <button class="btn sm" onclick="openDraft('${esc(s.slug)}')" title="Full-page draft on your private dashboard address (your Tailscale devices only)">${icon('external')}Open draft</button>
         ${!SD.netlify ? `<button class="btn sm" onclick="show('integrations')" title="Netlify isn't connected yet">${icon('plug')}Connect Netlify to publish</button>`
           : !SD.vaultUnlocked ? `<button class="btn sm" onclick="show('vault')" title="Publishing uses your Netlify key, which is in the vault">${icon('lock')}Unlock vault to publish</button>`
           : `<button class="btn sm ${s.status === 'live' ? '' : 'primary'}" onclick="publishSite('${esc(s.slug)}')">${icon('external')}${s.url ? (s.status === 'changed' ? 'Update live site' : 'Republish') : 'Publish'}</button>`}
@@ -1741,6 +1742,14 @@ window.publishSite = async (slug) => {
   if (!confirm(`${s.url ? 'Update' : 'Publish'} "${s.title}" on a public link? Anyone with the link can see it.`)) return;
   toast('Publishing…'); const r = await call('studio/publish-site', 'POST', { slug }); if (r.error) return alert(r.error);
   toast(r.result); loadStudio();
+};
+window.openDraft = async (slug) => {
+  const w = window.open('', '_blank'); // open now (popup blockers), fill in once we have the private link
+  const r = await call('studio/preview-link/' + encodeURIComponent(slug));
+  if (r.error) { w?.close(); return alert(r.error); }
+  const url = location.origin + r.path;
+  if (w) { w.opener = null; w.location = url; } else location.href = url;
+  try { await navigator.clipboard.writeText(url); toast('Private draft link copied (opens on your Tailscale devices only)'); } catch {}
 };
 window.deleteSite = async (slug) => { if (confirm('Delete this draft?')) { await call('studio/delete-site', 'POST', { slug }); loadStudio(); } };
 window.changeSite = async (slug) => {

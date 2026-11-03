@@ -30,3 +30,6 @@
 
 ## 5.5.0
 - Diagnosis: Hunneedee's sites were never published (drafts only; no publish attempts). Fixes: Studio shows "Not public yet" and the right button (Connect Netlify / Unlock vault to publish / Publish / Update live site) instead of a misleading disabled button; save_site tells James the draft isn't public and to offer publishing; font preconnect links survive sanitizing.
+
+## 5.6.0
+- Private draft links: "Open draft" opens /p/<slug>/<token> full-page on the tailnet-only dashboard host (per-site random token, timing-safe compare, 404 otherwise) with a strict CSP (no scripts, forms, framing; CSP sandbox), noindex, no-referrer, no-store. 88 tests.

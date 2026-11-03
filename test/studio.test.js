@@ -105,3 +105,15 @@ test('James asking to publish files an approval instead of going live', async ()
   assert.equal(db.prepare("select count(*) n from approvals where tool = 'publish_site' and status = 'pending'").get().n, 1);
   assert.equal(sent.length, 0, 'nothing sent to Netlify');
 });
+
+test('private draft links: per-site unguessable token, wrong token gets nothing, strict no-script headers', () => {
+  const t = studio.previewToken('raincross-pub');
+  assert.ok(t.length >= 20);
+  assert.equal(studio.previewToken('raincross-pub'), t, 'stable per site');
+  assert.match(studio.previewHtml('raincross-pub', t), /<h1>/);
+  assert.equal(studio.previewHtml('raincross-pub', 'x'.repeat(t.length)), null);
+  assert.equal(studio.previewHtml('raincross-pub', ''), null);
+  assert.equal(studio.previewHtml('cafe', t), null, "one site's token doesn't open another");
+  assert.match(studio.PREVIEW_HEADERS['content-security-policy'], /default-src 'none'.*sandbox/);
+  assert.ok(!/script-src/.test(studio.PREVIEW_HEADERS['content-security-policy']), 'no scripts allowed at all');
+});

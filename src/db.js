@@ -83,6 +83,7 @@ const MIGRATIONS = [
      media_url text, status text not null default 'draft', result text, created_by text, created_at text default current_timestamp);`,
   `update agents set tools = tools || ',contact,log_money,project' where name = 'quick' and tools not like '%,contact%';
    update agents set purpose = 'Fast, cheap answers and everyday dashboard updates: simple questions, quick facts, memory lookups, reminders, adding or updating clients, logging money, updating projects. Hands anything complex, or anything needing a tool it lacks, to the orchestrator right away.' where name = 'quick';`,
+  `alter table sites add column preview_token text;`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

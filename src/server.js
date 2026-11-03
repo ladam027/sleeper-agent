@@ -149,6 +149,7 @@ async function api(req, url) {
     if (m === 'GET' && !id) return { sites: studio.listSites(), posts: studio.listPosts(), platforms: studio.PLATFORMS,
       netlify: vault.names().some((n) => n.name === 'netlify'), ayrshare: vault.names().some((n) => n.name === 'ayrshare'), vaultUnlocked: vault.ready() };
     if (m === 'GET' && id === 'site') return { html: studio.siteHtml(decodeURIComponent(action)) || '' };
+    if (m === 'GET' && id === 'preview-link') { const slug = decodeURIComponent(action); return { path: `/p/${encodeURIComponent(slug)}/${studio.previewToken(slug)}` }; }
     const b = await body(req);
     if (id === 'publish-site') return { result: await studio.publishSite(b.slug) };
     if (id === 'delete-site') { db.prepare('delete from sites where slug = ?').run(b.slug); log('owner', 'site', `deleted draft ${b.slug}`); return { ok: true }; }
@@ -231,6 +232,12 @@ jobs.start();
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  const pv = /^\/p\/([a-z0-9-]+)\/([A-Za-z0-9_-]+)$/.exec(url.pathname); // private draft link (tailnet only; token per site)
+  if (pv) {
+    const html = studio.previewHtml(pv[1], pv[2]);
+    if (!html) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('Not found'); }
+    res.writeHead(200, studio.PREVIEW_HEADERS); return res.end(html);
+  }
   if (url.pathname === '/oauth/google') { // Google redirects the browser here; the single-use state proves we started it
     let msg;
     try { const r = await google.finishAuth(url.searchParams.get('code'), url.searchParams.get('state')); msg = `Connected ${r.email}. You can close this tab.`; }

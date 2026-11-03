@@ -1,5 +1,6 @@
 // Marketing studio: website drafts (sanitized), Netlify publishing, and a social content calendar.
 import { deflateRawSync, crc32 } from 'node:zlib';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { db, get, log } from './db.js';
 import { localToUtc } from './scheduler.js';
 import * as vault from './vault.js';
@@ -35,6 +36,28 @@ export function saveSite({ slug, title, html, contact_id, notes = '' }, by = 'de
   const live = cur?.url;
   return `Saved draft site "${title}" (${slug}). It is NOT public yet${live ? ` (the live link ${live} still shows the old version)` : ''}. Tell the owner it's ready to preview in the Studio tab and offer to ${live ? 'republish' : 'publish'} it: publish_site asks the owner for approval, or they press Publish in Studio.`;
 }
+// Private draft links: /p/<slug>/<token>, served only on the owner's tailnet dashboard host.
+export function previewToken(slug) {
+  const s = db.prepare('select preview_token from sites where slug = ?').get(slug);
+  if (!s) throw new Error(`No site "${slug}"`);
+  if (s.preview_token) return s.preview_token;
+  const t = randomBytes(18).toString('base64url');
+  db.prepare('update sites set preview_token = ? where slug = ?').run(t, slug);
+  return t;
+}
+export function previewHtml(slug, token) {
+  const s = db.prepare('select html, preview_token from sites where slug = ?').get(slug);
+  if (!s?.preview_token || !token) return null;
+  const a = Buffer.from(s.preview_token), b = Buffer.from(String(token));
+  return a.length === b.length && timingSafeEqual(a, b) ? s.html : null;
+}
+// Belt and braces for drafts: no scripts, no forms, no framing, fonts/images only.
+export const PREVIEW_HEADERS = {
+  'content-type': 'text/html; charset=utf-8',
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox allow-popups allow-popups-to-escape-sandbox",
+  'x-robots-tag': 'noindex, nofollow', 'referrer-policy': 'no-referrer', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store',
+};
+
 export const listSites = () => db.prepare('select s.id, s.slug, s.title, s.status, s.url, s.notes, s.updated_at, c.name contact from sites s left join contacts c on c.id = s.contact_id order by s.updated_at desc').all();
 export const siteHtml = (slug) => db.prepare('select html from sites where slug = ?').get(slug)?.html;
 
