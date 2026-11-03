@@ -4,6 +4,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { db, get, log } from './db.js';
 import { localToUtc } from './scheduler.js';
 import * as vault from './vault.js';
+import { blocked, recordUsd } from './budget.js';
 
 export const deps = { fetch: (...a) => fetch(...a), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) };
 const MAX_HTML = 300_000;
@@ -99,7 +100,8 @@ export async function publishSite(slug) {
   if (!s) throw new Error(`No site "${slug}"`);
   let siteId = s.netlify_id;
   if (!siteId) siteId = (await netlify('POST', '/sites', JSON.stringify({ name: `${slug}-${Math.random().toString(36).slice(2, 7)}` }))).id;
-  let d = await netlify('POST', `/sites/${siteId}/deploys`, zip({ 'index.html': s.html }), 'application/zip');
+  const files = { 'index.html': s.html, ...Object.fromEntries(imagesIn(s.html).map((i) => [`img/${i.name}`, i.data])) };
+  let d = await netlify('POST', `/sites/${siteId}/deploys`, zip(files), 'application/zip');
   for (let i = 0; i < 20 && d.state !== 'ready'; i++) {
     if (d.state === 'error') throw new Error('Netlify could not deploy the site');
     await deps.sleep(1500);
@@ -111,6 +113,44 @@ export async function publishSite(slug) {
   db.prepare("update sites set netlify_id = ?, url = ?, status = 'live', published_at = current_timestamp where slug = ?").run(siteId, url, slug);
   log('owner', 'site', `published "${s.title}" → ${url}`);
   return `Published "${s.title}": ${url}`;
+}
+
+// ── Images (OpenAI gpt-image) ──
+// Stored in the DB; pages reference img/<name>.webp. Previews inline them as data: URIs (no new routes),
+// publishing ships them as files next to index.html.
+const IMAGE_MODEL = 'gpt-image-1';
+export const IMAGE_SIZES = ['1536x1024', '1024x1024', '1024x1536'];
+export async function generateImage({ name, prompt, size = '1536x1024' }, by = 'designer') {
+  if (!slugOk(name)) throw new Error('name must be 2-41 chars: lowercase letters, numbers, hyphens (e.g. hero-cake)');
+  if (!prompt?.trim()) throw new Error('Describe the image in prompt');
+  if (!IMAGE_SIZES.includes(size)) throw new Error(`size must be one of ${IMAGE_SIZES.join(', ')}`);
+  const why = blocked(by);
+  if (why) throw new Error(`Not generated: ${why}`);
+  const res = await deps.fetch('https://api.openai.com/v1/images/generations', { method: 'POST',
+    headers: { authorization: `Bearer ${token('openai', 'OpenAI')}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ model: IMAGE_MODEL, prompt: prompt.trim().slice(0, 4000), size, quality: 'medium', output_format: 'webp', output_compression: 80, n: 1 }) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${j.error?.message || 'image request failed'}`);
+  const b64 = j.data?.[0]?.b64_json;
+  if (!b64) throw new Error('OpenAI returned no image');
+  // gpt-image-1: text in $5/M, image out $40/M tokens. ponytail: fallback is the medium 1536px list price if usage is missing.
+  const usd = j.usage ? (j.usage.input_tokens || 0) * 5e-6 + (j.usage.output_tokens || 0) * 40e-6 : 0.063;
+  recordUsd(by, 'openai-image', usd);
+  const file = `${name}.webp`;
+  db.prepare(`insert into images (name, prompt, data, created_by, usd) values (?, ?, ?, ?, ?)
+    on conflict(name) do update set prompt = excluded.prompt, data = excluded.data, usd = excluded.usd, created_at = current_timestamp`)
+    .run(file, prompt.trim().slice(0, 1000), Buffer.from(b64, 'base64'), by, usd);
+  log(by, 'image', `created img/${file} ($${usd.toFixed(3)}): ${prompt.slice(0, 80)}`);
+  const [w, h] = size.split('x');
+  return `Saved img/${file}. Use it as <img src="img/${file}" alt="(describe it)" width="${w}" height="${h}"> (scale with CSS) or url(img/${file}) in CSS.`;
+}
+const IMG_REF = /(?<![\w/.-])img\/([a-z0-9][a-z0-9-]{1,40}\.webp)/g;
+const imagesIn = (html) => [...new Set([...String(html).matchAll(IMG_REF)].map((m) => m[1]))]
+  .map((n) => db.prepare('select name, data from images where name = ?').get(n)).filter(Boolean);
+export function inlineImages(html) {
+  if (!html) return html;
+  const imgs = new Map(imagesIn(html).map((i) => [i.name, Buffer.from(i.data).toString('base64')]));
+  return html.replace(IMG_REF, (m, n) => imgs.has(n) ? `data:image/webp;base64,${imgs.get(n)}` : m);
 }
 
 // ── Content calendar ──

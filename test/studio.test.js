@@ -117,3 +117,33 @@ test('private draft links: per-site unguessable token, wrong token gets nothing,
   assert.match(studio.PREVIEW_HEADERS['content-security-policy'], /default-src 'none'.*sandbox/);
   assert.ok(!/script-src/.test(studio.PREVIEW_HEADERS['content-security-policy']), 'no scripts allowed at all');
 });
+
+test('images: generated once, cost counted, inlined in previews, shipped in the publish zip, refused over budget', async () => {
+  vault.save({ name: 'openai', kind: 'api_key', value: 'sk-test' });
+  const png = Buffer.from('fake-webp-bytes');
+  let zipped;
+  studio.deps.fetch = async (url, o) => {
+    const ok = (j) => ({ ok: true, status: 200, json: async () => j });
+    if (url.includes('openai.com')) {
+      assert.equal(o.headers.authorization, 'Bearer sk-test');
+      assert.equal(JSON.parse(o.body).size, '1536x1024');
+      return ok({ data: [{ b64_json: png.toString('base64') }], usage: { input_tokens: 100, output_tokens: 1000 } });
+    }
+    if (url.endsWith('/deploys')) { zipped = o.body; return ok({ id: 'd2', state: 'ready' }); }
+    if (url.endsWith('/sites/site1')) return ok({ ssl_url: 'https://raincross-pub-ab12c.netlify.app' });
+    return ok({});
+  };
+  const spent = () => db.prepare("select coalesce(sum(usd), 0) u from costs where agent = 'designer'").get().u, before = spent();
+  assert.match(await studio.generateImage({ name: 'hero-cake', prompt: 'a three-tier wedding cake' }, 'designer'), /img\/hero-cake\.webp/);
+  const cost = spent() - before;
+  assert.ok(Math.abs(cost - 0.0405) < 1e-9, `cost recorded (${cost})`);
+  studio.saveSite({ slug: 'raincross-pub', title: 'Raincross Pub', html: page('<img src="img/hero-cake.webp" alt="cake"><img src="https://x.com/img/hero-cake.webp" alt="">') });
+  const prev = studio.inlineImages(studio.siteHtml('raincross-pub'));
+  assert.ok(prev.includes(`src="data:image/webp;base64,${png.toString('base64')}"`), 'inlined for preview');
+  assert.ok(prev.includes('https://x.com/img/hero-cake.webp'), 'external URLs untouched');
+  await studio.publishSite('raincross-pub');
+  const files = unzip(zipped);
+  assert.deepEqual(files.get('img/hero-cake.webp')(), png, 'image shipped next to index.html');
+  db.prepare("update agents set daily_budget_usd = 0.01 where name = 'designer'").run();
+  await assert.rejects(studio.generateImage({ name: 'x2', prompt: 'more' }, 'designer'), /daily budget/);
+});

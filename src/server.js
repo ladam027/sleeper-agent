@@ -148,7 +148,7 @@ async function api(req, url) {
   if (route === 'studio') { // owner's own clicks: publishing from here is the approval
     if (m === 'GET' && !id) return { sites: studio.listSites(), posts: studio.listPosts(), platforms: studio.PLATFORMS,
       netlify: vault.names().some((n) => n.name === 'netlify'), ayrshare: vault.names().some((n) => n.name === 'ayrshare'), vaultUnlocked: vault.ready() };
-    if (m === 'GET' && id === 'site') return { html: studio.siteHtml(decodeURIComponent(action)) || '' };
+    if (m === 'GET' && id === 'site') return { html: studio.inlineImages(studio.siteHtml(decodeURIComponent(action))) || '' };
     if (m === 'GET' && id === 'preview-link') { const slug = decodeURIComponent(action); return { path: `/p/${encodeURIComponent(slug)}/${studio.previewToken(slug)}` }; }
     const b = await body(req);
     if (id === 'publish-site') return { result: await studio.publishSite(b.slug) };
@@ -236,7 +236,7 @@ createServer(async (req, res) => {
   if (pv) {
     const html = studio.previewHtml(pv[1], pv[2]);
     if (!html) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('Not found'); }
-    res.writeHead(200, studio.PREVIEW_HEADERS); return res.end(html);
+    res.writeHead(200, studio.PREVIEW_HEADERS); return res.end(studio.inlineImages(html));
   }
   if (url.pathname === '/oauth/google') { // Google redirects the browser here; the single-use state proves we started it
     let msg;

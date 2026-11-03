@@ -16,8 +16,11 @@
 ## 5.1.0
 - Vault idle lock: the in-memory key is dropped after 1 hour in which no key was used; every use (`need()`: reveal, resolve, save, remove, unlock) restarts the hour. A minute timer enforces it. `status().locks_at` is shown on the Vault page. The dashboard vault session is 1 hour sliding (was 15 minutes). Restarts still lock. 84 tests.
 
-## Part 2 (later)
-- Image generation (needs a provider key), short video, custom domains, post analytics into memory.
+## Part 2 (v5.8.0): images
+- `generate_image` (OpenAI gpt-image-1, medium quality, webp): Mia (and James, deferred) create images for sites, saved in the new `images` table and referenced in pages as `img/<name>.webp`. Previews (Studio and private draft links) inline them as data: URIs; publishing ships them as files in the Netlify zip, so the live site hosts them itself. Cost is computed from the response's token usage ($5/M text in, $40/M image out; ~$0.04–0.06 per image), recorded against the calling agent, and generation is refused when the agent or global budget is spent. Not taint-safe (after web reading it needs approval). Mia: at most 3 per site, no fake people/logos/reviews.
+- OpenAI Images integration (key in the vault, Test checks gpt-image-1 access). Schema v18. 91 tests.
+- Owner setup: platform.openai.com → Billing (add credit) → API keys → paste in Integrations → OpenAI Images. Image models may need a one-time organization verification.
+- Skipped for now: post analytics into memory (needs Ayrshare, not connected), custom domains (needs a domain), short video (no provider chosen), images in social posts (posts need a public https media URL; add when Ayrshare is connected).
 
 ## 5.2.0
 - Enterprise redesign (Geist, glass, aurora, gradient accent, motion layer; see docs/DESIGN.md) and a draggable memory graph (live physics, pan, zoom, pinch, fit).

@@ -170,6 +170,10 @@ export const TOOLS = {
     { slug: str('url-safe id, e.g. raincross-pub'), title: str('site title'), html: str('complete HTML document'), contact_id: { type: 'integer', description: 'CRM contact this site is for' }, notes: str('what changed / what the client asked for') }, ['slug', 'title', 'html'],
     (input, ctx) => studio.saveSite(input, ctx.agent)),
 
+  generate_image: tool('generate_image', `Create an image (OpenAI, about $0.04-0.06 each, counts toward your budget) for a website or post. Saved as img/<name>.webp, which you reference in save_site html. Use sparingly: at most 3 per site, only where a picture clearly helps (hero, signature product). Photoreal food/places are fine; never fake people, logos, reviews or text claims. sizes: ${studio.IMAGE_SIZES.join(', ')}.`,
+    { name: str('url-safe file name without extension, e.g. hero-cake'), prompt: str('detailed visual description: subject, setting, light, style, framing'), size: { type: 'string', enum: studio.IMAGE_SIZES } }, ['name', 'prompt'],
+    (input, ctx) => studio.generateImage(input, ctx.agent)),
+
   list_sites: tool('list_sites', 'List website drafts and live sites with their status and live URL.', {}, [],
     () => JSON.stringify(studio.listSites())),
 

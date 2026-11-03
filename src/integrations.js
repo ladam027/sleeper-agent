@@ -31,6 +31,13 @@ export const INTEGRATIONS = {
     help: 'Sign up free at netlify.com → avatar → User settings → Applications → Personal access tokens → New access token. Give it an expiry, then paste it here.',
     tools: ['publish_site'],
   },
+  openai: {
+    name: 'OpenAI Images', vault: 'openai', category: 'Images',
+    blurb: 'Lets Mia and James create images for websites (about $0.04-0.06 each, counted in their daily budgets). Images ship with the site when you publish.',
+    fields: [{ key: 'value', label: 'API key', secret: true }],
+    help: 'platform.openai.com → sign up → Settings → Billing (add a few dollars of credit) → API keys → Create new secret key. Image models may require verifying your organization once (Settings → Organization).',
+    tools: ['generate_image'],
+  },
   ayrshare: {
     name: 'Ayrshare', vault: 'ayrshare', category: 'Social media',
     blurb: 'Optional: posts or schedules approved posts on your linked social accounts. Without it, approved posts are ready to copy.',
@@ -219,6 +226,7 @@ export async function test(id) {
   if (id === 'kalshi') { const b = await kalshi('/portfolio/balance'); log('owner', 'settings', 'Kalshi test OK'); return `Connected. Balance $${((b.balance ?? 0) / 100).toFixed(2)}`; }
   if (id === 'schwab') { creds('schwab'); return 'Saved. Schwab sign-in arrives in Build 6.'; }
   if (id === 'netlify') { const u = await getJson('https://api.netlify.com/api/v1/user', { authorization: `Bearer ${creds('netlify').value}` }, 'Netlify'); return `Connected as ${short(u.email || u.full_name, 60)}`; }
+  if (id === 'openai') { await getJson('https://api.openai.com/v1/models/gpt-image-1', { authorization: `Bearer ${creds('openai').value}` }, 'OpenAI'); return 'Connected (gpt-image-1 available)'; }
   if (id === 'ayrshare') { const u = await getJson('https://api.ayrshare.com/api/user', { authorization: `Bearer ${creds('ayrshare').value}` }, 'Ayrshare'); return `Connected (${(u.activeSocialAccounts || []).join(', ') || 'no social accounts linked yet'})`; }
   throw new Error('Unknown integration');
 }
