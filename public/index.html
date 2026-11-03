@@ -1142,6 +1142,15 @@ const TYPE_LABEL = { site: 'Website', post: 'Social post', budget: 'Budget', 'em
 
 function setBar(id, p) { const el = $(id); el.className = 'progress' + (p >= 90 ? ' bad' : p >= 70 ? ' warn' : ''); el.firstElementChild.style.width = p + '%'; }
 
+// Browser approvals show a screenshot of the live page, so the owner sees exactly what gets submitted.
+const SHOTS = new Map();
+async function loadShot(el) {
+  const id = el.dataset.s;
+  if (!SHOTS.has(id)) SHOTS.set(id, call('browser/' + encodeURIComponent(id)));
+  const r = await SHOTS.get(id);
+  el.innerHTML = r.error ? `<span class="muted" style="font-size:12px">${esc(r.error)}: approving will fail; decline and ask again.</span>`
+    : `<div class="muted" style="font-size:12px;overflow-wrap:anywhere">${esc(r.title)} · ${esc(r.url)}</div><img alt="Page to be submitted" src="data:image/jpeg;base64,${r.shot}" style="width:100%;border-radius:8px;border:1px solid var(--line);margin-top:4px">`;
+}
 async function refresh() {
   const s = await call('state?agent=' + encodeURIComponent(agentName));
   if (s.error) return;
@@ -1193,9 +1202,12 @@ async function refresh() {
   $('#approvals').innerHTML = approvals.map((a) => `<div class="ap">
       <div style="display:flex;align-items:center;gap:8px"><span class="ibox brand" style="width:28px;height:28px">${icon('shield', 'width:15px;height:15px')}</span><span style="font-size:13px;font-weight:500">${esc(agentLabel(a.agent))}</span><span class="pill warn" style="margin-left:auto">Pending · ${esc(ago(a.ts))}</span></div>
       <h4>${esc(a.tool.replace(/_/g, ' '))} <span class="muted" style="font-weight:400">#${a.id}</span></h4>${a.reason ? `<div class="help" style="margin:0 0 4px">${esc(a.reason)}</div>` : ''}
+      ${a.tool === 'browser_submit' ? `<div class="bshot" data-s="${esc(JSON.parse(a.input).session)}" style="margin:6px 0"><span class="muted" style="font-size:12px">Loading what the page looks like…</span></div>` : ''}
       <pre>${esc(JSON.stringify(JSON.parse(a.input), null, 2))}</pre>
       <div class="actions"><button class="btn primary sm" onclick="decide(${a.id}, true)">${icon('check')}Approve</button><button class="btn sm" onclick="decide(${a.id}, false)">${icon('x')}Decline</button></div>
     </div>`).join('') || `<div class="empty">${icon('shield', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing needs you right now.</div>`;
+
+  document.querySelectorAll('.bshot').forEach(loadShot);
 
   // Agents
   const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));

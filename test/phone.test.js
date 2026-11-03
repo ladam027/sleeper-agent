@@ -52,7 +52,7 @@ test('notify routes by urgency; calls become messages in quiet hours unless it i
   assert.deepEqual(kinds(), ['call', 'sendMessage']);
   assert.equal(sent[1].body.chat_id, '42');
 
-  sent = []; set('quiet_end', '23:59'); // always quiet
+  sent = []; set('quiet_end', '24:00'); // always quiet ('23:59' failed during that one minute)
   assert.match(await phone.notify('critical', 'late night'), /quiet hours, so no call, messaged on Telegram/);
   assert.deepEqual(kinds(), ['sendMessage']);
   sent = [];

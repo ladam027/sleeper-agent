@@ -80,5 +80,5 @@ fi
 if [ -n "${ENV:-}" ]; then echo "→ Pushing .env"; rsync -az .env "$HOST:$APP/.env"; fi
 
 echo "→ Installing and restarting"
-ssh "$HOST" "cd $APP && chown -R sleeper:sleeper $APP && chmod 600 $APP/.env 2>/dev/null; sudo -u sleeper -H /usr/local/bin/npm ci --omit=dev --silent && systemctl restart sleeper-agent && sleep 2 && systemctl is-active sleeper-agent && journalctl -u sleeper-agent -n 5 --no-pager -o cat"
+ssh "$HOST" "cd $APP && chown -R sleeper:sleeper $APP && chmod 600 $APP/.env 2>/dev/null; sudo -u sleeper -H /usr/local/bin/npm ci --omit=dev --silent && mkdir -p /opt/ms-playwright && PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright npx --yes playwright-core install chromium >/dev/null && chmod -R a+rX /opt/ms-playwright && systemctl restart sleeper-agent && sleep 2 && systemctl is-active sleeper-agent && journalctl -u sleeper-agent -n 5 --no-pager -o cat"
 echo "✓ Deployed $(node -p "require('./package.json').version") to $HOST"

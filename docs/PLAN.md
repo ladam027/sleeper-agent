@@ -87,7 +87,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Paper trading for at least 30 days, then live with: max $ per order, max daily loss, max open positions, all enforced in code. **Every order is an approval sent to you by text or call.** Logged and never automatic until you change that yourself.
 - Weekly Schwab re-auth reminder (7-day refresh token).
 
-### Build 7: Voice + browser hands (part 1 ✅ capabilities)
+### Build 7: Voice + browser hands (part 1 ✅ capabilities, part 2 ✅ browser hands; voice next)
 - Voice agent (Vapi/Retell + ElevenLabs clone of your voice) for scheduling and support calls. It discloses that it's an AI, records only with consent, and gives you a transcript plus outcome afterwards.
 - Browser automation (Playwright) for form filling using vault references. Pauses for CAPTCHAs and 2FA, and you finish those.
 - Self-knowledge: auto-generated `/capabilities` page from the tool and agent registry, which the agent reads.
