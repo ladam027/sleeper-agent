@@ -28,7 +28,9 @@ test('sanitizer removes anything that can run code, phish or load third-party co
 test('saving validates and sanitizes; republishing marks a live site as changed', () => {
   assert.throws(() => studio.saveSite({ slug: 'Bad Slug', title: 't', html: page('') }), /slug/);
   assert.throws(() => studio.saveSite({ slug: 'ok', title: 't', html: '<p>not a document</p>' }), /complete document/);
-  assert.match(studio.saveSite({ slug: 'raincross-pub', title: 'Raincross Pub', html: page('<h1>Pub</h1><script>x</script>') }), /Saved draft/);
+  assert.match(studio.saveSite({ slug: 'raincross-pub', title: 'Raincross Pub', html: page('<h1>Pub</h1><script>x</script>') }), /NOT public yet.*offer to publish/);
+  studio.saveSite({ slug: 'fonts', title: 'F', html: page('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>') });
+  assert.equal((studio.siteHtml('fonts').match(/rel="preconnect"/g) || []).length, 2, 'font preconnects kept');
   assert.ok(!studio.siteHtml('raincross-pub').includes('<script'));
   assert.equal(studio.listSites()[0].status, 'draft');
 });

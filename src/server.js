@@ -147,7 +147,7 @@ async function api(req, url) {
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
   if (route === 'studio') { // owner's own clicks: publishing from here is the approval
     if (m === 'GET' && !id) return { sites: studio.listSites(), posts: studio.listPosts(), platforms: studio.PLATFORMS,
-      netlify: vault.ready() && vault.names().some((n) => n.name === 'netlify'), ayrshare: vault.ready() && vault.names().some((n) => n.name === 'ayrshare') };
+      netlify: vault.names().some((n) => n.name === 'netlify'), ayrshare: vault.names().some((n) => n.name === 'ayrshare'), vaultUnlocked: vault.ready() };
     if (m === 'GET' && id === 'site') return { html: studio.siteHtml(decodeURIComponent(action)) || '' };
     const b = await body(req);
     if (id === 'publish-site') return { result: await studio.publishSite(b.slug) };

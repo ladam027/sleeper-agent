@@ -15,7 +15,7 @@ export function sanitizeHtml(html) {
   h = h.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, '');
   h = h.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
   h = h.replace(/(href|src|action|formaction|xlink:href)\s*=\s*(["']?)\s*(javascript|vbscript|data:text\/html)[^"'\s>]*\2/gi, '$1="#"');
-  h = h.replace(/<link\b[^>]*>/gi, (tag) => /href\s*=\s*["']https:\/\/fonts\.(googleapis|gstatic)\.com\//i.test(tag) ? tag : '');
+  h = h.replace(/<link\b[^>]*>/gi, (tag) => /href\s*=\s*["']https:\/\/fonts\.(googleapis|gstatic)\.com(\/|["'])/i.test(tag) ? tag : '');
   h = h.replace(/@import\s+url\(\s*["']?(?!https:\/\/fonts\.googleapis\.com)[^)]*\)\s*;?/gi, '');
   return h;
 }
@@ -32,7 +32,8 @@ export function saveSite({ slug, title, html, contact_id, notes = '' }, by = 'de
     .run(title.trim().slice(0, 120), clean, contact_id ?? null, String(notes).slice(0, 500), slug);
   else db.prepare('insert into sites (slug, title, html, contact_id, notes) values (?, ?, ?, ?, ?)').run(slug, title.trim().slice(0, 120), clean, contact_id ?? null, String(notes).slice(0, 500));
   log(by, 'site', `${cur ? 'updated' : 'drafted'} site "${title.slice(0, 60)}" (${slug})${clean.length < html.length ? ', unsafe parts removed' : ''}`);
-  return `Saved draft site "${title}" (${slug}). The owner can preview it in the Studio tab${cur?.url ? '; republish to update the live link' : ''}.`;
+  const live = cur?.url;
+  return `Saved draft site "${title}" (${slug}). It is NOT public yet${live ? ` (the live link ${live} still shows the old version)` : ''}. Tell the owner it's ready to preview in the Studio tab and offer to ${live ? 'republish' : 'publish'} it: publish_site asks the owner for approval, or they press Publish in Studio.`;
 }
 export const listSites = () => db.prepare('select s.id, s.slug, s.title, s.status, s.url, s.notes, s.updated_at, c.name contact from sites s left join contacts c on c.id = s.contact_id order by s.updated_at desc').all();
 export const siteHtml = (slug) => db.prepare('select html from sites where slug = ?').get(slug)?.html;

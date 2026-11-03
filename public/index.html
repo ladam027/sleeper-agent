@@ -1710,8 +1710,11 @@ function renderStudio() {
   $('#sites').innerHTML = SD.sites.map((s) => { const [cls, label] = SITE_STATUS[s.status] || ['', s.status];
     return `<div class="agent" style="margin:0"><div class="agent-h"><div style="min-width:0"><div class="name">${esc(s.title)}</div><div class="model">${esc(s.contact || s.slug)} · ${esc(ago(s.updated_at))}</div></div><span class="pill ${cls} right">${label}</span></div>
       ${s.url ? `<div class="help" style="margin-top:6px;overflow-wrap:anywhere"><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.url.replace('https://', ''))}</a></div>` : ''}
-      <div class="actions"><button class="btn sm primary" onclick="previewSite('${esc(s.slug)}', '${esc(s.title).replace(/'/g, '')}')">${icon('eye')}Preview</button>
-        <button class="btn sm" onclick="publishSite('${esc(s.slug)}')" ${SD.netlify ? '' : 'disabled title="Connect Netlify on the Integrations page"'}>${icon('external')}${s.url ? 'Update live' : 'Publish'}</button>
+      ${!s.url ? `<div class="help" style="margin-top:6px">Not public yet: only you can see this draft.</div>` : ''}
+      <div class="actions"><button class="btn sm" onclick="previewSite('${esc(s.slug)}', '${esc(s.title).replace(/'/g, '')}')">${icon('eye')}Preview</button>
+        ${!SD.netlify ? `<button class="btn sm" onclick="show('integrations')" title="Netlify isn't connected yet">${icon('plug')}Connect Netlify to publish</button>`
+          : !SD.vaultUnlocked ? `<button class="btn sm" onclick="show('vault')" title="Publishing uses your Netlify key, which is in the vault">${icon('lock')}Unlock vault to publish</button>`
+          : `<button class="btn sm ${s.status === 'live' ? '' : 'primary'}" onclick="publishSite('${esc(s.slug)}')">${icon('external')}${s.url ? (s.status === 'changed' ? 'Update live site' : 'Republish') : 'Publish'}</button>`}
         ${s.url ? `<button class="btn sm" onclick="navigator.clipboard.writeText('${esc(s.url)}').then(() => toast('Link copied'))">${icon('copy')}Copy link</button>` : ''}
         <button class="btn sm" onclick="changeSite('${esc(s.slug)}')">${icon('sparkles')}Request changes</button>
         ${s.status === 'draft' ? `<button class="btn sm icon danger" aria-label="Delete draft" onclick="deleteSite('${esc(s.slug)}')">${icon('trash')}</button>` : ''}</div></div>`; }).join('')

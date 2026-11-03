@@ -27,3 +27,6 @@
 
 ## 5.4.0
 - Auto routing by capability: website work → Mia directly; complex → James; everyday → Pete. Every specialist can escalate. A specialist reply that says it can't do something (`CANT` pattern) is held back, not saved or shown, and James answers instead (`holdReply`). Rule in every agent: never tell the owner to ask another agent. 87 tests.
+
+## 5.5.0
+- Diagnosis: Hunneedee's sites were never published (drafts only; no publish attempts). Fixes: Studio shows "Not public yet" and the right button (Connect Netlify / Unlock vault to publish / Publish / Update live site) instead of a misleading disabled button; save_site tells James the draft isn't public and to offer publishing; font preconnect links survive sanitizing.
