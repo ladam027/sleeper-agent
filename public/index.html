@@ -623,7 +623,7 @@ td.r, th.r { text-align: right; }
             <ul>
               <li><b>Batch your asks.</b> One message with three requests beats three messages, because each turn re-sends the conversation.</li>
               <li><b>Be specific.</b> "Draft 3 Etsy titles for a minimalist fox print" is cheaper than a vague ask plus two rounds of clarification.</li>
-              <li><b>Start fresh topics fresh.</b> Long unrelated history makes every reply cost more. Save what matters to memory and move on.</li>
+              <li><b>Chats compress themselves.</b> Only the last few messages (Settings) are sent with each request. Older ones are folded into lasting memories plus a short summary you can read at the top of the chat.</li>
             </ul>
             <ul>
               <li><b>Pin carefully.</b> Pin stable facts only. Editing a pinned memory resets the cache, so the next message costs a bit more.</li>
@@ -770,6 +770,9 @@ td.r, th.r { text-align: right; }
           <input id="sBudget" name="global_daily_budget_usd" type="number" step="0.5" min="0">
           <div class="help">Hard stop for all agents combined. Each agent also has its own cap.</div>
           <div style="margin-top:6px"><button type="button" class="btn sm" onclick="raiseLimit('global', +$('#sBudget').value)">Raise today's cap</button> <span class="help" id="globalBoost"></span></div>
+          <label class="f" for="sHistory">Recent messages sent with each request</label>
+          <input id="sHistory" name="history_limit" type="number" min="2" max="40" step="1">
+          <div class="help">Fewer = cheaper. Older messages are folded into a short summary and saved to memory automatically, so nothing important is lost.</div>
           <label class="f" for="sTheme">Appearance</label>
           <select id="sTheme"><option value="">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>
           <div style="margin-top:var(--s5)"><button class="btn primary">Save settings</button></div>
@@ -963,7 +966,8 @@ async function refresh() {
   $('#kMem').textContent = stats.memories ?? '—'; $('#kMemSub').textContent = `${stats.pinned ?? 0} pinned core facts`;
   $('#kPinPct').textContent = `${stats.pinned ?? 0}/10`; $('#kPinBar').firstElementChild.style.width = pct(stats.pinned, 10) + '%';
   $('#kAp').textContent = approvals.length; $('#kApSub').textContent = approvals.length ? `oldest ${ago(approvals[0].ts)}` : 'nothing waiting';
-  const live = agents.filter((a) => a.status !== 'killed').length; $('#kActive').textContent = `${live}/${agents.length}`; $('#kActiveBar').firstElementChild.style.width = pct(live, agents.length) + '%';
+  const visible = agents.filter((a) => !INTERNAL.has(a.name)), live = visible.filter((a) => a.status !== 'killed').length;
+  $('#kActive').textContent = `${live}/${visible.length}`; $('#kActiveBar').firstElementChild.style.width = pct(live, visible.length) + '%';
 
   // Approvals
   $('#approvals').innerHTML = approvals.map((a) => `<div class="ap">
@@ -976,7 +980,7 @@ async function refresh() {
   // Agents
   const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));
   const STATUS = { running: ['ok', 'Working'], idle: ['', 'Idle'], killed: ['bad', 'Killed'] };
-  if (!openAgent) $('#agents').innerHTML = agents.filter((a) => a.name !== 'reader').map((a) => { const extra = s.boosts?.[a.name] || 0, cap = a.daily_budget_usd + extra, sp = spentBy[a.name]?.usd || 0, p = pct(sp, cap), [cls, label] = STATUS[a.status] || ['', a.status];
+  if (!openAgent) $('#agents').innerHTML = agents.filter((a) => !INTERNAL.has(a.name)).map((a) => { const extra = s.boosts?.[a.name] || 0, cap = a.daily_budget_usd + extra, sp = spentBy[a.name]?.usd || 0, p = pct(sp, cap), [cls, label] = STATUS[a.status] || ['', a.status];
     return `<div class="agent">
       <div class="agent-h"><span class="ibox brand">${icon('bot')}</span><div style="min-width:0"><div class="name">${esc(agentLabel(a.name))}</div><div class="model">${esc(MODEL_NAME[a.model] || a.model)}</div></div>
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
@@ -1046,14 +1050,14 @@ async function refresh() {
   pick.value = agentName;
   if (view === 'guide') renderGuide();
   if (view === 'integrations' && !openIntegration) renderIntegrations();
-  if (!sending) renderChat(chat);
+  if (!sending) renderChat(chat, s.chatSummary);
 
   // Settings (don't clobber while editing)
   const f = $('#setForm');
   const nf = $('#namesForm');
   if (!nf.contains(document.activeElement)) $('#namesFields').innerHTML = agents.map((a) => `<label class="f" for="nm-${esc(a.name)}">${esc(roleOf(a.name))} <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)}</span></label><input id="nm-${esc(a.name)}" data-agent="${esc(a.name)}" value="${esc(a.display_name || '')}" maxlength="24" placeholder="Name">`).join('');
   $('#globalBoost').textContent = s.boosts?.global ? `Raised by ${money(s.boosts.global)} today` : '';
-  if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; $('#sTheme').value = store.get('theme'); }
+  if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; f.history_limit.value = settings.history_limit || 12; $('#sTheme').value = store.get('theme'); }
   if (view === 'money') drawCosts();
   if (view === 'money' || view === 'clients') loadMoney();
   const V = s.version;
@@ -1064,8 +1068,8 @@ async function refresh() {
 
 const SUGGEST = [['sparkles', "Here's who I am and what I'm working on…"], ['clock', 'Plan my day'], ['graph', 'What do you know about me?'], ['shield', 'Find the holes in this idea:']];
 let lastChatKey = '';
-function renderChat(chat) {
-  const key = chat.length + ':' + (chat.at(-1)?.id ?? '');
+function renderChat(chat, summary) {
+  const key = chat.length + ':' + (chat.at(-1)?.id ?? '') + ':' + (summary?.upto ?? '');
   if (key === lastChatKey) return; lastChatKey = key;
   const box = $('#msgs');
   if (!chat.length) {
@@ -1074,12 +1078,13 @@ function renderChat(chat) {
     box.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { $('#chatIn').value = b.dataset.s; $('#chatIn').focus(); });
     return;
   }
-  box.innerHTML = chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`
+  box.innerHTML = (summary?.text ? `<details class="msg sys" style="text-align:left;max-width:100%;background:var(--sunken);border-radius:10px;padding:8px 12px"><summary style="cursor:pointer">Earlier conversation, summarized (this is what James remembers from it)</summary><div style="margin-top:6px;white-space:pre-wrap">${esc(summary.text)}</div></details>` : '') + chat.map((c) => `<div class="msg ${c.content.startsWith('[system note]') ? 'sys' : c.role}">${esc(c.content.replace(/^\[system note\] /, ''))}</div>`
     + (c.role === 'assistant' && c.model ? `<div class="badge">${icon('zap', 'width:12px;height:12px')}<b>${esc([byModel(c.model), MODEL_NAME[c.model] || c.model].filter(Boolean).join(' · '))}</b>${c.usd != null ? money(c.usd) : ''}</div>` : '')).join('');
   box.scrollTop = box.scrollHeight;
 }
 
 const isHaiku = (a) => a.model.startsWith('claude-haiku');
+const INTERNAL = new Set(['reader', 'archivist']); // background helpers, not shown as agent cards
 // Tools an owner can grant a non-orchestrator agent (create/delegate stay with James; cleanup only runs via approval).
 const NOT_GRANTABLE = new Set(['create_agent', 'delegate', 'escalate', 'apply_memory_cleanup']);
 const toolChoices = (a) => { const own = new Set((a.tools || '').split(',').filter(Boolean));
@@ -1192,7 +1197,7 @@ $('#namesForm').onsubmit = async (e) => {
 $('#setForm').onsubmit = async (e) => {
   e.preventDefault();
   store.set('theme', $('#sTheme').value); applyTheme($('#sTheme').value);
-  const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value) });
+  const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value), history_limit: Number(e.target.history_limit.value) });
   if (r.error) alert(r.error); refresh();
 };
 

@@ -3,7 +3,7 @@ import { db, get, set, log } from './db.js';
 import { summary, record } from './budget.js';
 import { redact } from './vault.js';
 import { notify } from './phone.js';
-import { runAgent, client } from './agent.js';
+import { runAgent, client, compressThread } from './agent.js';
 import { localNow } from './scheduler.js';
 import * as google from './google.js';
 import * as vault from './vault.js';
@@ -142,6 +142,7 @@ export function start() {
     try { await memoryCleanup(); } catch (e) { log('memory', 'error', e.message); }
     try { if (++ticks % 2 === 0) await checkJamesInbox(); } catch (e) { log('james', 'error', e.message); }
     try { await morningDigest(); } catch (e) { log('quick', 'error', e.message); }
+    for (const { agent: t } of db.prepare('select distinct agent from chat').all()) try { await compressThread(t); } catch (e) { log('archivist', 'error', e.message); }
   };
   setTimeout(tick, 60e3); // let the server settle first
   setTimeout(() => vaultNudge().catch((e) => log('phone', 'error', e.message)), 2 * 60e3);

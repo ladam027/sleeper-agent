@@ -14,7 +14,7 @@ import * as integrations from './integrations.js';
 import { stats } from './stats.js';
 import { TOOLS } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
-import { runAgent, auto, kill, restart, decide } from './agent.js';
+import { runAgent, auto, kill, restart, decide, getSummary } from './agent.js';
 
 
 const TOKEN = process.env.DASHBOARD_TOKEN;
@@ -83,6 +83,7 @@ async function api(req, url) {
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
     chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') === 'auto' ? 'orchestrator' : url.searchParams.get('agent') || 'orchestrator'),
     prices: PRICES,
+    chatSummary: getSummary(url.searchParams.get('agent') === 'auto' || !url.searchParams.get('agent') ? 'orchestrator' : url.searchParams.get('agent')),
     tools: Object.fromEntries(Object.entries(TOOLS).map(([k, t]) => [k, { risk: t.risk, hidden: t.hidden, description: t.def.description.split('. ')[0] }])),
   };
   if (route === 'chat' && m === 'POST') {

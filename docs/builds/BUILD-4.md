@@ -61,5 +61,9 @@
   - Riley: 3 searches per step, fetched pages capped at 6,000 tokens.
 - Mobile tab bar shows icons only under 480px. 74 tests.
 
+## 4.9.0: Chat compression
+- Archivist (hidden Haiku agent: remember/recall/link_memory). Every 5 minutes, for each thread with 4+ messages outside the history window, it saves lasting facts to memory (recall first, update rather than duplicate) and rewrites a ≤120-word rolling summary (`summary:<thread>`). History = summary + last `history_limit` messages.
+- The summary is shown (collapsible) at the top of the chat. History size is editable in Settings. Background/ephemeral runs never file budget-raise requests. 75 tests.
+
 ## Part 3 (later)
 - GitHub publishing via a fine-grained token (approval per publish).

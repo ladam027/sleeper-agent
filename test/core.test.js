@@ -170,3 +170,26 @@ test('caching: stable prefix always cached; the conversation only within multi-s
   assert.equal(calls[1].cache_control.type, 'ephemeral', 'later steps reuse it within seconds');
   assert.ok(calls[0].messages.length <= 13, `12 past messages + the new one (got ${calls[0].messages.length})`);
 });
+
+test('compression: older messages become memories + a short summary that leads the history', async () => {
+  reset();
+  const { compressThread, getSummary } = await import('../src/agent.js');
+  set('history_limit', 6);
+  for (let i = 0; i < 14; i++) db.prepare('insert into chat (agent, role, content) values (?, ?, ?)').run('orchestrator', i % 2 ? 'assistant' : 'user', i === 2 ? 'My econ midterm is Nov 14' : `msg ${i}`);
+  const calls = [];
+  const replies = [toolUse('remember', { title: 'Econ midterm', body: 'Nov 14', kind: 'fact' }), text('Owner is planning study time before the Nov 14 econ midterm.')];
+  deps.client = { messages: { create: async (p) => (calls.push(structuredClone(p)), replies.shift()) } };
+  assert.equal(await compressThread('orchestrator'), 'compressed');
+  assert.equal(calls[0].model, 'claude-haiku-4-5', 'archivist runs on Haiku');
+  assert.match(JSON.stringify(calls[0].messages), /econ midterm is Nov 14/);
+  assert.equal(db.prepare("select body from memory where title = 'Econ midterm'").get().body, 'Nov 14');
+  const s = getSummary('orchestrator');
+  assert.match(s.text, /Nov 14 econ midterm/);
+  assert.equal(await compressThread('orchestrator'), 'nothing to compress', 'already folded');
+
+  const next = fake([text('ok')]);
+  await runAgent('orchestrator', 'what should I study?');
+  assert.match(next[0].messages[0].content, /^\[Summary of the earlier conversation/);
+  assert.ok(next[0].messages.length <= 8, 'summary + 6 recent + the new message');
+  set('history_limit', 12);
+});

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { db, get, log, agent, setStatus } from './db.js';
+import { db, get, set, log, agent, setStatus } from './db.js';
 import { MAX_STEPS, blocked, record, limitHit, today, spentToday, agentCap, globalCap } from './budget.js';
 import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
@@ -57,10 +57,13 @@ function system(a) {
 const systemFor = (a) => redact(system(a));
 
 // Saved history is plain user/assistant text only (tool internals aren't replayed; memory carries facts).
+// Older messages are folded into a short rolling summary by the archivist (see compressThread).
+const historyLimit = () => Math.min(Math.max(Number(get('history_limit') || 12), 2), 40);
+export const getSummary = (thread) => { try { return JSON.parse(get(`summary:${thread}`) || 'null'); } catch { return null; } };
 function history(name) {
-  const limit = Math.min(Math.max(Number(get('history_limit') || 12), 2), 40); // fewer past messages = cheaper calls; memory keeps long-term facts
-  const rows = db.prepare('select role, content from (select * from chat where agent = ? order by id desc limit ?) order by id').all(name, limit);
-  const out = [];
+  const rows = db.prepare('select role, content from (select * from chat where agent = ? order by id desc limit ?) order by id').all(name, historyLimit());
+  const out = [], sum = getSummary(name);
+  if (sum?.text) push(out, 'user', `[Summary of the earlier conversation, for context]\n${sum.text}`);
   for (const r of rows) push(out, r.role, redact(r.content)); // also covers chats saved before a vault entry existed
   while (out[0]?.role === 'assistant') out.shift();
   return out;
@@ -131,8 +134,9 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
       if (why) {
         log(name, 'blocked', why);
         const target = limitHit(name);
-        if (target) requestRaise(target, root);
-        return `Stopped: ${why}${target ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
+        const ask = target && !opts.ephemeral; // background jobs just stop; only owner-facing tasks ask
+        if (ask) requestRaise(target, root);
+        return `Stopped: ${why}${ask ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
       }
       const res = await client().messages.create({
         // Caching: the stable prefix (tools + system) is always marked. The conversation itself is cached only from the
@@ -180,6 +184,27 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
     running.delete(name);
     if (agent(name)?.status === 'running') setStatus(name, 'idle');
   }
+}
+
+// Folds messages that scrolled out of the history window into durable memories + a short summary.
+// Runs in the background (jobs.js), on Haiku, only once at least 4 older messages are waiting.
+const compressing = new Set();
+export async function compressThread(thread) {
+  if (compressing.has(thread) || !agent('archivist')) return 'skipped';
+  const s = getSummary(thread) || { upto: 0, text: '' };
+  const windowStart = db.prepare('select min(id) m from (select id from chat where agent = ? order by id desc limit ?)').get(thread, historyLimit()).m;
+  if (!windowStart) return 'empty';
+  const old = db.prepare('select id, role, content from chat where agent = ? and id > ? and id < ? order by id').all(thread, s.upto, windowStart);
+  if (old.length < 4) return 'nothing to compress';
+  compressing.add(thread);
+  try {
+    const transcript = old.map((r) => `${r.role === 'user' ? 'Owner' : 'Assistant'}: ${String(r.content).replace(/^\[[^\]]*\]\s*/, '').slice(0, 1500)}`).join('\n');
+    const out = await runAgent('archivist', `Previous summary:\n${s.text || '(none)'}\n\nOlder messages to fold in:\n${transcript}\n\n1) Save lasting facts (preferences, decisions, people, projects, numbers, deadlines) with remember. Use recall first; update an existing memory by id instead of adding a near-duplicate. Skip small talk, finished one-off tasks, and anything already saved.\n2) Then reply with ONLY an updated summary of what is still relevant to the ongoing conversation (open questions, tasks in progress, recent decisions), at most 120 words, plain text.`, 0, { ephemeral: true });
+    if (/^(Stopped|Error|The model declined)/.test(out)) return out;
+    set(`summary:${thread}`, JSON.stringify({ upto: old.at(-1).id, text: out.slice(0, 1200), at: new Date().toISOString() }));
+    log('archivist', 'memory', `compressed ${old.length} older messages into a summary`);
+    return 'compressed';
+  } finally { compressing.delete(thread); }
 }
 
 // Auto mode: cheapest model that can do the job. Obvious heavy work goes straight to the orchestrator;
