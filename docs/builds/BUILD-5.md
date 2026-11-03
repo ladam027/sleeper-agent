@@ -43,3 +43,4 @@
 
 ## 5.8.1
 - `get_site` (read-only, taint-safe): Mia reads a draft before editing it. "Request changes" in Studio previously could not show her the current page. Schema v19.
+- 5.8.2: tool errors are written to the activity log (redacted), so failures can be diagnosed without the agent's paraphrase.

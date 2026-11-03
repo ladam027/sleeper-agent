@@ -133,7 +133,7 @@ async function exec(use, ctx, allowed) {
   // No phone calls from a task that read web content: a page could otherwise make the agent ring you.
   const input = ctx.tainted && use.name === 'notify_owner' && use.input.urgency === 'critical' ? { ...use.input, urgency: 'high' } : use.input;
   try { return { content: redact(String(await t.run(input, ctx))) }; }
-  catch (e) { return { content: redact(e.message), is_error: true }; }
+  catch (e) { const msg = redact(e.message); log(ctx.agent, 'tool-error', `${use.name}: ${msg}`.slice(0, 500)); return { content: msg, is_error: true }; }
 }
 
 // opts.thread: which chat history to read/write (Auto mode shares the orchestrator's thread across models).
