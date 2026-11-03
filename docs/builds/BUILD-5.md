@@ -7,7 +7,7 @@
 - **Content calendar:** `draft_post` (text, platforms, optional schedule in owner local time), with list / copy / mark posted / discard on the dashboard. Optional **Ayrshare** integration posts or schedules on approval (`publish_post`, high risk); without it, approving marks the post ready to copy.
 - Dashboard: **Studio** tab (sites with preview / publish / copy link, "Ask Mia for a site" form, post calendar).
 
-**Shipped:** `src/studio.js` (sanitizer, sites, zip, Netlify publish with polling, posts, Ayrshare), tools `save_site` / `list_sites` / `publish_site` (high) / `draft_post` / `list_posts` / `publish_post` (high), Mia (designer, Sonnet 5), Netlify + Ayrshare integrations with Test, Studio tab (sandboxed phone/desktop preview, publish, copy link, request changes, Ask-Mia form, calendar). Schema v15. 83 tests, including a syntax check of the dashboard script (a stray apostrophe would otherwise blank the whole page).
+**Shipped:** `src/studio.js` (sanitizer, sites, zip, Netlify publish with polling, posts, Ayrshare), tools `save_site` / `list_sites` / `publish_site` (high) / `draft_post` / `list_posts` / `publish_post` (high), Mia (designer, Sonnet 5), Netlify + Ayrshare integrations with Test, Studio tab (sandboxed phone/desktop preview, publish, copy link, request changes, Ask-Mia form, calendar). Schema v14. 83 tests, including a syntax check of the dashboard script (a stray apostrophe would otherwise blank the whole page).
 
 ## Owner setup
 - Netlify: sign up (free) → User settings → Applications → **Personal access tokens** → New → paste in Integrations → Netlify.
