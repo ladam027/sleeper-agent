@@ -21,3 +21,6 @@
 
 ## 5.2.0
 - Enterprise redesign (Geist, glass, aurora, gradient accent, motion layer; see docs/DESIGN.md) and a draggable memory graph (live physics, pan, zoom, pinch, fit).
+
+## 5.3.0
+- Pete gets contact / log_money / project (everyday dashboard updates). Every agent's system prompt maps dashboard tabs to tools ("add to the dashboard" = the real record, not a memory). escalate: hand off immediately when a tool is missing, never improvise a workaround. 85 tests.

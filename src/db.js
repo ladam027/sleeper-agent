@@ -81,6 +81,8 @@ const MIGRATIONS = [
      created_at text default current_timestamp, updated_at text default current_timestamp);
    create table if not exists posts (id integer primary key, text text not null, platforms text default '', scheduled_at text, local_time text,
      media_url text, status text not null default 'draft', result text, created_by text, created_at text default current_timestamp);`,
+  `update agents set tools = tools || ',contact,log_money,project' where name = 'quick' and tools not like '%,contact%';
+   update agents set purpose = 'Fast, cheap answers and everyday dashboard updates: simple questions, quick facts, memory lookups, reminders, adding or updating clients, logging money, updating projects. Hands anything complex, or anything needing a tool it lacks, to the orchestrator right away.' where name = 'quick';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -104,8 +106,8 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
   values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3, 'James', 2, 1)`).run();
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name, concise)
-  values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers: simple questions, quick facts, memory lookups, small edits to memory. Escalates anything complex to the orchestrator.', 1, 1024,
-  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder,list_projects,list_contacts,canvas_upcoming,canvas_grades', 'Pete', 2)`).run();
+  values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers and everyday dashboard updates: simple questions, quick facts, memory lookups, reminders, adding or updating clients, logging money, updating projects. Hands anything complex, or anything needing a tool it lacks, to the orchestrator right away.', 1, 1024,
+  'remember,recall,link_memory,set_timezone,notify_owner,list_secrets,set_reminder,list_reminders,cancel_reminder,list_projects,list_contacts,canvas_upcoming,canvas_grades,contact,log_money,project', 'Pete', 2)`).run();
 
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);

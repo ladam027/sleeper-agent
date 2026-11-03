@@ -89,7 +89,7 @@ export const TOOLS = {
   list_secrets: tool('list_secrets', "List the names and kinds of the owner's vault entries (passwords, cards, personal info). You never get the values; reference one as {{secret:name}}.",
     {}, [], () => JSON.stringify(secretNames())),
 
-  escalate: tool('escalate', 'Hand this request to the more capable orchestrator model. Call it immediately, without answering, when the request needs planning, research, analysis, writing, multi-step work, careful judgment, or a tool you lack. Do not use it for simple questions, quick facts, or memory lookups.',
+  escalate: tool('escalate', 'Hand this request to the more capable orchestrator model. Call it IMMEDIATELY, without answering, when the request needs planning, research, analysis, writing, multi-step work, careful judgment, or ANY tool you do not have. Never offer a workaround (like saving a memory instead) for something you lack the tool for: escalate instead. Do not use it for simple questions, quick facts, or lookups you can do yourself.',
     { reason: str('one short phrase') }, ['reason'],
     ({ reason }, ctx) => { ctx.escalated = reason; return 'Handing off to the orchestrator.'; }),
 

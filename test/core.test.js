@@ -193,3 +193,16 @@ test('compression: older messages become memories + a short summary that leads t
   assert.ok(next[0].messages.length <= 8, 'summary + 6 recent + the new message');
   set('history_limit', 12);
 });
+
+test('Pete can update the dashboard (clients, money, projects), knows what "the dashboard" means, and escalates instead of improvising', async () => {
+  reset();
+  const { auto } = await import('../src/agent.js');
+  const calls = fake([toolUse('contact', { name: 'Raincross Pub', stage: 'lead' }), text('Added.')]);
+  assert.equal(await auto('add Raincross Pub to my leads on the dashboard'), 'Added.');
+  assert.equal(calls[0].model, 'claude-haiku-4-5');
+  const names = calls[0].tools.map((t) => t.name);
+  for (const t of ['contact', 'log_money', 'project', 'escalate']) assert.ok(names.includes(t), t);
+  assert.match(sysText(calls[0]), /Clients tab = leads and clients: use contact/);
+  assert.match(calls[0].tools.find((t) => t.name === 'escalate').description, /Never offer a workaround/);
+  assert.equal(db.prepare("select count(*) n from contacts where name = 'Raincross Pub'").get().n, 1);
+});
