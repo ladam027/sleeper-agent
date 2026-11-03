@@ -182,7 +182,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .agent .cfg { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
-@media (max-width: 900px) { [data-panel="studio"] { grid-template-columns: 1fr !important; } .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } #mkLimits { grid-template-columns: 1fr !important; } }
+@media (max-width: 900px) { [data-panel="studio"] { grid-template-columns: 1fr !important; } .nav[data-view="guide"] { display: none !important; } #projectForm, #entryForm { grid-template-columns: 1fr !important; } [data-panel="clients"] { grid-template-columns: 1fr !important; } #remForm { grid-template-columns: 1fr 1fr !important; } #remForm > div:first-child { grid-column: 1 / -1; } #mkLimits { grid-template-columns: 1fr !important; } [data-panel="browser"] { grid-template-columns: 1fr !important; } }
 .agent .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 
 /* Approval card */
@@ -198,6 +198,7 @@ label.f { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-
 .chat-h select { width: auto; max-width: 150px; padding: 4px 8px; font-size: 13px; text-overflow: ellipsis; }
 .chat-h #chatSub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #msgs { flex: 1; overflow: auto; padding: var(--s5); display: flex; flex-direction: column; gap: var(--s3); }
+#brApprovals pre, #brApprovals .bshot { display: none; } #brApprovals .ap { margin-bottom: var(--s2); } #brMsgs .msg { max-width: 92%; padding: 8px 12px; animation: none; }
 .msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise .25s var(--ease); }
 .msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); border-bottom-right-radius: 4px; }
 .msg.assistant { align-self: flex-start; background: var(--sunken); border-bottom-left-radius: 4px; }
@@ -726,8 +727,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     </dialog>
 
     <!-- Statistics -->
-    <section class="content" data-panel="browser" hidden style="grid-template-columns:1fr">
-      <div class="card">
+    <section class="content" data-panel="browser" hidden style="grid-template-columns:minmax(0,1fr) 360px">
+      <div class="card" style="min-width:0">
         <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-eye"/></svg></span><div><h2>Live browser</h2><div class="sub">See exactly what your agents see on websites, live. Click and type on the page to finish CAPTCHAs, 2FA or anything else yourself. Watching costs no tokens: it never goes to the AI.</div></div></div>
         <div id="brTabs" class="seg" role="group" aria-label="Browser sessions" style="margin-bottom:var(--s3)"></div>
         <div id="brEmpty" class="empty">No open browser sessions. Ask James to open a website, e.g. "open dmv.ca.gov".</div>
@@ -741,6 +742,20 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
             <button class="btn sm primary">Type</button>
           </form>
           <div id="brKeys" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:var(--s2)"></div>
+        </div>
+      </div>
+      <div class="stack" style="min-width:0">
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-shield"/></svg></span><div><h2>Approvals</h2><div class="sub">Approve here without leaving the page</div></div></div>
+          <div id="brApprovals"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-message"/></svg></span><div><h2>Chat</h2><div class="sub">Same conversation as Overview</div></div></div>
+          <div id="brMsgs" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;font-size:14px"></div>
+          <form id="brChat" style="display:flex;gap:var(--s2);margin-top:var(--s3)">
+            <input class="input" id="brChatIn" placeholder="Tell James what to do next…" autocomplete="off" style="flex:1;min-width:0">
+            <button class="btn sm primary" aria-label="Send"><svg class="i"><use href="#i-send"/></svg></button>
+          </form>
         </div>
       </div>
     </section>
@@ -1235,7 +1250,8 @@ async function refresh() {
       <div class="actions"><button class="btn primary sm" onclick="decide(${a.id}, true)">${icon('check')}Approve</button><button class="btn sm" onclick="decide(${a.id}, false)">${icon('x')}Decline</button></div>
     </div>`).join('') || `<div class="empty">${icon('shield', 'width:28px;height:28px;opacity:.5;display:block;margin:0 auto 6px')}Nothing needs you right now.</div>`;
 
-  document.querySelectorAll('.bshot').forEach(loadShot);
+  document.querySelectorAll('#approvals .bshot').forEach(loadShot);
+  $('#brApprovals').innerHTML = $('#approvals').innerHTML;
 
   // Agents
   const spentBy = Object.fromEntries(costs.byAgent.map((x) => [x.agent, x]));
@@ -1312,6 +1328,7 @@ async function refresh() {
   if (view === 'integrations' && !openIntegration) renderIntegrations();
   if (view === 'studio' && !designing) loadStudio();
   if (!sending) renderChat(chat, s.chatSummary);
+  if (!brSending) renderMiniChat(chat);
 
   // Settings (don't clobber while editing)
   const f = $('#setForm');
@@ -1793,7 +1810,27 @@ window.applyTip = async (n) => {
 let SD = null, designing = false;
 const SITE_STATUS = { draft: ['', 'Draft'], live: ['ok', 'Live'], changed: ['warn', 'Live, unpublished changes'] };
 // ── Live browser: polls only while this tab is open and visible. Screenshots never go to a model. ──
-let brSession = null, brTimer = null;
+let brSession = null, brTimer = null, brSending = false, miniKey = '';
+// Last few messages of the same conversation (no model badges, no summary): enough to steer James while watching.
+function renderMiniChat(chat) {
+  const key = chat.length + ':' + (chat.at(-1)?.id ?? ''); if (key === miniKey) return; miniKey = key;
+  const box = $('#brMsgs');
+  box.innerHTML = chat.filter((c) => !String(c.content).startsWith('[system note]')).slice(-8).map((c) => `<div class="msg ${c.role === 'user' ? 'user' : 'assistant'}">${esc(String(c.content).replace(/^\[Sent from Telegram[^\]]*\]\n?/, ''))}</div>`).join('')
+    || '<div class="muted" style="font-size:13px">No messages yet.</div>';
+  box.scrollTop = box.scrollHeight;
+}
+$('#brChat').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#brChatIn').value.trim(); if (!text || brSending) return;
+  brSending = true; $('#brChatIn').value = '';
+  const box = $('#brMsgs');
+  box.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(text)}</div><div class="msg assistant" id="brTyping"><span class="typing"><i></i><i></i><i></i></span></div>`);
+  box.scrollTop = box.scrollHeight;
+  const r = await call('chat', 'POST', { agent: agentName, text });
+  brSending = false; miniKey = ''; lastChatKey = '';
+  if (r.error) { $('#brTyping').outerHTML = `<div class="msg sys">${esc(r.error)}</div>`; return; }
+  refresh();
+};
 // first = opened just now: show() swaps `view` after the page transition, so don't trust it on the first call.
 async function loadBrowser(first = false) {
   clearTimeout(brTimer);
@@ -1802,6 +1839,7 @@ async function loadBrowser(first = false) {
   const ss = list.sessions || [];
   if (!ss.some((x) => x.id === brSession)) brSession = ss[0]?.id || null;
   $('#brEmpty').hidden = !!brSession; $('#brLive').hidden = !brSession;
+  $('#brTabs').style.display = ss.length > 1 ? '' : 'none';
   $('#brTabs').innerHTML = ss.length > 1 ? ss.map((x) => `<button type="button" aria-pressed="${x.id === brSession}" onclick="brPick('${x.id}')">${esc(agentLabel(x.agent))} · ${esc(new URL(x.url).hostname)}</button>`).join('') : '';
   if (brSession) {
     const f = await call('browser/' + brSession);

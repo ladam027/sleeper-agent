@@ -37,3 +37,4 @@
 - Also: Kalshi integration copy updated (live trading exists). 111 tests.
 - 7.5.1: after an approved browser_submit, the agent is woken automatically to check the page and continue, or report exactly what it needs (it used to stop until the owner wrote again; a failed DMV login went unreported). 112 tests.
 - 7.5.2: Browser tab loads on open (it checked the current view before the page transition had switched it, so it stayed on "No open browser sessions").
+- 7.6.0: Browser tab side column: pending approvals (approve/decline in place; the live page replaces the screenshot and JSON) and a mini chat on the same conversation, so the owner can watch, approve and steer without switching tabs. Stacks on phones.
