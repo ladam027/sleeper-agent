@@ -40,3 +40,6 @@
 ## 5.7.0
 - Cost: James's specialist tools load on demand via Anthropic tool search (bm25); 8 core tools stay loaded (only agents with more than 20 tools defer). James's prefix cache lives 1 hour (owner replies often come 5-60 min apart); Haiku agents (Pete) send no cache markers (writes were never reused). Tool-search calls don't count as web content (no taint).
 - Mia follows a saved "Website design spec" memory (adapted to static, script-free pages). recall clips memories over 800 chars unless it's the only hit or the exact title was asked for, so long specs don't flood other agents. Schema v17. 90 tests. Measured: James prefix 11,747 → 7,055 tokens.
+
+## 5.8.1
+- `get_site` (read-only, taint-safe): Mia reads a draft before editing it. "Request changes" in Studio previously could not show her the current page. Schema v19.

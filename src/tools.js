@@ -174,6 +174,9 @@ export const TOOLS = {
     { name: str('url-safe file name without extension, e.g. hero-cake'), prompt: str('detailed visual description: subject, setting, light, style, framing'), size: { type: 'string', enum: studio.IMAGE_SIZES } }, ['name', 'prompt'],
     (input, ctx) => studio.generateImage(input, ctx.agent)),
 
+  get_site: tool('get_site', 'Read a saved site\'s current HTML so you can edit it (change only what was asked, then save_site with the same slug).', { slug: str('site slug') }, ['slug'],
+    ({ slug }) => studio.siteHtml(slug) ?? `No site "${slug}". Use list_sites.`),
+
   list_sites: tool('list_sites', 'List website drafts and live sites with their status and live URL.', {}, [],
     () => JSON.stringify(studio.listSites())),
 

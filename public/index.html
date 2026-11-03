@@ -1755,7 +1755,7 @@ window.deleteSite = async (slug) => { if (confirm('Delete this draft?')) { await
 window.changeSite = async (slug) => {
   const what = prompt('What should Mia change?'); if (!what) return;
   designing = true; toast('Mia is updating the site… (about a minute)');
-  const r = await call('chat', 'POST', { agent: 'designer', text: `Update the site "${slug}" (use list_sites; keep everything else the same): ${what}` });
+  const r = await call('chat', 'POST', { agent: 'designer', text: `Update the site "${slug}" (read it with get_site, change only this, keep everything else the same, save with the same slug): ${what}` });
   designing = false; if (r.error) alert(r.error); else toast(String(r.reply).slice(0, 200)); loadStudio();
 };
 window.postAct = async (id, action) => { const r = await call('studio/post', 'POST', { id, action }); if (r.error) return alert(r.error); if (r.result) toast(r.result); loadStudio(); };
