@@ -224,12 +224,14 @@ export async function submit({ session: id, ref }, agent = 'orchestrator') {
 
 // What a submit would do, as facts only (no page text): for Sam's review and the owner's approval card.
 // Money / irreversible / speaking-for-the-owner actions are flagged here in code, so they always go to the owner.
-const OWNER_ONLY = /\b(buy|pay|purchase|order|checkout|check out|place|donate|transfer|subscribe|upgrade|renew|delete|remove|cancel|close|agree|accept|sign(?! ?in| ?up)|apply|post|publish|send|share|invite|withdraw|deposit|book|reserve|bid|trade)\b/i;
+// Creating accounts is owner-only too (CLAUDE.md rule 1), so sign-up/register/create/join buttons never go to Sam.
+const OWNER_ONLY = /\b(buy|pay|purchase|order|checkout|check out|place|donate|transfer|subscribe|upgrade|renew|delete|remove|cancel|close|agree|accept|sign(?! ?in)|register|create|join|enroll|apply|post|publish|send|share|invite|withdraw|deposit|book|reserve|bid|trade)\b/i;
+const OWNER_URL_SIGNUP = /\/(sign-?up|register|join|create-?account|registration)\b/i;
 const OWNER_URL = /\/(checkout|cart|payment|pay|billing|order|purchase|buy)\b/i;
 export function describeSubmit({ session: id, ref }) {
   const s = sessions.get(id); if (!s) throw new Error(`No open browser session "${id}"`);
   const { info } = el(s, ref), url = s.page.url();
-  const ownerOnly = OWNER_ONLY.test(info.label) || OWNER_URL.test(new URL(url).pathname);
+  const path = new URL(url).pathname, ownerOnly = OWNER_ONLY.test(info.label) || OWNER_URL.test(path) || OWNER_URL_SIGNUP.test(path);
   return { host: new URL(url).hostname, path: new URL(url).pathname.slice(0, 80), button: info.label, filled: [...(s.typed || [])].slice(-10), ownerOnly };
 }
 

@@ -41,3 +41,6 @@
 - Shipped: Drive for James (full) and the owner (read-only + app folder), approval-gated share/trash, Studio Drive card; video editing (inspect via contact sheets + transcript, validated edit spec, render to Drive, Videos card); image view/edit; plus per-tab dashboard addresses and agent flexibility (built alongside).
 - Skipped / later: whisper.cpp on the server (OpenAI speech-to-text instead, $0.006/min); AI-generated B-roll; resumable uploads for files over 200 MB.
 - Known gaps: Drive features are tested against a fake Google and on the server with local files, not yet end to end with the owner's real Drive (needs the Reconnect step). Video music ducking uses one fixed curve. Contact sheets show 36 frames at most (one every ~17 s for a 10-minute video).
+
+## 10.2.1: account creation is owner-only
+- Found while answering "can James create accounts?": Sam's owner-only list missed sign-up/register/create-account/join buttons, so Sam could have approved creating an account (CLAUDE.md rule 1 says creating accounts needs the owner). Now those buttons and sign-up/registration pages always go to the owner. 134 tests.
