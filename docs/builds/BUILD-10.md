@@ -26,7 +26,7 @@
 - **Mia** (Sonnet) gets video_inspect, video_edit and drive_search (migration + seed) and the delegate tool points video work at her. Studio: **Videos** card.
 - ffmpeg 8 + DejaVu fonts installed on the server (deploy.sh installs them if missing).
 - Smoke test on the server: 20 s test clip → 10 s vertical edit with two cuts (one at 2×), burned captions, a title with an apostrophe, fades and ducked music; 1078×1920, correct duration, rendered in 8 s.
-- Schema v27. 132 tests.
+- Schema v26. 132 tests.
 
 ## Cost per 1-minute edit (estimate)
 - Contact sheets ~7k image tokens + transcript text, on Sonnet: ~$0.02; planning + one review pass: ~$0.03–0.06; transcript $0.006; rendering free. About **$0.05–0.10**, revisions ~$0.02–0.05 each.
