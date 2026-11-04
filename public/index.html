@@ -801,6 +801,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
         </div>
         <div class="kpis" id="statKpis"></div>
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-route"/></svg></span><div><h2>Recent tasks</h2><div class="sub">Every request, with its steps, tokens and cost, including the agents it handed work to. Click one for its timeline.</div></div></div>
+          <table><thead><tr><th>When</th><th>Agent</th><th>Request</th><th class="r">Steps</th><th class="r">Tokens in / cached / out</th><th class="r">Cost</th><th class="r">Time</th><th>Status</th></tr></thead><tbody id="runRows"></tbody></table>
+        </div>
+        <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span><div><h2>How to spend less</h2><div class="sub">Worked out from your actual usage in this time span, biggest savings first</div></div></div>
           <div id="statTips"></div>
         </div>
@@ -1175,7 +1179,7 @@ function show(v) {
   loadView(v);
 }
 const VIEW_LOADERS = { memory: () => loadMemory(), money: () => Promise.all([drawCosts(), loadMoney()]), clients: () => loadMoney(), vault: () => loadVault(), guide: () => renderGuide(),
-  integrations: () => renderIntegrations(), stats: () => loadStats(), markets: () => loadMarkets(), studio: () => loadStudio(), browser: () => loadBrowser(true) };
+  integrations: () => renderIntegrations(), stats: () => Promise.all([loadStats(), loadRuns()]), markets: () => loadMarkets(), studio: () => loadStudio(), browser: () => loadBrowser(true) };
 const loadView = (v) => VIEW_LOADERS[v]?.();
 document.querySelectorAll('.nav').forEach((b) => b.onclick = () => show(b.dataset.view));
 $('#refreshBtn').onclick = async () => {
@@ -1870,6 +1874,27 @@ $('#brKeys').innerHTML = [['Enter', 'Enter'], ['Tab', 'Tab'], ['Backspace', '⌫
   + `<button type="button" class="btn sm" onclick="brInput({ type: 'scroll', dy: -600 })">Scroll up</button><button type="button" class="btn sm" onclick="brInput({ type: 'scroll', dy: 600 })">Scroll down</button>`;
 window.brInput = brInput;
 document.addEventListener('visibilitychange', () => { if (view === 'browser') loadBrowser(); });
+// ── Runs (Build 8): one row per task; tokens and cost include sub-agents. ──
+let openRun = null;
+const fmtK = (n) => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(n || 0);
+const RUN_STATUS = { done: ['ok', 'Done'], running: ['', 'Working'], stopped: ['warn', 'Stopped'], error: ['bad', 'Error'], 'handed up': ['', 'Handed to James'] };
+async function loadRuns() {
+  const r = await call('runs'); if (r.error) return;
+  $('#runRows').innerHTML = r.runs.map((x) => { const [cls, label] = x.waiting ? ['warn', 'Waiting on you'] : RUN_STATUS[x.status] || ['', x.status];
+    return `<tr style="cursor:pointer" onclick="toggleRun(${x.id})" title="${esc(x.result || '')}"><td class="muted">${esc(ago(x.ts))}</td><td>${esc(agentLabel(x.agent))}</td><td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(x.request).replace(/^\[Sent from Telegram[^\]]*\]\s*/, ''))}</td>
+      <td class="r num">${x.steps}</td><td class="r num">${fmtK(x.input)} / ${fmtK(x.cache_read)} / ${fmtK(x.output)}</td><td class="r num">${money(x.usd)}</td><td class="r num">${x.ms ? (x.ms / 1000).toFixed(x.ms < 10000 ? 1 : 0) + 's' : '…'}</td>
+      <td><span class="pill ${cls}">${label}</span>${x.waiting ? `<div class="muted" style="font-size:12px">${esc(x.waiting)}</div>` : ''}</td></tr>
+      ${openRun === x.id ? `<tr><td colspan="8" id="runDetail" style="background:var(--sunken)"><span class="muted">Loading…</span></td></tr>` : ''}`; }).join('')
+    || '<tr><td colspan="8" class="muted">No tasks recorded yet. New requests show up here.</td></tr>';
+  if (openRun) loadRunDetail(openRun);
+}
+window.toggleRun = (id) => { openRun = openRun === id ? null : id; loadRuns(); };
+async function loadRunDetail(id) {
+  const d = await call('runs/' + id); if (d.error || !$('#runDetail')) return;
+  const calls = d.calls.filter((c) => c.input != null);
+  $('#runDetail').innerHTML = `<div style="font-size:13px;line-height:1.6">${d.steps.map((s) => `<div style="display:flex;gap:10px;align-items:baseline"><span class="muted num" style="min-width:64px">${esc(String(s.ts).slice(11, 19))}</span><span style="min-width:120px">${esc(agentLabel(s.agent))}</span><b style="min-width:90px">${esc(s.type)}</b><span style="overflow-wrap:anywhere">${esc(String(s.detail).slice(0, 220))}</span></div>`).join('')}</div>
+    <div class="muted" style="font-size:12px;margin-top:8px">${calls.length} model call${calls.length === 1 ? '' : 's'}: ${calls.map((c) => `${MODEL_NAME[c.model] || c.model} ${fmtK(c.input + c.cache_read + c.cache_write)} in · ${fmtK(c.output)} out · ${money(c.usd)}`).join(' | ')}</div>`;
+}
 async function loadMarkets() {
   const r = await call('markets'); if (r.error) return;
   const p = r.paper, pnl = (n) => n == null ? '<span class="muted">–</span>' : `<span style="color:var(${n >= 0 ? '--ok' : '--bad'})">${n >= 0 ? '+' : '−'}$${Math.abs(n).toFixed(2)}</span>`;

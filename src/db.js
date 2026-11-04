@@ -1,6 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// The task (run) the current code is working for, so logs, costs and approvals can be grouped per task (Runs view).
+export const runCtx = new AsyncLocalStorage();
+export const runId = () => runCtx.getStore()?.run ?? null;
 
 const path = process.env.DB_PATH || 'data/agent.db';
 const onDisk = path !== ':memory:';
@@ -93,6 +98,15 @@ const MIGRATIONS = [
      side text not null, action text not null, count integer not null, price real not null, fee real not null default 0, pnl real not null default 0, by text, reason text);`,
   `create table if not exists live_orders (id integer primary key, ts text default current_timestamp, ticker text not null, side text not null, action text not null,
      count integer not null, limit_price real not null, order_id text, client_order_id text, fill_count real, avg_price real, fee real, by text, reason text);`,
+  `create table if not exists runs (id integer primary key, ts text default current_timestamp, ended_at text, agent text, parent integer, depth integer,
+     request text, status text default 'running', steps integer default 0, usd real default 0, input integer default 0, output integer default 0,
+     cache_read integer default 0, cache_write integer default 0, ms integer, result text);
+   create index if not exists runs_parent on runs (parent);
+   alter table activity add column run_id integer;
+   alter table costs add column run_id integer;
+   alter table approvals add column run_id integer;
+   create index if not exists activity_run on activity (run_id);
+   create index if not exists costs_run on costs (run_id);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -131,7 +145,7 @@ seed.run('security', 'claude-haiku-4-5', null, 'Hourly security audit of the act
 export const get = (k) => db.prepare('select value from settings where key = ?').get(k)?.value;
 export const set = (k, v) => db.prepare('insert or replace into settings values (?, ?)').run(k, String(v));
 export const log = (agent, type, detail) =>
-  db.prepare('insert into activity (agent, type, detail) values (?, ?, ?)')
-    .run(agent, type, typeof detail === 'string' ? detail : JSON.stringify(detail));
+  db.prepare('insert into activity (agent, type, detail, run_id) values (?, ?, ?, ?)')
+    .run(agent, type, typeof detail === 'string' ? detail : JSON.stringify(detail), runId());
 export const agent = (name) => db.prepare('select * from agents where name = ?').get(name);
 export const setStatus = (name, status) => db.prepare('update agents set status = ? where name = ?').run(status, name);

@@ -302,3 +302,17 @@ test('capabilities come from the live registry: per-agent tools, approval flags'
   assert.ok(!('raise_budget' in c.tools), 'hidden internal tools are not listed');
   assert.match(await TOOLS.list_capabilities.run({}), /Mia \(designer/);
 });
+
+test('runs: each task is recorded with steps, tokens, cost and status; sub-agent work links to it', async () => {
+  reset();
+  const replies = [toolUse('delegate', { agent: 'quick', task: 'say hi' }), text('hi from Pete'), text('All done')];
+  fake(replies);
+  await runAgent('orchestrator', 'please delegate a greeting');
+  const top = db.prepare("select * from runs where parent is null order by id desc limit 1").get();
+  const child = db.prepare('select * from runs where parent = ?').get(top.id);
+  assert.equal(top.agent, 'orchestrator'); assert.equal(top.status, 'done'); assert.equal(top.steps, 2);
+  assert.equal(child.agent, 'quick'); assert.equal(child.depth, 1); assert.equal(child.steps, 1);
+  assert.ok(top.ms >= 0 && top.usd > 0);
+  assert.ok(db.prepare("select count(*) n from activity where run_id = ? and type = 'tool'").get(top.id).n >= 1, 'log lines carry the run');
+  assert.equal(db.prepare('select count(*) n from costs where run_id = ?').get(child.id).n, 1, 'child costs carry the child run');
+});

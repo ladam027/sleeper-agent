@@ -151,6 +151,16 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'runs' && m === 'GET') {
+    // Whole task = the run plus every sub-agent run under it.
+    const tree = `with recursive t(id) as (select ? union all select r.id from runs r join t on r.parent = t.id) select id from t`;
+    if (id) return { steps: db.prepare(`select ts, agent, type, detail from activity where run_id in (${tree}) and type not in ('llm') order by id`).all(Number(id)),
+      calls: db.prepare(`select ts, agent, model, input, output, cache_read, cache_write, usd from costs where run_id in (${tree}) order by id`).all(Number(id)) };
+    const rows = db.prepare("select * from runs where parent is null order by id desc limit 40").all();
+    return { runs: rows.map((r) => { const tot = db.prepare(`select count(*) steps, coalesce(sum(usd), 0) usd, coalesce(sum(input), 0) i, coalesce(sum(output), 0) o, coalesce(sum(cache_read), 0) cr, coalesce(sum(cache_write), 0) cw from costs where run_id in (${tree})`).get(r.id);
+      const waiting = db.prepare(`select tool from approvals where status in ('pending', 'waiting_unlock') and run_id in (${tree}) limit 1`).get(r.id);
+      return { ...r, steps: tot.steps, usd: tot.usd, input: tot.i, output: tot.o, cache_read: tot.cr, cache_write: tot.cw, waiting: waiting ? `your approval (${waiting.tool.replace(/_/g, ' ')})` : null }; }) };
+  }
   if (route === 'capabilities' && m === 'GET') return capabilities();
   if (route === 'browser' && m === 'POST' && action === 'input') return browser.ownerInput(id, await body(req));
   if (route === 'browser' && m === 'GET') return id ? (await browser.preview(id)) || { error: 'That browser session has closed' } : { sessions: browser.openSessions() };

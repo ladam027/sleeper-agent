@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { db, get, set, log, agent, setStatus } from './db.js';
+import { db, get, set, log, agent, setStatus, runCtx, runId } from './db.js';
 import { MAX_STEPS, blocked, record, limitHit, today, spentToday, agentCap, globalCap } from './budget.js';
 import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
@@ -151,8 +151,8 @@ async function exec(use, ctx, allowed) {
     let reason = taintHold && t.risk !== 'high' ? 'This task read web content, so this action needs your OK' : null;
     // Some high-risk tools check their rules before bothering the owner (e.g. live orders: opt-in + real limits) and describe the action.
     if (t.check) try { reason = (await t.check(use.input, ctx)) ?? reason; } catch (e) { const msg = redact(e.message); log(ctx.agent, 'tool-error', `${use.name}: ${msg}`.slice(0, 500)); return { content: msg, is_error: true }; }
-    const { lastInsertRowid: id } = db.prepare('insert into approvals (agent, tool, input, reason) values (?, ?, ?, ?)')
-      .run(ctx.agent, use.name, JSON.stringify(use.input), reason);
+    const { lastInsertRowid: id } = db.prepare('insert into approvals (agent, tool, input, reason, run_id) values (?, ?, ?, ?, ?)')
+      .run(ctx.agent, use.name, JSON.stringify(use.input), reason, runId());
     log(ctx.agent, 'approval', `#${id} ${use.name} waiting for owner`);
     ctx.acted = (ctx.acted || 0) + 1;
     notify('high', `Approval #${id}: ${ctx.agent} wants to ${use.name.replace(/_/g, ' ')} ${reason && t.check ? reason : JSON.stringify(use.input).slice(0, 160)}. Reply Y ${id} <PIN> or N ${id} <PIN>, or use the dashboard.`, { agent: ctx.agent })
@@ -167,7 +167,23 @@ async function exec(use, ctx, allowed) {
 
 // opts.thread: which chat history to read/write (Auto mode shares the orchestrator's thread across models).
 // opts.canEscalate: adds the escalate tool; the run then returns { escalated: reason } instead of a reply.
+// Every run is recorded (Runs view): request, steps, tokens, cost, time, outcome. Sub-agent runs link to their parent.
 export async function runAgent(name, text, depth = 0, opts = {}) {
+  const t0 = Date.now();
+  const run = Number(db.prepare('insert into runs (agent, parent, depth, request) values (?, ?, ?, ?)').run(name, runId(), depth, redact(String(text)).slice(0, 300)).lastInsertRowid);
+  let out;
+  try { out = await runCtx.run({ run }, () => runAgentInner(name, text, depth, opts)); return out; }
+  finally {
+    const c = db.prepare("select count(*) steps, coalesce(sum(usd), 0) usd, coalesce(sum(input), 0) i, coalesce(sum(output), 0) o, coalesce(sum(cache_read), 0) cr, coalesce(sum(cache_write), 0) cw from costs where run_id = ? and input is not null").get(run);
+    const extra = db.prepare("select coalesce(sum(usd), 0) u from costs where run_id = ? and input is null").get(run).u; // texts, images, calls
+    const reply = typeof out === 'string' ? out : out?.reply || (out?.escalated ? `handed to James: ${out.escalated}` : '');
+    const status = out == null ? 'error' : out?.escalated ? 'handed up' : /^Stopped:/.test(reply) ? 'stopped' : /^Error:/.test(reply) ? 'error' : 'done';
+    db.prepare('update runs set ended_at = current_timestamp, ms = ?, status = ?, steps = ?, usd = ?, input = ?, output = ?, cache_read = ?, cache_write = ?, result = ? where id = ?')
+      .run(Date.now() - t0, status, c.steps, c.usd + extra, c.i, c.o, c.cr, c.cw, redact(String(reply)).slice(0, 300), run);
+  }
+}
+
+async function runAgentInner(name, text, depth = 0, opts = {}) {
   text = redact(text); // before it is logged, saved to history, or sent
   const thread = opts.thread || name;
   const a = agent(name);

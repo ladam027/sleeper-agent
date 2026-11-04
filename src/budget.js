@@ -1,4 +1,4 @@
-import { db, get, set, agent } from './db.js';
+import { db, get, set, agent, runId } from './db.js';
 
 // $ per million tokens. cacheWrite = 5-minute cache write (1.25x input).
 export const PRICES = {
@@ -26,15 +26,15 @@ export const today = () => new Date().toLocaleDateString('en-CA', { timeZone: ge
 
 export function record(agentName, model, usage, opts) {
   const usd = costOf(model, usage, opts);
-  db.prepare(`insert into costs (day, agent, model, input, output, cache_read, cache_write, usd)
-    values (?, ?, ?, ?, ?, ?, ?, ?)`).run(today(), agentName, model, usage.input_tokens || 0,
-    usage.output_tokens || 0, usage.cache_read_input_tokens || 0, usage.cache_creation_input_tokens || 0, usd);
+  db.prepare(`insert into costs (day, agent, model, input, output, cache_read, cache_write, usd, run_id)
+    values (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(today(), agentName, model, usage.input_tokens || 0,
+    usage.output_tokens || 0, usage.cache_read_input_tokens || 0, usage.cache_creation_input_tokens || 0, usd, runId());
   return usd;
 }
 
 // Non-token spend (texts, calls) goes in the same ledger so the cost tracker and global cap see it.
 export const recordUsd = (agentName, item, usd) =>
-  db.prepare('insert into costs (day, agent, model, usd) values (?, ?, ?, ?)').run(today(), agentName, item, usd);
+  db.prepare('insert into costs (day, agent, model, usd, run_id) values (?, ?, ?, ?, ?)').run(today(), agentName, item, usd, runId());
 
 const spent = (where, ...args) =>
   db.prepare(`select coalesce(sum(usd), 0) s from costs where day = ? ${where}`).get(today(), ...args).s;
