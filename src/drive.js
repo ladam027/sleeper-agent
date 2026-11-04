@@ -84,6 +84,14 @@ async function upload(account, meta, body, type) {
   return google.api(account, `${U}/files?uploadType=multipart&fields=${FIELDS}`, { method: 'POST', body: m.body, headers: { 'content-type': m.type } });
 }
 
+// Save bytes the server made (edited images) as a new file, in the right folder.
+export async function saveBuffer(account, name, body, type, folder_id) {
+  acctOk(account);
+  const f = await upload(account, { name: String(name).slice(0, 200), parents: [await writableParent(account, folder_id)] }, body, type);
+  log('orchestrator', 'drive', `${account}: saved "${f.name}" (${Math.round(body.length / 1024)} KB)`);
+  return slim(f);
+}
+
 // kind doc: text or HTML becomes a Google Doc; kind sheet: CSV becomes a Google Sheet.
 export async function createDoc({ account = 'james', title, content = '', kind = 'doc', folder_id }) {
   acctOk(account);

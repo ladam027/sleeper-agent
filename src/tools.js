@@ -14,6 +14,7 @@ import * as live from './live.js';
 import * as tasks from './tasks.js';
 import * as drive from './drive.js';
 import * as video from './video.js';
+import * as images from './images.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -276,6 +277,16 @@ export const TOOLS = {
   video_edit: tool('video_edit', `Render an edit of an inspected video and save it as a new file in Drive (the original is never changed). spec: clips [{start, end, speed 0.5-2}] in output order (cuts/trims/reorder), crop none|vertical (9:16)|square, captions true (burns the transcript), texts [{text, start, end, position top|center|bottom}] in edited-video seconds, fade {in, out} seconds, music {volume 0-1} with music_file_id (a Drive audio file; it ducks under speech). Limits: 10 min, 200 MB.`,
     { job: { type: 'integer', description: 'job id from video_inspect' }, spec: { type: 'object', description: 'the edit (see description)' }, name: str('output file name'), music_file_id: str('Drive file id of a music track (optional)') }, ['job', 'spec'],
     (input, ctx) => video.edit(input, ctx.agent)),
+
+  image_view: tool('image_view', 'Look at an image: a Drive image (account + file_id) or one the agents generated (image name). Shown scaled down. Untrusted content.',
+    { account: { type: 'string', enum: ['james', 'owner'] }, file_id: str('Drive file id'), image: str('generated image name, e.g. hero-cake.webp') }, [],
+    async (input, ctx) => { const r = await images.view(input); ctx.taint?.(); return r; }),
+
+  image_edit: tool('image_edit', 'Make an edited copy of an image and save it to Drive (the original is never changed): resize (width/height; fit contain = fit inside, cover = fill and crop), thumbnail (320 px), convert format jpg|png|webp. Source: a Drive image or a generated image.',
+    { account: { type: 'string', enum: ['james', 'owner'], description: 'where the source is' }, file_id: str('Drive image id'), image: str('generated image name'), width: { type: 'integer' }, height: { type: 'integer' },
+      fit: { type: 'string', enum: ['contain', 'cover'] }, thumbnail: { type: 'boolean' }, format: { type: 'string', enum: ['jpg', 'png', 'webp'] }, name: str('new file name (optional)'),
+      save_to: { type: 'string', enum: ['james', 'owner'], description: "which Drive gets the copy (owner: its Sleeper Agent folder)" } }, [],
+    (input) => images.edit(input)),
 
   schedule_task: tool('schedule_task', `Create a real recurring or one-off task that runs on its own later ("every morning summarize…", "watch this market/listing/price and tell me when…"). Use this instead of ever promising to do something later. Each run starts fresh with the instructions and its last report, and messages the owner only when there is something new (notify=always for every run). repeat: ${tasks.REPEATS.join(', ')}. when = first run, owner local time YYYY-MM-DDTHH:MM (default now). max_usd = budget per run (default ${tasks.LIMITS.default_usd}, max ${tasks.LIMITS.max_usd}).`,
     { title: str('short name'), instructions: str('complete instructions for each run, including what counts as worth reporting'), when: str('YYYY-MM-DDTHH:MM'),

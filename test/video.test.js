@@ -48,3 +48,14 @@ test('frames reach the agent as images; their text part is still redacted; the r
   assert.ok(db.prepare("select count(*) n from activity where type = 'tainted'").get().n >= 1);
   TOOLS.video_inspect.run = orig;
 });
+
+test('images: resize/crop filters are built and validated in code', async () => {
+  const { imageFilter } = await import('../src/images.js');
+  assert.equal(imageFilter({ width: 1200, height: 630, fit: 'cover' }), 'scale=1200:630:force_original_aspect_ratio=increase,crop=1200:630', 'social card: fill and crop');
+  assert.equal(imageFilter({ width: 800, height: 800 }), 'scale=800:800:force_original_aspect_ratio=decrease', 'contain by default');
+  assert.equal(imageFilter({ width: 1080 }), 'scale=1080:-2', 'one side keeps the aspect ratio');
+  assert.equal(imageFilter({ thumbnail: true }), 'scale=320:320:force_original_aspect_ratio=decrease');
+  assert.equal(imageFilter({}), null, 'convert only');
+  assert.throws(() => imageFilter({ width: 99999 }), /16-8000/);
+  assert.throws(() => imageFilter({ width: 10, height: 10, fit: 'stretch' }), /16-8000|fit must be/);
+});
