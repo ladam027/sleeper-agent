@@ -7,15 +7,18 @@ import { get, set, log } from './db.js';
 export const deps = { fetch: (...a) => fetch(...a) }; // tests swap in a fake
 const env = (k) => process.env[k] || '';
 export const ACCOUNTS = {
-  james: { scopes: ['https://www.googleapis.com/auth/gmail.modify'], label: "James's Gmail" },
-  owner: { scopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.events'], label: 'Your Gmail (read-only) + Calendar' },
+  james: { scopes: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/drive'], label: "James's Gmail + Drive" },
+  // Owner Drive: read everything, write only files the app creates (drive.file), and the code keeps those in a "Sleeper Agent" folder.
+  owner: { scopes: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/drive.file'], label: 'Your Gmail (read-only) + Calendar + Drive (read-only)' },
 };
 const redirectUri = () => `${env('PUBLIC_DASHBOARD_URL').replace(/\/$/, '')}/oauth/google`;
 export const configured = () => !!(env('GOOGLE_CLIENT_ID') && env('GOOGLE_CLIENT_SECRET') && env('PUBLIC_DASHBOARD_URL'));
 const stored = (acct) => { try { return JSON.parse(get(`google_${acct}`) || 'null'); } catch { return null; } };
 export const connected = (acct) => !!stored(acct)?.refresh_token;
 export const status = () => ({ configured: configured(), redirectUri: configured() ? redirectUri() : null,
-  james: stored('james')?.email || null, owner: stored('owner')?.email || null });
+  james: stored('james')?.email || null, owner: stored('owner')?.email || null, drive: { james: driveReady('james'), owner: driveReady('owner') } });
+// Accounts connected before Build 10 lack the Drive permission until reconnected.
+export const driveReady = (acct) => connected(acct) && String(stored(acct)?.scopes || '').includes('/auth/drive');
 
 // Step 1: dashboard asks for a sign-in link. State is single-use and expires in 10 minutes.
 const pending = new Map();
@@ -48,7 +51,7 @@ export async function finishAuth(code, state) {
   if (missing.length) throw new Error('Some permissions were not granted. Tick every box on the Google screen and try again.');
   access.set(p.acct, { token: t.access_token, exp: Date.now() + (t.expires_in - 60) * 1000 });
   const profile = await api(p.acct, 'https://gmail.googleapis.com/gmail/v1/users/me/profile');
-  set(`google_${p.acct}`, JSON.stringify({ email: profile.emailAddress, refresh_token: t.refresh_token }));
+  set(`google_${p.acct}`, JSON.stringify({ email: profile.emailAddress, refresh_token: t.refresh_token, scopes: t.scope }));
   log('owner', 'settings', `${ACCOUNTS[p.acct].label} connected (${profile.emailAddress})`);
   return { acct: p.acct, email: profile.emailAddress };
 }
@@ -64,11 +67,18 @@ async function accessToken(acct) {
   access.set(acct, { token: t.access_token, exp: Date.now() + (t.expires_in - 60) * 1000 });
   return t.access_token;
 }
-async function api(acct, url, opts = {}) {
+export async function api(acct, url, opts = {}) {
   const res = await deps.fetch(url, { ...opts, headers: { authorization: `Bearer ${await accessToken(acct)}`, 'content-type': 'application/json', ...opts.headers } });
   const j = res.status === 204 ? {} : await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Google ${res.status}: ${j.error?.message || 'request failed'}`);
   return j;
+}
+
+// Same auth, raw response (exports and downloads).
+export async function raw(acct, url, opts = {}) {
+  const res = await deps.fetch(url, { ...opts, headers: { authorization: `Bearer ${await accessToken(acct)}`, ...opts.headers } });
+  if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(`Google ${res.status}: ${j.error?.message || 'request failed'}`); }
+  return res;
 }
 
 // ── Gmail ──

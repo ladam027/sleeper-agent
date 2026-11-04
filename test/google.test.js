@@ -17,7 +17,7 @@ google.deps.fetch = async (url, o = {}) => {
   if (url === 'https://oauth2.googleapis.com/token') {
     const p = new URLSearchParams(o.body);
     return ok(p.get('grant_type') === 'authorization_code'
-      ? { access_token: 'at1', refresh_token: 'rt1', expires_in: 3600, scope: 'https://www.googleapis.com/auth/gmail.modify' }
+      ? { access_token: 'at1', refresh_token: 'rt1', expires_in: 3600, scope: 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive' }
       : { access_token: 'at2', expires_in: 3600 });
   }
   if (url.endsWith('/profile')) return ok({ emailAddress: 'james.sleeper@gmail.com' });
@@ -32,7 +32,7 @@ test('sign-in link has offline access, the right scopes, and a single-use state'
   const url = new URL(google.authUrl('james'));
   assert.equal(url.searchParams.get('redirect_uri'), 'https://sleeper-agent.example.ts.net/oauth/google');
   assert.equal(url.searchParams.get('access_type'), 'offline');
-  assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/gmail.modify');
+  assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive');
   const state = url.searchParams.get('state');
   assert.deepEqual(await google.finishAuth('code1', state), { acct: 'james', email: 'james.sleeper@gmail.com' });
   assert.equal(JSON.parse(get('google_james')).refresh_token, 'rt1');

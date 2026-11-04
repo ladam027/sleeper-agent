@@ -699,6 +699,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
           <div id="sites" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s3)"></div>
         </div>
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-book"/></svg></span><div><h2>Google Drive</h2><div class="sub">Recent files in James's Drive and in the "Sleeper Agent" folder of yours. Agents can read your Drive but only write in that folder; sharing and trashing need your OK.</div></div></div>
+          <div id="driveFiles" class="stack" style="gap:var(--s3)"><span class="muted">Loading…</span></div>
+        </div>
+        <div class="card">
           <div class="card-h"><div><h2>Content calendar</h2><div class="sub" id="postsSub">Posts your agents drafted. Nothing goes out until you approve it.</div></div></div>
           <div id="posts"></div>
         </div>
@@ -1359,10 +1363,10 @@ async function refresh() {
   const GS = s.google;
   if (GS) {
     $('#googleStatus').innerHTML = [['Setup', GS.configured ? 'Google app connected' : 'Not set up yet (see Guide → Google setup)'],
-      ["James's Gmail", GS.james || 'Not connected'], ['Your Gmail + Calendar', GS.owner || 'Not connected']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('')
+      ["James's Gmail + Drive", GS.james ? `${GS.james}${GS.drive?.james ? '' : ' · reconnect to add Drive'}` : 'Not connected'], ['Your Gmail, Calendar + Drive (read-only)', GS.owner ? `${GS.owner}${GS.drive?.owner ? '' : ' · reconnect to add Drive'}` : 'Not connected']].map(([k, v]) => `<tr><td class="muted">${k}</td><td class="r">${esc(v)}</td></tr>`).join('')
       + (GS.redirectUri ? `<tr><td class="muted">Redirect URI</td><td class="r" style="font-size:11.5px"><code>${esc(GS.redirectUri)}</code></td></tr>` : '');
     $('#googleBtns').innerHTML = !GS.configured ? '' : [['james', "James's Gmail"], ['owner', 'my Google']].map(([a, l]) => (a === 'james' ? GS.james : GS.owner)
-      ? `<button type="button" class="btn sm danger" onclick="googleAct('disconnect','${a}')">Disconnect ${l}</button>` : `<button type="button" class="btn sm primary" onclick="googleAct('connect','${a}')">Connect ${l}</button>`).join('');
+      ? `${GS.drive?.[a] ? '' : `<button type="button" class="btn sm primary" onclick="googleAct('connect','${a}')" title="Grants the new Google Drive permission">Reconnect ${l} for Drive</button>`}<button type="button" class="btn sm danger" onclick="googleAct('disconnect','${a}')">Disconnect ${l}</button>` : `<button type="button" class="btn sm primary" onclick="googleAct('connect','${a}')">Connect ${l}</button>`).join('');
     if (document.activeElement !== $('#digestTime')) $('#digestTime').value = s.settings.digest_time || '08:00';
   }
 
@@ -1971,7 +1975,17 @@ $('#mkLimits').onsubmit = async (e) => {
   e.preventDefault(); const b = Object.fromEntries([...new FormData(e.target)].map(([k, v]) => [k, Number(v)]));
   const r = await call('markets/limits', 'POST', b); if (r.error) return alert(r.error); toast('Limits saved'); loadMarkets();
 };
+let driveAt = 0;
+async function loadDrive() {
+  if (Date.now() - driveAt < 60e3) return; driveAt = Date.now(); // Studio refreshes every few seconds; Drive doesn't need to
+  const d = await call('drive'); if (d.error) return;
+  const sec = (label, x) => !x || !x.ready ? `<div><b>${label}</b><div class="muted" style="font-size:13px">Not connected to Drive yet. Settings → Google → Reconnect for Drive.</div></div>`
+    : x.error ? `<div><b>${label}</b><div class="muted" style="font-size:13px">${esc(x.error)}</div></div>`
+    : `<div><b>${label}</b>${x.files.length ? x.files.map((f) => `<div class="row" style="padding:6px 0"><span class="ibox">${icon(f.type === 'folder' ? 'grid' : 'book')}</span><div class="body"><div class="title"><a href="${esc(f.link || '#')}" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a></div><div class="meta">${esc(ago(f.modified))}</div></div></div>`).join('') : '<div class="muted" style="font-size:13px">Nothing here yet.</div>'}</div>`;
+  $('#driveFiles').innerHTML = sec("James's Drive", d.james) + sec('Your Drive · Sleeper Agent folder', d.owner);
+}
 async function loadStudio() {
+  loadDrive();
   const r = await call('studio'); if (r.error) return;
   SD = r; renderStudio();
   if (!$('#siteForm').contains(document.activeElement)) {
