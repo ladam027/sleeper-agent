@@ -16,6 +16,7 @@ import * as studio from './studio.js';
 import * as paper from './paper.js';
 import * as browser from './browser.js';
 import * as live from './live.js';
+import * as tasks from './tasks.js';
 import { TOOLS, capabilities } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide, getSummary, runWaiting } from './agent.js';
@@ -86,6 +87,7 @@ async function api(req, url) {
     stats: db.prepare(`select (select count(*) from memory) memories, (select count(*) from memory where pinned = 1) pinned,
       (select count(*) from activity where type = 'task' and ts >= datetime('now', '-1 day')) tasks24h,
       (select count(*) from activity where type = 'tool' and ts >= datetime('now', '-1 day')) tools24h`).get(),
+    tasks: tasks.list(),
     chat: db.prepare("select * from (select * from chat where agent = ? order by id desc limit 50) order by id").all(url.searchParams.get('agent') === 'auto' ? 'orchestrator' : url.searchParams.get('agent') || 'orchestrator'),
     prices: PRICES,
     chatSummary: getSummary(url.searchParams.get('agent') === 'auto' || !url.searchParams.get('agent') ? 'orchestrator' : url.searchParams.get('agent')),
@@ -151,6 +153,10 @@ async function api(req, url) {
     if (m === 'DELETE') return vault.remove(decodeURIComponent(id)), { ok: true };
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
+  if (route === 'tasks') {
+    if (m === 'GET') return { tasks: tasks.list() };
+    if (m === 'POST') return { result: tasks.setStatus(Number(id), (await body(req)).status) };
+  }
   if (route === 'runs' && m === 'GET') {
     // Whole task = the run plus every sub-agent run under it.
     const tree = `with recursive t(id) as (select ? union all select r.id from runs r join t on r.parent = t.id) select id from t`;
@@ -252,6 +258,7 @@ async function api(req, url) {
 scheduler.start();
 telegram.poll(); // no-op until TELEGRAM_BOT_TOKEN is set
 jobs.start();
+tasks.start(runAgent, phone.notify);
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

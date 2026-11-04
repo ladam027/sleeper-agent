@@ -108,6 +108,9 @@ const MIGRATIONS = [
    create index if not exists activity_run on activity (run_id);
    create index if not exists costs_run on costs (run_id);`,
   `update agents set code = 0 where name = 'orchestrator';`,
+  `create table if not exists tasks (id integer primary key, title text not null, instructions text not null, agent text not null default 'orchestrator',
+     local_time text not null, due_at text not null, repeat text not null, notify text not null default 'news', max_usd real not null default 0.15,
+     status text not null default 'active', last_run text, last_result text, runs integer not null default 0, created_by text, created_at text default current_timestamp);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

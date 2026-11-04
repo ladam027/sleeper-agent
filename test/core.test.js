@@ -328,3 +328,18 @@ test('streaming: text pieces reach the dashboard as they are written; the run is
   assert.deepEqual(pieces, ['Hel', 'lo ', 'there']);
   assert.equal(db.prepare("select status from runs order by id desc limit 1").get().status, 'done');
 });
+
+test('memory index: titles reach the agent after the cached prefix, so new memories do not bust the cache', async () => {
+  reset();
+  db.prepare("insert into memory (title, body) values ('Email to ryan@example.com: Greetings, human', 'sent')").run();
+  let calls = fake([text('ok')]);
+  await runAgent('orchestrator', 'hi');
+  const [cached, idx] = calls[0].system;
+  assert.ok(cached.cache_control && !idx.cache_control);
+  assert.match(idx.text, /Email to ryan@example\.com: Greetings, human/);
+  db.prepare("insert into memory (title, body) values ('Car: 2024 sedan', 'x')").run();
+  calls = fake([text('ok')]);
+  await runAgent('orchestrator', 'hi again');
+  assert.equal(calls[0].system[0].text, cached.text, 'cached prefix unchanged by a new memory');
+  assert.match(calls[0].system[1].text, /Car: 2024 sedan/);
+});

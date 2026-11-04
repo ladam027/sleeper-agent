@@ -11,6 +11,7 @@ import * as studio from './studio.js';
 import * as paper from './paper.js';
 import * as browser from './browser.js';
 import * as live from './live.js';
+import * as tasks from './tasks.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -234,6 +235,16 @@ export const TOOLS = {
     { ticker: str('market ticker from kalshi_markets'), side: { type: 'string', enum: ['yes', 'no'] }, action: { type: 'string', enum: ['buy', 'sell'] }, count: { type: 'integer', description: 'contracts' },
       limit_price: { type: 'number', description: 'worst acceptable price per contract for your side, in dollars, e.g. 0.28' }, reason: str('why: the research behind it') }, ['ticker', 'side', 'count', 'limit_price', 'reason'],
     (input, ctx) => live.place(input, ctx.agent), 'high'), check: (input, ctx) => live.precheck(input, ctx), needsVault: true },
+
+  schedule_task: tool('schedule_task', `Create a real recurring or one-off task that runs on its own later ("every morning summarize…", "watch this market/listing/price and tell me when…"). Use this instead of ever promising to do something later. Each run starts fresh with the instructions and its last report, and messages the owner only when there is something new (notify=always for every run). repeat: ${tasks.REPEATS.join(', ')}. when = first run, owner local time YYYY-MM-DDTHH:MM (default now). max_usd = budget per run (default ${tasks.LIMITS.default_usd}, max ${tasks.LIMITS.max_usd}).`,
+    { title: str('short name'), instructions: str('complete instructions for each run, including what counts as worth reporting'), when: str('YYYY-MM-DDTHH:MM'),
+      repeat: { type: 'string', enum: tasks.REPEATS }, notify: { type: 'string', enum: ['news', 'always'] }, max_usd: { type: 'number' } }, ['title', 'instructions'],
+    (input, ctx) => tasks.schedule(input, ctx.agent)),
+
+  list_tasks: tool('list_tasks', 'The scheduled tasks: schedule, next run, last report, status.', {}, [], () => JSON.stringify(tasks.list())),
+
+  cancel_task: tool('cancel_task', 'Cancel (or pause) a scheduled task by id.', { id: { type: 'integer' }, pause: { type: 'boolean', description: 'pause instead of cancel' } }, ['id'],
+    ({ id, pause }) => tasks.setStatus(id, pause ? 'paused' : 'deleted')),
 
   paper_trade: tool('paper_trade', `PAPER trading on Kalshi (simulated money, real prices). Fills now at the live ask (buy) or bid (sell), Kalshi fee included; no resting orders. Code-enforced limits: max $ per order, max open positions, max daily loss. This is the default for any trading request; real money only via kalshi_order when the owner asks for live trading. Always give your reason. Never call this real trading.`,
     { ticker: str('market ticker from kalshi_markets'), side: { type: 'string', enum: ['yes', 'no'] }, action: { type: 'string', enum: ['buy', 'sell'] }, count: { type: 'integer', description: 'contracts' },

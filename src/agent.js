@@ -69,6 +69,10 @@ function system(a) {
     team.length && `Other agents (delegate by internal id):\n${team.map((t) => `- ${t.display_name ? `${t.display_name}, id ` : ''}${t.name}: ${brief(t.purpose)}`).join('\n')}`,
   ].filter(Boolean).join('\n\n');
 }
+const memoryIndex = () => {
+  const rows = db.prepare('select title from memory where pinned = 0 order by updated_at desc, id desc limit 40').all();
+  return rows.length ? redact(`In memory (titles only; use recall for details): ${rows.map((r) => r.title).join(' · ')}`) : '';
+};
 // Everything sent to the API passes through redact(): vault values, card numbers and SSNs never leave this machine.
 const systemFor = (a) => redact(system(a));
 
@@ -205,6 +209,9 @@ async function runAgentInner(name, text, depth = 0, opts = {}) {
   // Frozen for the whole run: tools can change pinned memories or the vault mid-run, and Opus 5.5 rejects
   // earlier thinking blocks if the system prompt changes under them. Changes apply from the next message.
   const sys = systemFor(a) + (defer ? DEFER_HINT : '');
+  // Build 9: titles of what's in memory, so the agent knows what it knows. After the cache marker on purpose: new memories
+  // arrive all day and would otherwise force a rewrite of the cached prefix each time.
+  const index = allowed.has('recall') ? memoryIndex() : '';
   const cache = cacheFor(a);
   let spent = 0;
   // opts.attachments: content blocks (e.g. a PDF document) placed before the text.
@@ -212,6 +219,7 @@ async function runAgentInner(name, text, depth = 0, opts = {}) {
 
   try {
     for (let step = 0; step < MAX_STEPS; step++) {
+      if (opts.maxUsd && spent >= opts.maxUsd) { log(name, 'blocked', `per-run budget $${opts.maxUsd} reached`); return `Stopped: this run's budget ($${opts.maxUsd}) was reached`; }
       const why = blocked(name);
       if (why) {
         log(name, 'blocked', why);
@@ -224,7 +232,7 @@ async function runAgentInner(name, text, depth = 0, opts = {}) {
         // Caching: the stable prefix (tools + system) is marked per cacheFor. The conversation itself is cached only from
         // the second step of a run, when it's reused within seconds (a 5 min tail after a 1 h prefix marker is allowed).
         model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, ...(cache && step > 0 ? { cache_control: { type: 'ephemeral' } } : {}),
-        system: [{ type: 'text', text: sys, ...(cache ? { cache_control: cache } : {}) }], tools, messages,
+        system: [{ type: 'text', text: sys, ...(cache ? { cache_control: cache } : {}) }, ...(index ? [{ type: 'text', text: index }] : [])], tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
       };
       // Build 8: stream text to the dashboard as it's written (opts.onText), same request otherwise.
@@ -300,7 +308,7 @@ export async function compressThread(thread) {
 // Auto mode: cheapest model that can do the job. Obvious heavy work goes straight to the orchestrator;
 // everything else tries the quick (Haiku) agent first, which escalates if it is out of its depth.
 // ponytail: keyword heuristic, upgrade to a learned router if misroutes show up in the activity feed.
-const HEAVY = /\b(plan|strategy|strategi[sz]e|analy[sz]e|analysis|research|build|design|code|debug|draft|write (a|an|me|the)|compare|evaluate|forecast|simulat\w*|business|idea|legal|invest\w*|trad(e|ing)|marketing|website|step[- ]by[- ]step|delegate|create (an? )?agent|sub-?agent|latest|news|current(ly)?|today'?s|price of|look up|search|google|critique|tear apart|log ?in|sign ?in|browser|vault|dmv|amazon|fill (in|out)|form|account)\b/i;
+const HEAVY = /\b(plan|strategy|strategi[sz]e|analy[sz]e|analysis|research|build|design|code|debug|draft|write (a|an|me|the)|compare|evaluate|forecast|simulat\w*|business|idea|legal|invest\w*|trad(e|ing)|marketing|website|step[- ]by[- ]step|delegate|create (an? )?agent|sub-?agent|latest|news|current(ly)?|today'?s|price of|look up|search|google|critique|tear apart|log ?in|sign ?in|browser|vault|dmv|amazon|fill (in|out)|form|account|monitor|watch|keep an eye|track|every (morning|day|night|week|hour)|daily|weekly)\b/i;
 export const isHeavy = (text) => text.length > 500 || HEAVY.test(text);
 
 // A specialist's "I can't do that / that's James's job" never reaches the owner: the router hands the request on instead.

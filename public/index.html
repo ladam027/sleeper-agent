@@ -506,6 +506,11 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
         </div>
 
         <div class="card">
+          <div class="card-h"><div><h2>Scheduled tasks</h2><div class="sub">Jobs that run on their own ("every morning…", "watch X and tell me when…"). Ask James to set one up. Each has a budget per run and only messages you when something's new.</div></div></div>
+          <div id="tasks"></div>
+        </div>
+
+        <div class="card">
           <div class="card-h"><div><h2>Agent activity</h2><div class="sub"><span class="dot live"></span>Live · everything your agents do</div></div></div>
           <div id="feed"></div>
         </div>
@@ -1315,6 +1320,16 @@ async function refresh() {
       <div class="meta num">${esc(when)} · ${REM_CH[r.channel][1]}${r.repeat !== 'none' ? ' · repeats ' + esc(r.repeat) : ''}</div></div>
       <button class="btn sm icon" aria-label="Cancel reminder" title="Cancel" onclick="cancelRem(${r.id})">${icon('x')}</button></div>`; }).join('') || '<div class="empty">No upcoming reminders.</div>';
 
+  const REPEAT_LABEL = { once: 'once', hourly: 'every hour', 'every-3-hours': 'every 3 hours', daily: 'daily', weekdays: 'weekdays', weekly: 'weekly' };
+  $('#tasks').innerHTML = (s.tasks || []).map((t) => { const when = new Date(t.due_at).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const live = t.status === 'active';
+    return `<div class="row" style="align-items:flex-start"><span class="ibox ${live ? 'brand' : ''}">${icon('clock')}</span><div class="body"><div class="title">${esc(t.title)} ${live ? '' : `<span class="pill">${esc(t.status)}</span>`}</div>
+      <div class="meta num">${esc(REPEAT_LABEL[t.repeat] || t.repeat)}${live ? ` · next ${esc(when)}` : ''} · up to ${money(t.max_usd)}/run · ${t.runs} run${t.runs === 1 ? '' : 's'}</div>
+      ${t.last_result ? `<div class="meta" style="margin-top:4px;line-height:1.5">Last: ${esc(String(t.last_result).slice(0, 220))}</div>` : ''}</div>
+      ${t.status === 'done' ? '' : `<button class="btn sm icon" aria-label="${live ? 'Pause' : 'Resume'} task" title="${live ? 'Pause' : 'Resume'}" onclick="taskAct(${t.id}, '${live ? 'paused' : 'active'}')">${icon(live ? 'minus' : 'rotate')}</button>`}
+      <button class="btn sm icon" aria-label="Cancel task" title="Cancel" onclick="taskAct(${t.id}, 'deleted')">${icon('x')}</button></div>`; }).join('')
+    || '<div class="empty">No scheduled tasks. Try: "James, every weekday at 8am check my Canvas for anything due in 48 hours."</div>';
+
   // Phone settings
   const P = s.phone;
   if (P) {
@@ -1413,6 +1428,7 @@ function toast(text, cls = '', sticky = false) {
   $('#toasts').prepend(el);
   if (!sticky) setTimeout(() => el.remove(), 12000);
 }
+window.taskAct = async (id, status) => { if (status === 'deleted' && !confirm('Cancel this scheduled task?')) return; const r = await call('tasks/' + id, 'POST', { status }); if (r.error) return alert(r.error); toast(r.result); refresh(); };
 window.decide = async (id, approve) => {
   // Live orders need the vault: if it's locked, unlock first (approve-to-unlock), then place.
   const ap = state?.approvals?.find((a) => a.id === id);
