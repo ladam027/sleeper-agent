@@ -16,6 +16,7 @@ import * as studio from './studio.js';
 import * as paper from './paper.js';
 import * as browser from './browser.js';
 import * as live from './live.js';
+import * as captcha from './captcha.js';
 import * as tasks from './tasks.js';
 import * as drive from './drive.js';
 import * as video from './video.js';
@@ -272,6 +273,8 @@ telegram.poll(); // no-op until TELEGRAM_BOT_TOKEN is set
 jobs.start();
 tasks.start(runAgent, phone.notify);
 browser.deps.notify = phone.notify; // CAPTCHA alerts with a link to the live page
+browser.deps.onCaptcha = (id) => captcha.offer(id); // on the phone: solve it in Telegram
+captcha.deps.run = runAgent;
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

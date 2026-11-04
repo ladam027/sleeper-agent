@@ -17,6 +17,7 @@ import * as vault from './vault.js';
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= '/opt/ms-playwright'; // shared install (deploy.sh), readable by the service user
 export const deps = {
   notify: null, // set by server.js (phone.notify); tests can swap it
+  onCaptcha: null, // set by server.js (Telegram CAPTCHA helper)
   launch: async () => (await import('playwright-core')).chromium.launch(),
   lookup: async (host) => (await lookup(host, { all: true })).map((a) => a.address),
 };
@@ -81,9 +82,13 @@ function snapshotInPage({ textMax, elementsMax }) {
   return { title: document.title, url: location.href, text: (document.body?.innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, textMax),
     // Only a CAPTCHA a person would actually see: invisible reCAPTCHA (v3 / size=invisible / the corner badge) runs in the
     // background and needs nothing from anyone.
-    captcha: [...document.querySelectorAll('iframe[src*="recaptcha"],iframe[src*="hcaptcha"],iframe[src*="turnstile"],iframe[src*="captcha"],.g-recaptcha,.h-captcha,.cf-turnstile')]
-      .some((e) => { const r = e.getBoundingClientRect(); return visible(e) && r.width >= 120 && r.height >= 60 && !e.closest('.grecaptcha-badge')
-        && !/size=invisible|recaptcha\/api2\/bframe/.test(e.src || '') && getComputedStyle(e).opacity !== '0'; }),
+    // A CAPTCHA someone can see: on screen, big enough, not the invisible v3 badge. The challenge window (bframe) counts once
+    // it is shown (the invisible one sits off screen). captchaRect = the biggest one, for the owner's Telegram picture.
+    ...(() => { const cs = [...document.querySelectorAll('iframe[src*="recaptcha"],iframe[src*="hcaptcha"],iframe[src*="turnstile"],iframe[src*="captcha"],.g-recaptcha,.h-captcha,.cf-turnstile')]
+      .map((e) => [e, e.getBoundingClientRect()]).filter(([e, r]) => visible(e) && r.width >= 120 && r.height >= 60 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth
+        && !e.closest('.grecaptcha-badge') && !/size=invisible/.test(e.src || '') && getComputedStyle(e).opacity !== '0')
+      .sort((a, b) => (b[0].tagName === 'IFRAME') - (a[0].tagName === 'IFRAME') || b[1].width * b[1].height - a[1].width * a[1].height); // real frames first; wrapper divs can be full width
+      return { captcha: cs.length > 0, captchaRect: cs[0] ? { x: Math.max(0, cs[0][1].left), y: Math.max(0, cs[0][1].top), w: Math.min(cs[0][1].width, innerWidth), h: Math.min(cs[0][1].height, innerHeight) } : null }; })(),
     elements: els.map((e) => {
       let ref = Number(e.getAttribute('data-sa-ref'));
       if (!ref) { ref = window.__saNext = (window.__saNext || 0) + 1; e.setAttribute('data-sa-ref', String(ref)); }
@@ -122,6 +127,7 @@ async function snap(s, note, { full = false } = {}) {
   // A real CAPTCHA: tell the owner right away, with a link straight to the live page (works on the phone over Tailscale).
   if (r.captcha && s.captchaAt !== r.url) {
     s.captchaAt = r.url;
+    if (deps.onCaptcha) { deps.onCaptcha(s.id, r).catch((e) => log(s.agent, 'error', `captcha alert: ${e.message}`)); return format(r, note); }
     const link = `${String(process.env.PUBLIC_DASHBOARD_URL || '').replace(/\/$/, '')}/browser`;
     deps.notify?.('high', `CAPTCHA on ${new URL(r.url).hostname} while ${s.agent === 'orchestrator' ? 'James' : s.agent} works. Finish it here, then reply "done": ${link}`, { agent: s.agent }).catch(() => {});
   }
@@ -154,7 +160,7 @@ async function open(url, agent) {
   const signedIn = await loadSignIns(ctx, url).catch(() => []);
   const page = await ctx.newPage(), id = randomBytes(4).toString('hex');
   page.on('dialog', (d) => d.dismiss().catch(() => {}));
-  const s = { ctx, page, elements: [], last: Date.now(), agent, logins: new Set(signedIn) };
+  const s = { id, ctx, page, elements: [], last: Date.now(), agent, logins: new Set(signedIn) };
   sessions.set(id, s);
   await page.goto(url, { timeout: 25e3 }).catch((e) => { throw new Error(`Couldn't open ${url}: ${e.message.split('\n')[0]}`); });
   log(agent, 'browser', `opened ${url} (session ${id})`);
@@ -282,5 +288,13 @@ export async function ownerInput(id, { type, x, y, text, key, dy }) {
   s.lastAction = 'you used the page';
   if (Date.now() - (s.ownerLogged || 0) > 60e3) { s.ownerLogged = Date.now(); log('owner', 'browser', `used session ${id}`); } // once a minute, never the text
   return { ok: true };
+}
+// A clipped screenshot of the CAPTCHA (plus a margin) for the owner's phone, and its place on the page.
+export async function captchaShot(id) {
+  const s = sessions.get(id); if (!s) throw new Error('That browser session has closed');
+  const r = (await s.page.evaluate(snapshotInPage, { textMax: 0, elementsMax: 0 })).captchaRect;
+  const pad = 12, rect = r ? { x: Math.max(0, r.x - pad), y: Math.max(0, r.y - pad), w: Math.min(1280 - Math.max(0, r.x - pad), r.w + 2 * pad), h: Math.min(900 - Math.max(0, r.y - pad), r.h + 2 * pad) } : { x: 0, y: 0, w: 1280, h: 900 };
+  const png = await s.page.screenshot({ type: 'png', clip: { x: rect.x, y: rect.y, width: rect.w, height: rect.h } });
+  return { png, rect, url: s.page.url(), agent: s.agent };
 }
 export const openSessions = () => [...sessions].map(([id, s]) => ({ id, url: s.page.url(), agent: s.agent, idle_min: Math.round((Date.now() - s.last) / 60e3) }));

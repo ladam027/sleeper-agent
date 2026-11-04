@@ -5,6 +5,7 @@ import { get, set, log } from './db.js';
 import * as phone from './phone.js';
 import { auto, decide } from './agent.js';
 import { redact } from './vault.js';
+import * as captcha from './captcha.js';
 
 let pairing = null; // { code, exp } from the dashboard; one guess only
 export function startPairing() {
@@ -21,6 +22,14 @@ const HELP = "I'm your Sleeper Agent. Message me like a person: questions go to 
 const NO_PIN = 'No approval PIN is set yet. Set one on the dashboard under Settings → Phone & alerts (not in the Vault), then reply Y <request number> <PIN>.';
 
 export async function handleUpdate(update) {
+  // CAPTCHA buttons: only from the paired private chat.
+  const cb = update.callback_query;
+  if (cb) {
+    if (!get('telegram_chat_id') || String(cb.message?.chat?.id) !== get('telegram_chat_id') || String(cb.from?.id) !== get('telegram_chat_id')) { log('phone', 'msg:blocked', 'button press from an unpaired Telegram chat'); return; }
+    phone.ownerUsed('telegram');
+    const note = await captcha.onCallback(cb.data).catch((e) => `Failed: ${e.message}`.slice(0, 190));
+    return phone.telegram('answerCallbackQuery', { callback_query_id: cb.id, text: note }).catch(() => {});
+  }
   const msg = update.message;
   if (!msg?.text || msg.chat?.type !== 'private') return;
   const chat = String(msg.chat.id), text = msg.text.trim().slice(0, 2000);
@@ -49,6 +58,7 @@ export async function handleUpdate(update) {
     const result = await decide(ap.id, ap.approve);
     return phone.message(result === null ? `Approval #${ap.id} isn't pending.` : `#${ap.id} ${ap.approve ? 'approved' : 'denied'}: ${result}`);
   }
+  if (captcha.wantsText()) return captcha.typeText(text); // the owner pressed "Type text" on a CAPTCHA
   phone.telegram('sendChatAction', { chat_id: chat, action: 'typing' }).catch(() => {});
   return phone.message(plain(await auto(`[Sent from Telegram on the owner's phone. Keep the reply short and plain text, no markdown.]\n${text}`, { owner: true })));
 }
@@ -58,7 +68,7 @@ export async function poll() {
   let offset = 0;
   for (;;) {
     try {
-      const updates = await phone.telegram('getUpdates', { offset, timeout: 50, allowed_updates: ['message'] });
+      const updates = await phone.telegram('getUpdates', { offset, timeout: 50, allowed_updates: ['message', 'callback_query'] });
       for (const u of updates) {
         offset = u.update_id + 1;
         await handleUpdate(u).catch((e) => log('phone', 'error', e.message));

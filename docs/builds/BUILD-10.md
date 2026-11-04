@@ -52,3 +52,9 @@
 
 ## 10.3.1: CAPTCHA alerts to the phone
 - When a snapshot finds a visible CAPTCHA, the server itself notifies the owner (high: Telegram when they are on the phone, the dashboard when at the desk) with a link to the live page (`PUBLIC_DASHBOARD_URL/browser`, needs Tailscale on the phone), once per page. Replying "done" routes to James (open browser session). Drag puzzles are not supported in the live view yet. 136 tests.
+
+## 10.4.0: solve CAPTCHAs inside Telegram
+- `src/captcha.js` (owner request): on the phone, a CAPTCHA arrives as a picture of just the CAPTCHA (clipped, with a margin, scaled up for a phone) with a red numbered grid (~80 px squares, up to 6×8) and buttons: a number per square (clicks its middle on the live page), ⌨️ Type text (the owner's next message is typed into the page, not sent to the agents, for 3 minutes), 🔄 Refresh, ✅ Done (removes the buttons and wakes the agent that was working to snapshot and continue; its answer comes back on Telegram). At the desk the dashboard Browser tab is used instead.
+- Telegram now receives button presses (`callback_query`), accepted only from the paired private chat; photos go through `phone.telegramFile` (multipart).
+- Detection: the challenge window (reCAPTCHA bframe) counts once it is on screen; `captchaRect` locates it (real frames before wrapper divs). Checked in Chrome: invisible reCAPTCHA ignored, checkbox located at its 304×78 frame, challenge window at its position. The grid drawing is checked against the server's ffmpeg (the fake-ffmpeg tests had missed a variable name).
+- Drag puzzles are not supported. 139 tests.

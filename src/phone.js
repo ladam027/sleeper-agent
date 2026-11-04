@@ -18,6 +18,16 @@ export const CAPS = { msg: 100, call: 5 }; // per rolling 24h; stops a loop from
 const sentToday = (kind) => db.prepare("select count(*) n from activity where type = ? and ts >= datetime('now', '-1 day')").get(`${kind}:out`).n;
 const xml = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
+// Telegram with a file (photos for CAPTCHAs). fields are strings (JSON for objects).
+export async function telegramFile(method, fields, fileField, buffer, filename) {
+  const form = new FormData();
+  for (const [k, v] of Object.entries(fields)) form.append(k, typeof v === 'string' ? v : String(v));
+  form.append(fileField, new Blob([buffer], { type: 'image/jpeg' }), filename);
+  const res = await deps.fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, { method: 'POST', body: form });
+  const body = await res.json().catch(() => ({}));
+  if (!body.ok) throw new Error(`Telegram: ${body.description || res.status}`);
+  return body.result;
+}
 export async function telegram(method, params) {
   const res = await deps.fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(params), signal: params.signal,
