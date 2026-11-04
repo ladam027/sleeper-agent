@@ -41,6 +41,26 @@ export function setStatus(id, status) {
   return `Task #${id} "${t.title}" ${status === 'deleted' ? 'cancelled' : status}.`;
 }
 
+// Owner edits from the dashboard (e.g. the Markets autopilot): daily run time HH:MM, budget per run, on/off.
+export function update(id, { time, max_usd, status }) {
+  const t = db.prepare('select * from tasks where id = ?').get(id);
+  if (!t) throw new Error(`No task #${id}`);
+  if (max_usd !== undefined) {
+    if (!(max_usd > 0 && max_usd <= LIMITS.max_usd)) throw new Error(`Budget per run must be $0.01-$${LIMITS.max_usd}`);
+    db.prepare('update tasks set max_usd = ? where id = ?').run(max_usd, id);
+  }
+  if (time !== undefined) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Time must be HH:MM');
+    const tz = get('timezone'), now = localNow(tz), d = new Date(now.slice(0, 10) + 'T00:00:00Z');
+    if (now.slice(11) >= time) d.setUTCDate(d.getUTCDate() + 1);
+    const local = `${d.toISOString().slice(0, 10)}T${time}`;
+    db.prepare('update tasks set local_time = ?, due_at = ? where id = ?').run(local, localToUtc(local, tz).toISOString(), id);
+  }
+  if (status !== undefined) setStatus(id, status);
+  log('owner', 'task', `task #${id} updated${time ? ` · time ${time}` : ''}${max_usd ? ` · $${max_usd}/run` : ''}`);
+  return db.prepare('select * from tasks where id = ?').get(id);
+}
+
 // Runs due tasks one at a time. A busy agent just means "try again next minute".
 let ticking = false;
 export async function tick(now = new Date()) {

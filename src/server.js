@@ -171,7 +171,9 @@ async function api(req, url) {
   if (route === 'browser' && m === 'POST' && action === 'input') return browser.ownerInput(id, await body(req));
   if (route === 'browser' && m === 'GET') return id ? (await browser.preview(id)) || { error: 'That browser session has closed' } : { sessions: browser.openSessions() };
   if (route === 'markets') { // read-only view + the owner's limits; agents can't change limits
-    if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS, live_orders: live.recent(), live_cap: live.cap() };
+    if (m === 'GET') return { paper: await paper.account(), live: await integrations.kalshiPortfolio().catch((e) => ({ error: e.message })), days_required: paper.PAPER_DAYS, live_orders: live.recent(), live_cap: live.cap(),
+      autopilot: get('paper_auto_task') ? db.prepare('select id, status, local_time, due_at, max_usd, last_run, last_result, runs from tasks where id = ?').get(Number(get('paper_auto_task'))) || null : null };
+    if (m === 'POST' && id === 'autopilot') { const b = await body(req); return { task: tasks.update(Number(get('paper_auto_task')), { time: b.time, max_usd: b.max_usd === undefined ? undefined : Number(b.max_usd), status: b.status }) }; }
     if (m === 'POST' && id === 'limits') { const b = await body(req); if (b.live_max_total_usd !== undefined) live.setCap(b.live_max_total_usd); delete b.live_max_total_usd; return paper.setLimits(b), { ok: true }; }
   }
   if (route === 'studio') { // owner's own clicks: publishing from here is the approval

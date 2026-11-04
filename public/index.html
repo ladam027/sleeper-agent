@@ -790,6 +790,16 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
                 <button class="btn sm" style="grid-column:1/-1;justify-self:start">Save limits</button>
               </form>
             </div>
+            <div class="card" id="mkAuto" hidden>
+              <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-clock"/></svg></span><div><h2>Autopilot</h2><div class="sub">James paper-trades on his own once a day, within the limits above. Paper money only.</div></div><span class="pill right" id="mkAutoState"></span></div>
+              <form id="mkAutoForm" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s2);align-items:end">
+                <label>Runs daily at<input class="input" name="time" type="time" required></label>
+                <label>Min edge (points)<input class="input" name="paper_auto_edge" type="number" min="1" max="50" step="1" title="Only trade when James's probability beats the price by this many points after fees"></label>
+                <label>Budget per run ($)<input class="input" name="max_usd" type="number" min="0.01" max="1" step="0.01"></label>
+                <div style="grid-column:1/-1;display:flex;gap:var(--s2)"><button class="btn sm">Save autopilot</button><button type="button" class="btn sm" id="mkAutoToggle"></button></div>
+              </form>
+              <div class="muted" id="mkAutoLast" style="font-size:13px;margin-top:var(--s3);line-height:1.5"></div>
+            </div>
             <div class="card">
               <div class="card-h"><div><h2>Real Kalshi account</h2><div class="sub">Live trading is off unless your own message says "live trading" or mentions your Kalshi balance. Every real order needs your approval.</div></div></div>
               <div id="mkLive" class="muted"></div>
@@ -1935,10 +1945,26 @@ async function loadMarkets() {
     || '<tr><td colspan="4" class="muted">No trades yet.</td></tr>';
   const f = $('#mkLimits'); if (!f.contains(document.activeElement)) { for (const [k, v] of Object.entries(p.limits)) f.elements[k].value = v; f.elements.live_max_total_usd.value = r.live_cap; }
   $('#mkSub').textContent = `Simulated money at real Kalshi prices. Today's losses: $${p.loss_today.toFixed(2)} of $${p.limits.trade_max_daily_loss_usd}.`;
+  renderAutopilot(r);
   $('#mkLive').innerHTML = r.live.error ? esc(r.live.error) : `Balance <b class="num">$${r.live.balance_usd.toFixed(2)}</b> · ${r.live.positions.length} open position${r.live.positions.length === 1 ? '' : 's'}`
     + r.live.positions.map((x) => `<div style="margin-top:6px">${esc(x.ticker)}: ${x.position} · exposure $${x.exposure_usd.toFixed(2)}</div>`).join('')
     + (r.live_orders.length ? '<div style="margin-top:10px;font-weight:500">Real orders</div>' + r.live_orders.map((o) => `<div style="margin-top:4px;font-size:13px">${esc(ago(o.ts))}: ${o.action} ${o.count} ${o.side.toUpperCase()} ${esc(o.ticker)} ≤$${o.limit_price.toFixed(2)} · ${o.fill_count ? `filled ${o.fill_count}${o.avg_price != null ? ` at $${o.avg_price.toFixed(2)}` : ''}` : 'not filled'}</div>`).join('') : '');
 }
+function renderAutopilot(r) {
+  const t = r.autopilot; $('#mkAuto').hidden = !t; if (!t) return;
+  const tz = state?.settings?.timezone, live = t.status === 'active', f = $('#mkAutoForm');
+  $('#mkAutoState').className = `pill right ${live ? 'ok' : ''}`; $('#mkAutoState').textContent = live ? 'On' : 'Paused';
+  $('#mkAutoToggle').textContent = live ? 'Pause' : 'Resume';
+  if (!f.contains(document.activeElement)) { f.time.value = t.local_time.slice(11, 16); f.max_usd.value = t.max_usd; f.paper_auto_edge.value = r.paper.autopilot.min_edge_points; }
+  $('#mkAutoLast').innerHTML = `${live ? `Next run ${esc(new Date(t.due_at).toLocaleString('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', minute: '2-digit' }))} · ` : ''}${t.runs} run${t.runs === 1 ? '' : 's'} so far${t.last_result ? `<br>Last report: ${esc(String(t.last_result).slice(0, 260))}` : ''}`;
+}
+$('#mkAutoForm').onsubmit = async (e) => {
+  e.preventDefault(); const f = e.target;
+  const a = await call('markets/limits', 'POST', { paper_auto_edge: Number(f.paper_auto_edge.value) }); if (a.error) return alert(a.error);
+  const r = await call('markets/autopilot', 'POST', { time: f.time.value, max_usd: Number(f.max_usd.value) }); if (r.error) return alert(r.error);
+  toast('Autopilot saved'); loadMarkets();
+};
+$('#mkAutoToggle').onclick = async () => { const on = $('#mkAutoState').textContent === 'On'; const r = await call('markets/autopilot', 'POST', { status: on ? 'paused' : 'active' }); if (r.error) return alert(r.error); loadMarkets(); };
 $('#mkLimits').onsubmit = async (e) => {
   e.preventDefault(); const b = Object.fromEntries([...new FormData(e.target)].map(([k, v]) => [k, Number(v)]));
   const r = await call('markets/limits', 'POST', b); if (r.error) return alert(r.error); toast('Limits saved'); loadMarkets();

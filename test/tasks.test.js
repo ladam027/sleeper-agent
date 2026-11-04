@@ -46,3 +46,21 @@ test('a run stops when its per-run budget is spent', async () => {
   const r = await runAgent('orchestrator', 'expensive task', 0, { ephemeral: true, maxUsd: 0.5 });
   assert.match(r, /run's budget \(\$0\.5\) was reached/);
 });
+
+test('autopilot controls from the Markets page: run time, budget, pause, and the minimum edge setting', async () => {
+  const paper = await import('../src/paper.js');
+  paper.deps.market = async () => ({ status: 'active', yes_bid: 0.4, yes_ask: 0.42 });
+  db.exec('delete from tasks');
+  tasks.schedule({ title: 'Paper-trade weather markets', instructions: 'use min_edge_points from paper_account', when: '2030-01-01T07:30' });
+  const id = db.prepare('select id from tasks').get().id;
+  const t = tasks.update(id, { time: '06:45', max_usd: 0.25 });
+  assert.equal(t.local_time.slice(11), '06:45'); assert.equal(t.max_usd, 0.25);
+  assert.ok(Date.parse(t.due_at) > Date.now(), 'next 06:45 is in the future');
+  assert.throws(() => tasks.update(id, { max_usd: 3 }), /Budget per run/);
+  assert.throws(() => tasks.update(id, { time: '7am' }), /HH:MM/);
+  assert.equal(tasks.update(id, { status: 'paused' }).status, 'paused');
+  assert.equal((await paper.account({ marks: false })).autopilot.min_edge_points, 10, 'default edge');
+  paper.setLimits({ paper_auto_edge: 15 });
+  assert.equal((await paper.account({ marks: false })).autopilot.min_edge_points, 15, 'edge comes from the page setting');
+  assert.throws(() => paper.setLimits({ paper_auto_edge: 90 }), /1-50/);
+});

@@ -14,3 +14,6 @@
 - 2026-11-04: Sam tripped the kill switch claiming the archivist "executed browser_submit to my.dmv.ca.gov". False: all 8 DMV submits were James's and owner-approved (#12–#19); the archivist can only remember/recall/link_memory (it used recall 21×, remember 10×). Sam had read the archivist's summary sentence ("The browser_submit worked") as an action.
 - The audit log now separates **Actions** (with #ids) from **Messages** (requests and summaries, marked "NOT evidence"). `trip_kill_switch` requires evidence checked in code: cited #ids that are real actions by an agent, or kind=spending with today's spend ≥ 80% of the cap; otherwise it refuses and Sam can notify the owner instead.
 - Also seen: Telnyx returned 403 "Account is disabled (D17)" for the alert call: an account issue on Telnyx's side.
+
+## 9.1.0: autopilot controlled from the Markets page
+- Trading limits were already page settings read on every order. Now the autopilot is too: Markets → **Autopilot** card (run time, minimum edge in points, budget per run, pause/resume, next run, last report). The edge is a setting (`paper_auto_edge`, 1–50, default 10) returned by `paper_account`, so the task's instructions reference it instead of a fixed number; time/budget/status edit the task (`tasks.update`). Setting `paper_auto_task` links the card to the task. 124 tests.

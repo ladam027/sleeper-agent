@@ -81,11 +81,13 @@ export async function account({ marks = true } = {}) {
   return { cash: r2(c), value: r2(value), start, total_pnl: r2(value - start), realized_pnl: r2(closed.pnl - fees), closed_trades: closed.n, win_rate: closed.n ? r2(closed.wins / closed.n) : null,
     loss_today: r2(lossToday()), started, days, days_left: Math.max(0, PAPER_DAYS - days), positions: pos,
     limits: Object.fromEntries(Object.keys(LIMITS).map((k) => [k, limit(k)])),
+    // Autopilot setting from the Markets page; the scheduled paper-trading task reads it here instead of a fixed number.
+    autopilot: { min_edge_points: Number(get('paper_auto_edge') ?? 10) },
     recent: db.prepare('select ts, ticker, title, side, action, count, price, fee, pnl, by, reason from paper_trades order by id desc limit 30').all() };
 }
 
 export function setLimits(b) {
-  for (const [k, [lo, hi]] of Object.entries({ trade_max_order_usd: [1, 500], trade_max_open_positions: [1, 50], trade_max_daily_loss_usd: [1, 1000] }))
+  for (const [k, [lo, hi]] of Object.entries({ trade_max_order_usd: [1, 500], trade_max_open_positions: [1, 50], trade_max_daily_loss_usd: [1, 1000], paper_auto_edge: [1, 50] }))
     if (b[k] !== undefined) { const v = Number(b[k]); if (!(v >= lo && v <= hi)) throw new Error(`${k} must be ${lo}-${hi}`); set(k, v); }
   log('owner', 'settings', `trading limits: ${JSON.stringify(Object.fromEntries(Object.keys(LIMITS).map((k) => [k, limit(k)])))}`);
 }
