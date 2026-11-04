@@ -107,6 +107,7 @@ const MIGRATIONS = [
    alter table approvals add column run_id integer;
    create index if not exists activity_run on activity (run_id);
    create index if not exists costs_run on costs (run_id);`,
+  `update agents set code = 0 where name = 'orchestrator';`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -127,7 +128,7 @@ for (const [k, v] of Object.entries(defaults))
   db.prepare('insert or ignore into settings values (?, ?)').run(k, v);
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, display_name, concise, code)
-  values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3, 'James', 2, 1)`).run();
+  values ('orchestrator', 'claude-opus-5-5', 'medium', 'Main assistant. Plans, remembers, delegates.', 3, 'James', 2, 0)`).run();
 
 db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, display_name, concise)
   values ('quick', 'claude-haiku-4-5', null, 'Fast, cheap answers and everyday dashboard updates: simple questions, quick facts, memory lookups, reminders, adding or updating clients, logging money, updating projects. Hands anything complex, or anything needing a tool it lacks, to the orchestrator right away.', 1, 1024,
@@ -136,6 +137,9 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history', 1, 'Riley');
+// Build 8: exact math moved off James (the code-execution tool added ~2.6k tokens to every James request) to a cheaper analyst.
+if (seed.run('analyst', 'claude-sonnet-5', 'low', 'Does exact math and data work with code execution (Python): backtests, statistics, totals, projections, spreadsheet-style calculations on data it is given or fetches with its tools. Shows the numbers and the method in a few lines. Never takes actions.', 1, 8000, 'recall,kalshi_backtest_data,weather_history,paper_account', 0, 'Theo').changes)
+  db.prepare("update agents set code = 1 where name = 'analyst'").run();
 seed.run('critic', 'claude-opus-5-5', 'medium', 'Stress-tests ideas and plans: finds holes, risks, legal and platform-rule issues (checking current rules on the web when needed), weak assumptions and cheaper alternatives, then gives an improved version. Direct and specific, never just encouraging.', 1, 16000, 'recall,read_document', 1, 'Cleo');
 seed.run('designer', 'claude-sonnet-5', 'medium', `Designs one-page websites for small local businesses and saves them with save_site. Craft: mobile-first, fast, accessible (real headings, alt text, 4.5:1 contrast, 44px tap targets), one clear call to action (call / directions / order), sections in this order: hero with name + one-line pitch + CTA, what they offer (menu/services/prices if given), hours + address + map link (https://maps.google.com/?q=...) + tel: link, short about, footer. Pick a tasteful palette and a Google Font pairing that fits the business. Inline CSS only, no JavaScript, no stock-photo placeholders: use typography, color and inline SVG icons; only use image URLs the owner provided. Never invent facts (prices, hours, awards): leave a clearly marked placeholder like [hours] instead. Keep the file under 60 KB. Before designing, recall "Website design spec" and follow it, adapted to this single static page (no JavaScript: CSS-only motion, no app shell). You can create images with generate_image (exception to the provided-URLs rule): at most 3 per site, only where a picture clearly helps; reference them as img/<name>.webp with alt text, width and height.`, 1, 16000, 'save_site,get_site,list_sites,recall,generate_image', 0, 'Mia');
 seed.run('archivist', 'claude-haiku-4-5', null, 'Keeps the conversation short: folds older messages into durable memories and a brief summary. Background only.', 0.5, 2048, 'remember,recall,link_memory', 0, 'Archivist');

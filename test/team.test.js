@@ -25,7 +25,8 @@ const reset = () => db.exec("delete from approvals; delete from memory; delete f
 test('team is seeded with names, models and least-privilege tools', () => {
   const a = Object.fromEntries(db.prepare('select * from agents').all().map((r) => [r.name, r]));
   assert.equal(a.researcher.display_name, 'Riley'); assert.equal(a.researcher.web, 1); assert.equal(a.researcher.tools, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history');
-  assert.equal(a.orchestrator.code, 1, 'James has code execution');
+  assert.equal(a.orchestrator.code, 0, 'James no longer carries code execution (Build 8: ~2.6k tokens per request)');
+  assert.equal(a.analyst.display_name, 'Theo'); assert.equal(a.analyst.code, 1, 'math goes to the analyst');
   assert.equal(a.critic.display_name, 'Cleo'); assert.equal(a.critic.tools, 'recall,read_document');
   assert.equal(a.security.display_name, 'Sam'); assert.equal(a.security.tools, 'notify_owner,trip_kill_switch');
 });

@@ -259,7 +259,7 @@ export const TOOLS = {
     { station: str('GHCN-Daily station id'), start: str('YYYY-MM-DD'), end: str('YYYY-MM-DD') }, ['start', 'end'],
     async (input) => JSON.stringify(await integ.weatherHistory(input))),
 
-  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, critic to stress-test an idea, designer to build or change a website.',
+  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, analyst for exact math or data work (backtests, statistics, totals; it runs Python), critic to stress-test an idea, designer to build or change a website.',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],
     async ({ agent, task }, ctx) => {
       if (ctx.depth >= 2) return 'Refused: delegation depth limit reached';
