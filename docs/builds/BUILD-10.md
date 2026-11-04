@@ -15,3 +15,6 @@
 ## Next
 - 10.2 video (ffmpeg, frame contact sheets + whisper.cpp transcript, structured edit spec, render, review, save to Drive; Mia on Sonnet).
 - 10.3 images (convert/resize/thumbnails; generated images straight to Drive).
+
+## 10.0.1: each tab has its own address
+- /overview (or /), /memory, /vault, /money, /markets, /clients, /browser, /studio, /stats, /integrations, /guide, /settings all serve the dashboard and open that tab; switching tabs updates the address and the page title ("Vault · Sleeper Agent"), and back/forward work (history.pushState + popstate). Unknown paths get 404. Verified in Chrome on the demo copy.

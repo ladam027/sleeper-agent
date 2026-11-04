@@ -1195,7 +1195,13 @@ function countTo(el, to, fmt) {
     el.textContent = fmt(isInt ? Math.round(v) : v); if (k < 1 && Number(el.dataset.v) === target) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
-function show(v) {
+// Each tab has its own address (/vault, /markets, …): open straight to it, and back/forward work.
+const VIEW_NAMES = [...document.querySelectorAll('.nav')].map((b) => b.dataset.view);
+const viewFromPath = () => { const p = location.pathname.replace(/^\/|\/$/g, ''); return VIEW_NAMES.includes(p) ? p : 'overview'; };
+function show(v, { push = true } = {}) {
+  const path = v === 'overview' ? '/' : `/${v}`;
+  if (push && location.pathname !== path) history.pushState({ v }, '', path);
+  document.title = v === 'overview' ? 'Sleeper Agent' : `${document.querySelector(`.nav[data-view="${v}"]`)?.textContent.trim() || v} · Sleeper Agent`;
   const swap = () => {
     view = v;
     document.querySelectorAll('.nav').forEach((b) => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
@@ -2138,6 +2144,8 @@ $('#vaultForm').onsubmit = async (e) => {
 $('#backupNow').onclick = async () => { const r = await call('backup', 'POST'); if (r.error) alert(r.error); refresh(); };
 
 refresh(); setInterval(refresh, 4000);
+window.addEventListener('popstate', () => show(viewFromPath(), { push: false }));
+if (viewFromPath() !== 'overview') show(viewFromPath(), { push: false });
 </script>
 </body>
 </html>

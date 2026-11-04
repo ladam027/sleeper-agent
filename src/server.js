@@ -28,6 +28,7 @@ if (!TOKEN || TOKEN.length < 16) throw new Error('Set DASHBOARD_TOKEN (16+ chars
 const HOST = process.env.HOST || '127.0.0.1'; // keep local; reach it remotely through Tailscale, not the open internet
 const PORT = Number(process.env.PORT || 8787);
 const page = new URL('../public/index.html', import.meta.url);
+const VIEWS = /^\/(overview|memory|vault|money|markets|clients|browser|studio|stats|integrations|guide|settings)?\/?$/;
 
 // Version shown in Settings. Major = build number (PLAN.md §4), minor = update within that build.
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
@@ -284,8 +285,10 @@ createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     return res.end(`<!doctype html><meta name="viewport" content="width=device-width"><title>Google</title><body style="font:16px system-ui;padding:40px;max-width:520px;margin:auto"><h2>Sleeper Agent</h2><p>${msg.replace(/[<>&]/g, '')}</p><p><a href="/">Back to the dashboard</a></p>`);
   }
+  // Each dashboard tab has its own address (/vault, /markets, …); all of them are the same single page.
   if (!url.pathname.startsWith('/api/')) {
-    res.writeHead(200, { 'content-type': 'text/html' });
+    if (!VIEWS.test(url.pathname)) { res.writeHead(404, { 'content-type': 'text/plain' }); return res.end('Not found'); }
+    res.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-cache' });
     return res.end(readFileSync(page));
   }
   if (!authed(req)) { res.writeHead(401); return res.end('{"error":"unauthorized"}'); }
