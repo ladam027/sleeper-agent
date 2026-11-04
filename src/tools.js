@@ -230,6 +230,10 @@ export const TOOLS = {
       secret: str('vault item name, for fill_secret'), full: { type: 'boolean', description: 'for snapshot: list every control, not just what changed' }, field: str('for fill_secret: value (the password/key), username, or a labeled part of the item such as VIN or Plate (the error lists what exists)') }, ['action'],
     async (input, ctx) => { const r = await browser.act(input, ctx.agent); ctx.taint?.(); return r; }),
 
+  new_login: tool('new_login', "When signing up for a new account: the server creates a strong password, saves it to the vault for this site and types it into the password field (and confirm field). You never see it. Type the username/email yourself first. Pressing the final sign-up button still follows the rules: no approval only if the owner's own message asked for an account on this site; otherwise it waits for the owner.",
+    { session: str('browser session id'), ref: { type: 'integer', description: 'password field' }, confirm_ref: { type: 'integer', description: 'confirm-password field, if any' }, username: str('the username or email you used (saved with it)') }, ['session', 'ref'],
+    async (input, ctx) => { const r = await browser.newLogin(input, ctx.agent); ctx.taint?.(); return r; }),
+
   browser_submit: tool('browser_submit', 'Press a submit/commit control in an open browser session (sign in, send, buy, book, confirm). Always waits for the owner\'s approval, who sees a screenshot of the page. Fill everything in first; say in reason exactly what this submits.',
     { session: str('session id'), ref: { type: 'integer', description: 'the submit control number' }, reason: str('what pressing it will do, e.g. "Sign in to Canvas"') }, ['session', 'ref', 'reason'],
     async (input, ctx) => { const r = await browser.submit(input, ctx.agent); ctx.taint?.(); return r; }, 'high'),

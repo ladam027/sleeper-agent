@@ -16,6 +16,8 @@ const elements = [
   { ref: 3, tag: 'button', label: 'Sign in', inForm: true, commit: true },
   { ref: 4, tag: 'a', label: 'Help', inForm: false, commit: false },
   { ref: 5, tag: 'button', label: 'Place your order', inForm: true, commit: true },
+  { ref: 6, tag: 'button', label: 'Join Fiverr', inForm: true, commit: true },
+  { ref: 7, tag: 'button', label: 'Upgrade to Pro', inForm: true, commit: true },
 ];
 const page = {
   goto: async (u) => { did.push(`goto ${u}`); host = new URL(u).hostname; current = u; }, waitForLoadState: async () => {}, on: () => {}, goBack: async () => {},
@@ -29,7 +31,7 @@ let jar = [];
 const added = [];
 b.deps.launch = async () => ({ newContext: async () => ({ route: async () => {}, newPage: async () => page, close: async () => {},
   cookies: async () => jar, addCookies: async (c) => added.push(...c) }), close: async () => {} });
-b.deps.lookup = async (h) => ({ 'canvas.example.edu': ['93.184.216.34'], 'evil.example.com': ['93.184.216.35'], 'sneaky.example.com': ['127.0.0.1'] })[h] || [];
+b.deps.lookup = async (h) => ({ 'canvas.example.edu': ['93.184.216.34'], 'evil.example.com': ['93.184.216.35'], 'sneaky.example.com': ['127.0.0.1'], 'www.fiverr.com': ['93.184.216.36'] })[h] || [];
 
 test('only public http(s) hosts: localhost, LAN, tailnet and names that resolve privately are blocked', async () => {
   for (const u of ['http://127.0.0.1:8787/api/state', 'http://localhost/', 'https://sleeper-agent.tailcdfa9.ts.net/', 'http://192.168.1.1/', 'http://100.101.1.2/', 'file:///etc/passwd', 'https://sneaky.example.com/', 'http://[::1]/'])
@@ -196,4 +198,35 @@ test('account creation is owner-only: sign-up buttons and pages never go to Sam'
   const id2 = /Session ([0-9a-f]{8})/.exec(o2)[1];
   assert.equal(b.describeSubmit({ session: id2, ref: 3 }).ownerOnly, false, 'a plain sign-in stays routine');
   await b.close(id2);
+});
+
+test('accounts: the owner asking for a site\'s account skips approval; plans, other senders and money still ask', async () => {
+  const { accountSites } = await import('../src/agent.js');
+  for (const [msg, want] of [['create an account of fiverr', ['fiverr']], ['James, create an account on Fiverr', ['fiverr']], ['make me a fiverr account', ['fiverr']], ['sign up for upwork.com', ['upwork']],
+    ['setup an online freelance store', []], ['create a new account', []], ['what is my fiverr account balance?', []]]) assert.deepEqual(accountSites(msg), want, msg);
+  const usage = { input_tokens: 1, output_tokens: 1 };
+  const step = (name, input) => ({ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: name + Math.random(), name, input }] });
+  const pending = () => db.prepare("select count(*) n from approvals where tool = 'browser_submit' and status = 'pending'").get().n;
+  const runOn = async (text, opts, ref, withLogin = true) => {
+    const o = await b.act({ action: 'open', url: 'https://www.fiverr.com/join' }); const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+    const replies = [...(withLogin ? [step('new_login', { session: id, ref: 2, username: 'james@example.com' })] : []), step('browser_submit', { session: id, ref, reason: 'create the account' }), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
+    deps.client = { messages: { create: async (p) => { if (p.model === 'claude-haiku-4-5') return { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ESCALATE: account creation' }] }; return replies.shift(); } } };
+    did.length = 0; await runAgent('orchestrator', text, 0, opts); await b.close(id); return did.some((d) => d === `click [data-sa-ref="${ref}"]`);
+  };
+  db.exec("delete from settings where key like 'account_grant:%'");
+  let before = pending();
+  assert.equal(await runOn('setup an online freelance store', { owner: true }, 6), false, 'a plan that leads to Fiverr waits for the owner');
+  assert.equal(pending(), before + 1);
+  assert.equal(await runOn('create an account of fiverr', {}, 6, false), false, 'not from the owner (e.g. a scheduled task): no grant');
+  assert.equal(await runOn('create an account of fiverr', { owner: true }, 6, false), true, 'owner asked: created without approval');
+  assert.equal(db.prepare("select count(*) n from approvals where status = 'owner asked'").get().n, 1);
+  before = pending();
+  assert.equal(await runOn('ok continue', { owner: true }, 7, false), false, 'money (Upgrade to Pro) still waits, even on a granted site');
+  assert.equal(pending(), before + 1);
+  const item = vault.reveal('fiverr-login');
+  assert.equal(item.url, 'https://fiverr.com'); assert.equal(item.username, 'james@example.com'); assert.ok(item.value.length >= 20);
+  assert.ok(!JSON.stringify(db.prepare('select detail from activity').all()).includes(item.value), 'the password is never logged');
+  const o = await b.act({ action: 'open', url: 'https://www.fiverr.com/join' }); const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  await assert.rejects(b.newLogin({ session: id, ref: 2 }), /already has "fiverr-login"/, 'never overwrites a saved login');
+  await b.close(id);
 });

@@ -228,11 +228,29 @@ export async function submit({ session: id, ref }, agent = 'orchestrator') {
 const OWNER_ONLY = /\b(buy|pay|purchase|order|checkout|check out|place|donate|transfer|subscribe|upgrade|renew|delete|remove|cancel|close|agree|accept|sign(?! ?in)|register|create|join|enroll|apply|post|publish|send|share|invite|withdraw|deposit|book|reserve|bid|trade)\b/i;
 const OWNER_URL_SIGNUP = /\/(sign-?up|register|join|create-?account|registration)\b/i;
 const OWNER_URL = /\/(checkout|cart|payment|pay|billing|order|purchase|buy)\b/i;
+const MONEY = /\b(buy|pay|purchase|order|checkout|check out|place|donate|transfer|subscribe|upgrade|renew|withdraw|deposit|bid|trade|book|reserve|premium|plan|trial)\b/i;
+const SIGNUP = /\b(sign ?up|register|create|join|enroll|get started)\b/i;
 export function describeSubmit({ session: id, ref }) {
   const s = sessions.get(id); if (!s) throw new Error(`No open browser session "${id}"`);
-  const { info } = el(s, ref), url = s.page.url();
-  const path = new URL(url).pathname, ownerOnly = OWNER_ONLY.test(info.label) || OWNER_URL.test(path) || OWNER_URL_SIGNUP.test(path);
-  return { host: new URL(url).hostname, path: new URL(url).pathname.slice(0, 80), button: info.label, filled: [...(s.typed || [])].slice(-10), ownerOnly };
+  const { info } = el(s, ref), url = s.page.url(), path = new URL(url).pathname;
+  const money = MONEY.test(info.label) || OWNER_URL.test(path);
+  const signup = !money && (SIGNUP.test(info.label) || OWNER_URL_SIGNUP.test(path) || !!s.newLogin);
+  const ownerOnly = money || signup || OWNER_ONLY.test(info.label);
+  return { host: new URL(url).hostname, path: path.slice(0, 80), button: info.label, filled: [...(s.typed || [])].slice(-10), ownerOnly, signup, money };
+}
+
+// A new login for the site the session is on: the server makes a strong password, saves it to the vault (locked to this
+// site) and types it into the form. The agent never sees it. Never overwrites an existing vault item.
+export async function newLogin({ session: id, ref, confirm_ref, username = '' }, agent = 'orchestrator') {
+  const s = await session(id), host = bare(new URL(s.page.url()).hostname);
+  const name = `${host.split('.').slice(-2, -1)[0] || host}-login`.replace(/[^a-z0-9_-]/g, '-').slice(0, 40);
+  if (vault.names().some((n) => n.name === name)) throw new Error(`The vault already has "${name}". Use fill_secret with it, or ask the owner.`);
+  const password = randomBytes(15).toString('base64url') + '#7a';
+  vault.save({ name, kind: 'password', value: password, username: String(username).slice(0, 200), url: `https://${host}`, notes: `Created by ${agent} on ${new Date().toISOString().slice(0, 10)} while signing up.` });
+  for (const r of [ref, confirm_ref].filter((x) => x != null)) { const { info, loc } = el(s, r); await keys(loc, password); await loc.evaluate((e) => { e.dataset.saSecret = '1'; }); (s.typed ??= new Set()).add(`${info.label} (new password: ${name})`); }
+  s.logins.add(name); s.newLogin = name;
+  log(agent, 'browser', `new vault login "${name}" for ${host} (password made by the server, typed into the form)`);
+  return `Saved a new login "${name}" in the vault for ${host}${username ? ` (username ${username})` : ''} and typed its password into the form. You never see it; it's reused automatically next time.`;
 }
 
 // For the approval card: what the page looks like right now, so the owner sees exactly what they're approving.

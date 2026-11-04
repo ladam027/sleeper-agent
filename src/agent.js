@@ -15,7 +15,7 @@ const running = new Map(); // agent name -> AbortController of its in-flight run
 const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history', 'weather_forecast', 'save_site', 'get_site', 'list_sites', 'generate_image', 'video_inspect', 'video_edit', 'drive_search', 'image_view', 'image_edit', 'drive_upload', 'draft_post', 'list_posts']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
 // save_site / draft_post are private drafts (sanitized; publishing is separately approval-gated), so web research can feed them.
-const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account', 'list_capabilities', 'browser', 'use_stronger_model', 'drive_search', 'drive_read', 'video_inspect', 'video_edit', 'image_view', 'image_edit']); // media output stays private in Drive // drive reads taint themselves // browser gates submits itself // paper moves no money
+const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account', 'list_capabilities', 'browser', 'use_stronger_model', 'drive_search', 'drive_read', 'video_inspect', 'video_edit', 'image_view', 'image_edit', 'new_login']); // new_login only stores a fresh random password for the page it's on // drive reads taint themselves // browser gates submits itself // paper moves no money
 const WEB_SEARCH_USES = 3; // per model request, keeps a research run from burning searches
 const WEB_FETCH_TOKENS = 3500; // cap on how much of each fetched page the model reads (Build 8: was 6000; ~2,600 words is enough for most pages, and new web content is Riley's biggest cost: ~26k cache-write tokens a call)
 
@@ -139,6 +139,19 @@ async function exec(use, ctx, allowed) {
   // Routine browser steps (log in, continue, verify, fill a form for the owner's request) can be approved by Sam instead of
   // the owner (owner decision 2026-11-03; toggle in the Browser tab). Money / irreversible / speaking-for-the-owner steps are
   // flagged in code (describeSubmit) and always go to the owner, as does anything Sam won't clearly approve.
+  // Owner-granted account creation (owner rule 2026-11-04): "create an account on Fiverr" in the owner's own message lets
+  // that site's sign-up run without approval for 2 hours. Plans the agent comes up with get no grant; money never passes.
+  if (use.name === 'browser_submit') {
+    let f; try { f = describeSubmit(use.input); } catch (e) { return { content: e.message, is_error: true }; }
+    if (f.signup && !f.money && accountGranted(f.host)) {
+      const { lastInsertRowid: id } = db.prepare("insert into approvals (agent, tool, input, reason, status, decided_at, run_id) values (?, ?, ?, ?, 'owner asked', current_timestamp, ?)")
+        .run(ctx.agent, use.name, JSON.stringify(use.input), `Owner asked to create this account (${f.host})`, runId());
+      let result; try { result = redact(String(await t.run(use.input, ctx))); } catch (e) { result = `failed: ${redact(e.message)}`; }
+      db.prepare('update approvals set result = ? where id = ?').run(result, id);
+      log(ctx.agent, 'approval', `#${id} sign-up "${f.button}" on ${f.host}: owner asked for this account, no approval needed`);
+      return { content: `Done (the owner asked for this account): ${result}` };
+    }
+  }
   if (use.name === 'browser_submit' && get('browser_review') !== 'owner') {
     let facts; try { facts = describeSubmit(use.input); } catch (e) { return { content: e.message, is_error: true }; }
     const verdict = facts.ownerOnly ? null : await samReview(facts, use.input.reason, ctx).catch((e) => (log('security', 'error', `browser review: ${e.message}`), null));
@@ -178,6 +191,20 @@ async function exec(use, ctx, allowed) {
 
 // opts.thread: which chat history to read/write (Auto mode shares the orchestrator's thread across models).
 // opts.canEscalate: adds the escalate tool; the run then returns { escalated: reason } instead of a reply.
+// Account grants: only from the owner's own message (dashboard/Telegram), naming the site. 2 hours, so a CAPTCHA pause or
+// a follow-up still counts. "Set up a freelance store" names no site, so nothing is granted.
+const STOP = new Set(['a', 'an', 'the', 'new', 'my', 'me', 'us', 'free', 'online', 'business', 'personal', 'user', 'another', 'second', 'up', 'this', 'that', 'it', 'one', 'some', 'your']);
+export function accountSites(text) {
+  const t = String(text).toLowerCase(), out = new Set(), add = (w) => { w = String(w || '').replace(/[^a-z0-9.-]/g, ''); if (w.length >= 3 && !STOP.has(w)) out.add(w.replace(/\.(com|io|net|org|co)$/, '')); };
+  for (const m of t.matchAll(/\b(?:create|make|open|set ?up|get|start)\s+(?:me\s+|us\s+)?(?:an?\s+)?(?:new\s+)?([a-z0-9.-]+)\s+account\b/g)) add(m[1]);
+  for (const m of t.matchAll(/\b(?:create|make|open|set ?up|get|start)\s+(?:me\s+|us\s+)?(?:an?\s+)?(?:new\s+)?account\s+(?:on|at|with|for|of)\s+([a-z0-9.-]+)/g)) add(m[1]);
+  for (const m of t.matchAll(/\b(?:sign ?up|register|join)\s+(?:on|at|for|with)\s+([a-z0-9.-]+)/g)) add(m[1]);
+  return [...out];
+}
+export const accountGranted = (host) => { const h = String(host).toLowerCase().replace(/^www\./, '');
+  return db.prepare("select key from settings where key like 'account_grant:%' and cast(value as integer) > ?").all(Date.now())
+    .some((r) => { const s = r.key.slice(14); return h === s || h.split('.').includes(s) || h.endsWith(`.${s}`); }); };
+
 // Every run is recorded (Runs view): request, steps, tokens, cost, time, outcome. Sub-agent runs link to their parent.
 // Model tiers, weakest first. An agent with flex_min set may run anywhere between flex_min and its own model.
 export const TIERS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5'];
@@ -191,6 +218,7 @@ export function pickModel(a, text, opts = {}) {
 export async function runAgent(name, text, depth = 0, opts = {}) {
   const t0 = Date.now();
   const run = Number(db.prepare('insert into runs (agent, parent, depth, request) values (?, ?, ?, ?)').run(name, runId(), depth, redact(String(text)).slice(0, 300)).lastInsertRowid);
+  if (opts.owner && depth === 0) for (const site of accountSites(text)) { set(`account_grant:${site}`, Date.now() + 2 * 3600e3); log('owner', 'grant', `owner asked to create an account on ${site} (2 h)`); }
   let out;
   try {
     out = await runCtx.run({ run }, () => runAgentInner(name, text, depth, opts));

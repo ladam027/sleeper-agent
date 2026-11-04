@@ -44,3 +44,8 @@
 
 ## 10.2.1: account creation is owner-only
 - Found while answering "can James create accounts?": Sam's owner-only list missed sign-up/register/create-account/join buttons, so Sam could have approved creating an account (CLAUDE.md rule 1 says creating accounts needs the owner). Now those buttons and sign-up/registration pages always go to the owner. 134 tests.
+
+## 10.3.0: account creation on request
+- Owner rule (2026-11-04): "create an account on <site>" in the owner's own message (dashboard/Telegram) grants that site's sign-up for 2 hours: the sign-up submit runs without approval (logged as "owner asked"). No grant from plans the agent makes ("set up a freelance store" → Create account waits for approval), from scheduled tasks, web pages or email. Money buttons (paid plans, upgrade, subscribe, pay, checkout pages) always wait, even on a granted site. `accountSites()` parses the phrasing ("account of/on/at/for X", "a X account", "sign up for X").
+- `new_login`: the server makes a strong password, saves it in the vault as `<site>-login` (locked to that site, username saved too), types it into the password/confirm fields; the agent never sees it; never overwrites an existing item. Needs the vault unlocked.
+- `describeSubmit` now separates money from sign-up. CLAUDE.md rule 1 records the exception. 135 tests.
