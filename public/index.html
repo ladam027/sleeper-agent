@@ -1138,6 +1138,18 @@ const ownerActive = () => document.visibilityState === 'visible' && Date.now() -
 
 // Vault session lives only in this closure (not storage, not a global), and expires with the server's 15 minutes.
 const vaultSession = (() => { let t = null; return { get: () => t, set: (v) => { t = v; }, clear: () => { t = null; } }; })();
+// Build 8: the reply appears as it's written. Falls back to the plain endpoint if streaming isn't available.
+async function streamChat(text, onSoFar) {
+  try {
+    const r = await fetch('/api/chat-stream', { method: 'POST', headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json', 'x-owner-active': '1' }, body: JSON.stringify({ agent: agentName, text }) });
+    if (!r.ok || !r.body) throw new Error('no stream');
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', soFar = '', final = null;
+    for (;;) { const { value, done } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line) continue;
+        const m = JSON.parse(line); if (m.d) { soFar += m.d; onSoFar(soFar); } else final = m; } }
+    return final || { reply: soFar };
+  } catch { return call('chat', 'POST', { agent: agentName, text }); }
+}
 async function call(path, method = 'GET', body) {
   let r;
   const headers = { authorization: 'Bearer ' + token, 'content-type': 'application/json', 'x-owner-active': ownerActive() ? '1' : '0' };
@@ -1444,7 +1456,7 @@ $('#chatForm').onsubmit = async (e) => {
   if (box.querySelector('.ready')) box.innerHTML = '';
   box.insertAdjacentHTML('beforeend', `<div class="msg user">${esc(text)}</div><div class="msg assistant" id="typing"><span class="typing"><i></i><i></i><i></i></span></div>`);
   box.scrollTop = box.scrollHeight;
-  const r = await call('chat', 'POST', { agent: agentName, text });
+  const r = await streamChat(text, (soFar) => { const t = $('#typing'); if (t) { t.textContent = soFar; box.scrollTop = box.scrollHeight; } });
   sending = false; lastChatKey = '';
   if (r.error) { $('#typing').outerHTML = `<div class="msg sys">${esc(r.error)}</div>`; return; }
   refresh();

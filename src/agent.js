@@ -17,7 +17,7 @@ const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_ow
 // save_site / draft_post are private drafts (sanitized; publishing is separately approval-gated), so web research can feed them.
 const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account', 'list_capabilities', 'browser']); // browser gates submits itself // paper moves no money
 const WEB_SEARCH_USES = 3; // per model request, keeps a research run from burning searches
-const WEB_FETCH_TOKENS = 6000; // cap on how much of each fetched page the model reads
+const WEB_FETCH_TOKENS = 3500; // cap on how much of each fetched page the model reads (Build 8: was 6000; ~2,600 words is enough for most pages, and new web content is Riley's biggest cost: ~26k cache-write tokens a call)
 
 // Anthropic-hosted web tools. Newer models get the dynamic-filtering variants.
 const webTools = (model) => model.startsWith('claude-haiku')
@@ -220,13 +220,20 @@ async function runAgentInner(name, text, depth = 0, opts = {}) {
         if (ask) requestRaise(target, root);
         return `Stopped: ${why}${ask ? '. I asked the owner to approve more budget for today; the task resumes if they do.' : ''}`;
       }
-      const res = await client().messages.create({
+      const params = {
         // Caching: the stable prefix (tools + system) is marked per cacheFor. The conversation itself is cached only from
         // the second step of a run, when it's reused within seconds (a 5 min tail after a 1 h prefix marker is allowed).
         model: a.model, max_tokens: a.max_tokens || DEFAULT_MAX_TOKENS, ...(cache && step > 0 ? { cache_control: { type: 'ephemeral' } } : {}),
         system: [{ type: 'text', text: sys, ...(cache ? { cache_control: cache } : {}) }], tools, messages,
         ...(a.model.startsWith('claude-haiku') ? {} : { output_config: { effort: a.effort || 'low' } }),
-      }, { signal: ctrl.signal });
+      };
+      // Build 8: stream text to the dashboard as it's written (opts.onText), same request otherwise.
+      let res;
+      if (opts.onText && client().messages.stream) {
+        const st = client().messages.stream(params, { signal: ctrl.signal });
+        st.on('text', (d) => { try { opts.onText(d); } catch {} });
+        res = await st.finalMessage();
+      } else res = await client().messages.create(params, { signal: ctrl.signal });
       const usd = record(name, a.model, res.usage);
       spent += usd;
       log(name, 'llm', `${a.model} step ${step + 1} $${usd.toFixed(4)}`);
@@ -306,9 +313,9 @@ const DIRECT = [{ agent: 'designer', re: /\b(web ?site|landing page|homepage|red
 export const CLAIM = /\b(?:I'?ve|I have|I)\s+(?:just\s+)?(?:set up|set|sent|scheduled|created|added|saved|booked|placed|emailed|texted|logged|started|turned on|queued)\b|\bI'?ll\s+(?:send|text|message|update|remind)\s+you\b[^.!?]*\b(?:every|daily|each|morning)\b|\b(?:will|I'?ll)\s+(?:monitor|watch|track|check)\b[^.!?]*\b(?:daily|every|each|for the next)\b/i;
 const READ_ONLY = /^(recall|list_|read_|get_|kalshi_markets|kalshi_portfolio|kalshi_backtest_data|weather_|paper_account|canvas_|calendar_events|escalate)/;
 
-export async function auto(text, { owner = false } = {}) {
+export async function auto(text, { owner = false, onText } = {}) {
   const thread = 'orchestrator';
-  const toJames = (why) => { log('router', 'route', `orchestrator (${why})`); return runAgent('orchestrator', text, 0, { thread, owner }); };
+  const toJames = (why) => { log('router', 'route', `orchestrator (${why})`); return runAgent('orchestrator', text, 0, { thread, owner, onText }); };
   const tryAgent = async (name, why) => {
     log('router', 'route', `${name} (${why})`);
     const r = await runAgent(name, text, 0, { thread, owner, canEscalate: true, holdReply: true });
@@ -319,18 +326,26 @@ export async function auto(text, { owner = false } = {}) {
     r.save();
     return r.reply;
   };
-  const spec = DIRECT.find((d) => d.re.test(text) && !d.unless.test(text) && agent(d.agent) && !blocked(d.agent));
-  if (spec) return tryAgent(spec.agent, 'specialist');
+  const last = db.prepare("select model, ts from chat where agent = ? and role = 'assistant' order by id desc limit 1").get(thread);
+  const r = pickRoute(text, {
+    sessionOpen: openSessions().some((s) => s.agent === 'orchestrator'),
+    jamesAnsweredMsAgo: last?.model === agent('orchestrator')?.model ? Date.now() - Date.parse(`${last.ts}Z`) : Infinity,
+    available: (n) => !!agent(n) && !blocked(n),
+  });
+  return r.agent === 'orchestrator' ? toJames(r.why) : tryAgent(r.agent, r.why);
+}
+
+// The routing decision alone (no model calls), so it can be tested against real cases (test/routing.test.js).
+export function pickRoute(text, { sessionOpen = false, jamesAnsweredMsAgo = Infinity, available = () => true } = {}) {
+  const spec = DIRECT.find((d) => d.re.test(text) && !d.unless.test(text) && available(d.agent));
+  if (spec) return { agent: spec.agent, why: 'specialist' };
   // Follow-ups stay with James while he's mid-task: his browser session is open, or the message is a short
   // instruction (not a new question: "add the car now", "try again") within an hour of his last answer.
-  const last = db.prepare("select model, ts from chat where agent = ? and role = 'assistant' order by id desc limit 1").get(thread);
   const plain = text.replace(/^\[Sent from Telegram[^\]]*\]\n?/, '').trim();
   const followUp = plain.length <= 80 && !/\?\s*$/.test(plain) && !/^(what|who|when|where|why|how|is|are|am|can|could|do|does|did|will|would|should)\b/i.test(plain);
-  const jamesMidTask = openSessions().some((s) => s.agent === 'orchestrator')
-    || (followUp && last?.model === agent('orchestrator')?.model && Date.now() - Date.parse(`${last.ts}Z`) < 60 * 60e3);
-  if (jamesMidTask && !isHeavy(text)) return toJames('follow-up to James');
-  if (isHeavy(text) || !agent('quick') || blocked('quick')) return toJames(isHeavy(text) ? 'complex request' : 'quick agent unavailable');
-  return tryAgent('quick', 'simple request');
+  if ((sessionOpen || (followUp && jamesAnsweredMsAgo < 60 * 60e3)) && !isHeavy(text)) return { agent: 'orchestrator', why: 'follow-up to James' };
+  if (isHeavy(text) || !available('quick')) return { agent: 'orchestrator', why: isHeavy(text) ? 'complex request' : 'quick agent unavailable' };
+  return { agent: 'quick', why: 'simple request' };
 }
 
 // One approval per limit per day (none after a denial). Approving raises today's limit and resumes the task.

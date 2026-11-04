@@ -273,6 +273,18 @@ createServer(async (req, res) => {
     return res.end(readFileSync(page));
   }
   if (!authed(req)) { res.writeHead(401); return res.end('{"error":"unauthorized"}'); }
+  // Build 8: chat with the reply streamed as newline-delimited JSON ({"d": text piece} …, then {"reply"} or {"error"}).
+  if (url.pathname === '/api/chat-stream' && req.method === 'POST') {
+    let b; try { b = await body(req); } catch (e) { res.writeHead(400); return res.end(JSON.stringify({ error: e.message })); }
+    const text = String(b.text || '').trim().slice(0, 20000), agentName = b.agent || 'auto';
+    if (!text) { res.writeHead(400); return res.end('{"error":"text required"}'); }
+    phone.ownerUsed('dashboard'); set('dashboard_active_at', lastActiveWrite = Date.now());
+    res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+    const onText = (d) => res.write(JSON.stringify({ d }) + '\n');
+    try { const reply = await (agentName === 'auto' ? auto(text, { owner: true, onText }) : runAgent(agentName, text, 0, { owner: true, onText })); res.end(JSON.stringify({ reply }) + '\n'); }
+    catch (e) { res.end(JSON.stringify({ error: e.message }) + '\n'); }
+    return;
+  }
   let out;
   try { out = await api(req, url); }
   catch (e) { out = { error: e.message }; }

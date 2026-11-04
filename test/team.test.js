@@ -43,7 +43,7 @@ test('researcher gets hosted web tools (with caps) and only the safe document re
   const names = calls[0].tools.map((t) => t.type || t.name);
   assert.deepEqual(names, ['read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history', 'web_search_20260209', 'web_fetch_20260209']);
   assert.ok(calls[0].tools.filter((t) => t.type).every((t) => t.max_uses === 3));
-  assert.equal(calls[0].tools.find((t) => t.name === 'web_fetch').max_content_tokens, 6000);
+  assert.equal(calls[0].tools.find((t) => t.name === 'web_fetch').max_content_tokens, 3500);
   assert.ok(db.prepare("select count(*) n from activity where type = 'web'").get().n >= 1, 'searches show in the activity feed');
 });
 

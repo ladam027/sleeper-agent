@@ -175,3 +175,14 @@ test('routine browser steps: Sam approves from facts only; purchases and the own
   set('browser_review', 'sam');
   await b.close(id);
 });
+
+test('after the first look the agent gets only changes; full=true lists everything', async () => {
+  const o = await b.act({ action: 'open', url: 'https://canvas.example.edu/login' });
+  const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  const diff = await b.act({ action: 'snapshot', session: id });
+  assert.match(diff, /Changes since your last look/); assert.match(diff, /\(no control changed\)/);
+  assert.ok(diff.length < o.length && !/\[3\] button/.test(diff), `smaller and no unchanged controls (${diff.length} vs ${o.length} chars)`);
+  const full = await b.act({ action: 'snapshot', session: id, full: true });
+  assert.match(full, /\[5\] button "Place your order"/);
+  await b.close(id);
+});

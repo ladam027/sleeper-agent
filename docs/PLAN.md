@@ -92,7 +92,7 @@ Agent loop, SQLite memory with links, cost ledger, per-agent/global budgets, ste
 - Browser automation (Playwright) for form filling using vault references. Pauses for CAPTCHAs and 2FA, and you finish those.
 - Self-knowledge: auto-generated `/capabilities` page from the tool and agent registry, which the agent reads.
 
-### Build 8: Performance + token efficiency (measure first, then cut)
+### Build 8: Performance + token efficiency (measure first, then cut) ✅
 Ideas from OpenJarvis (traces, cost as a first-class metric), HuggingGPT/EasyTool (concise tool instructions), ethanplusai/jarvis (runs dashboard, sentence streaming). Every change is measured before/after with `promptFor` + count_tokens and the Statistics page; no change ships if answer quality drops.
 - **Runs view:** one timeline per task (each model call and tool step, tokens, cost, time, and "waiting on you: approval / code / CAPTCHA"). This is the measuring tool for everything below.
 - **Shorter tool descriptions:** James's ~4.5k tokens of tool definitions rewritten tight (EasyTool showed concise instructions also improve tool choice). Target −20–30% of his fixed prompt.

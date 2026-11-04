@@ -316,3 +316,15 @@ test('runs: each task is recorded with steps, tokens, cost and status; sub-agent
   assert.ok(db.prepare("select count(*) n from activity where run_id = ? and type = 'tool'").get(top.id).n >= 1, 'log lines carry the run');
   assert.equal(db.prepare('select count(*) n from costs where run_id = ?').get(child.id).n, 1, 'child costs carry the child run');
 });
+
+test('streaming: text pieces reach the dashboard as they are written; the run is recorded as usual', async () => {
+  reset();
+  const pieces = [];
+  deps.client = { messages: {
+    create: async () => { throw new Error('should stream'); },
+    stream: () => { const h = {}; return { on: (ev, fn) => { h[ev] = fn; }, finalMessage: async () => { ['Hel', 'lo ', 'there'].forEach((d) => h.text?.(d)); return text('Hello there'); } }; },
+  } };
+  assert.equal(await runAgent('orchestrator', 'hi', 0, { onText: (d) => pieces.push(d) }), 'Hello there');
+  assert.deepEqual(pieces, ['Hel', 'lo ', 'there']);
+  assert.equal(db.prepare("select status from runs order by id desc limit 1").get().status, 'done');
+});
