@@ -13,6 +13,7 @@ import * as browser from './browser.js';
 import * as live from './live.js';
 import * as tasks from './tasks.js';
 import * as drive from './drive.js';
+import * as video from './video.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -268,6 +269,14 @@ export const TOOLS = {
     { account: { type: 'string', enum: ['james', 'owner'], description: "james = James's own Drive; owner = the owner's Drive (read-only except the Sleeper Agent folder)" }, file_id: str('file id'), email: str('person to share with'), anyone: { type: 'boolean', description: 'anyone with the link' }, role: { type: 'string', enum: ['reader', 'commenter', 'writer'] } }, ['file_id'],
     (input) => drive.share(input), 'high'),
 
+  video_inspect: tool('video_inspect', 'Look at a video in Google Drive: up to 3 contact sheets of frames (with timestamps) and a timestamped transcript. Gives a job id for video_edit. Use it on your rendered result too before reporting.',
+    { account: { type: 'string', enum: ['james', 'owner'] }, file_id: str('Drive file id of the video (drive_search)') }, ['file_id'],
+    async (input, ctx) => { const r = await video.inspect(input, ctx.agent); ctx.taint?.(); return r; }),
+
+  video_edit: tool('video_edit', `Render an edit of an inspected video and save it as a new file in Drive (the original is never changed). spec: clips [{start, end, speed 0.5-2}] in output order (cuts/trims/reorder), crop none|vertical (9:16)|square, captions true (burns the transcript), texts [{text, start, end, position top|center|bottom}] in edited-video seconds, fade {in, out} seconds, music {volume 0-1} with music_file_id (a Drive audio file; it ducks under speech). Limits: 10 min, 200 MB.`,
+    { job: { type: 'integer', description: 'job id from video_inspect' }, spec: { type: 'object', description: 'the edit (see description)' }, name: str('output file name'), music_file_id: str('Drive file id of a music track (optional)') }, ['job', 'spec'],
+    (input, ctx) => video.edit(input, ctx.agent)),
+
   schedule_task: tool('schedule_task', `Create a real recurring or one-off task that runs on its own later ("every morning summarize…", "watch this market/listing/price and tell me when…"). Use this instead of ever promising to do something later. Each run starts fresh with the instructions and its last report, and messages the owner only when there is something new (notify=always for every run). repeat: ${tasks.REPEATS.join(', ')}. when = first run, owner local time YYYY-MM-DDTHH:MM (default now). max_usd = budget per run (default ${tasks.LIMITS.default_usd}, max ${tasks.LIMITS.max_usd}).`,
     { title: str('short name'), instructions: str('complete instructions for each run, including what counts as worth reporting'), when: str('YYYY-MM-DDTHH:MM'),
       repeat: { type: 'string', enum: tasks.REPEATS }, notify: { type: 'string', enum: ['news', 'always'] }, max_usd: { type: 'number' } }, ['title', 'instructions'],
@@ -306,7 +315,7 @@ export const TOOLS = {
     { station: str('GHCN-Daily station id'), start: str('YYYY-MM-DD'), end: str('YYYY-MM-DD') }, ['start', 'end'],
     async (input) => JSON.stringify(await integ.weatherHistory(input))),
 
-  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, analyst for exact math or data work (backtests, statistics, totals; it runs Python), critic to stress-test an idea, designer to build or change a website.',
+  delegate: tool('delegate', 'Hand a self-contained task to another agent and get its answer. It has no access to this conversation, so include all context. Use researcher for anything needing current info from the web, analyst for exact math or data work (backtests, statistics, totals; it runs Python), critic to stress-test an idea, designer to build or change a website or to edit a video (give it the Drive file id).',
     { agent: str('agent id'), task: str('full task description') }, ['agent', 'task'],
     async ({ agent, task }, ctx) => {
       if (ctx.depth >= 2) return 'Refused: delegation depth limit reached';

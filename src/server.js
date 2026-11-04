@@ -18,6 +18,7 @@ import * as browser from './browser.js';
 import * as live from './live.js';
 import * as tasks from './tasks.js';
 import * as drive from './drive.js';
+import * as video from './video.js';
 import { TOOLS, capabilities } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide, getSummary, runWaiting } from './agent.js';
@@ -161,6 +162,7 @@ async function api(req, url) {
   }
   if (route === 'backup' && m === 'POST') return { file: backup('manual') };
   if (route === 'drive' && m === 'GET') return drive.recent();
+  if (route === 'media' && m === 'GET') return { jobs: video.recent() };
   if (route === 'tasks') {
     if (m === 'GET') return { tasks: tasks.list() };
     if (m === 'POST') return { result: tasks.setStatus(Number(id), (await body(req)).status) };

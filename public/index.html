@@ -703,6 +703,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
           <div id="driveFiles" class="stack" style="gap:var(--s3)"><span class="muted">Loading…</span></div>
         </div>
         <div class="card">
+          <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span><div><h2>Videos</h2><div class="sub">Edits by Mia. Put a video in Drive and ask: "Mia, cut my clip to the best 30 seconds, vertical, with captions." Originals are never changed.</div></div></div>
+          <div id="mediaJobs"><span class="muted">No videos yet.</span></div>
+        </div>
+        <div class="card">
           <div class="card-h"><div><h2>Content calendar</h2><div class="sub" id="postsSub">Posts your agents drafted. Nothing goes out until you approve it.</div></div></div>
           <div id="posts"></div>
         </div>
@@ -1989,6 +1993,9 @@ async function loadDrive() {
     : x.error ? `<div><b>${label}</b><div class="muted" style="font-size:13px">${esc(x.error)}</div></div>`
     : `<div><b>${label}</b>${x.files.length ? x.files.map((f) => `<div class="row" style="padding:6px 0"><span class="ibox">${icon(f.type === 'folder' ? 'grid' : 'book')}</span><div class="body"><div class="title"><a href="${esc(f.link || '#')}" target="_blank" rel="noopener noreferrer">${esc(f.name)}</a></div><div class="meta">${esc(ago(f.modified))}</div></div></div>`).join('') : '<div class="muted" style="font-size:13px">Nothing here yet.</div>'}</div>`;
   $('#driveFiles').innerHTML = sec("James's Drive", d.james) + sec('Your Drive · Sleeper Agent folder', d.owner);
+  const mj = await call('media'); if (mj.error) return;
+  $('#mediaJobs').innerHTML = mj.jobs.map((j) => `<div class="row" style="padding:6px 0"><span class="ibox">${icon('sparkles')}</span><div class="body"><div class="title">${esc(j.name || 'Video')}</div>
+    <div class="meta">${j.duration ? `${Math.round(j.duration)}s · ` : ''}${esc(j.status)}${j.runs ? ` · ${j.runs} edit${j.runs === 1 ? '' : 's'}` : ''} · ${esc(ago(j.ts))}</div></div>${j.output_link ? `<a class="btn sm" href="${esc(j.output_link)}" target="_blank" rel="noopener noreferrer">Open edit</a>` : ''}</div>`).join('') || '<span class="muted">No videos yet.</span>';
 }
 async function loadStudio() {
   loadDrive();
