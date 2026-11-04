@@ -17,3 +17,6 @@
 
 ## 9.1.0: autopilot controlled from the Markets page
 - Trading limits were already page settings read on every order. Now the autopilot is too: Markets → **Autopilot** card (run time, minimum edge in points, budget per run, pause/resume, next run, last report). The edge is a setting (`paper_auto_edge`, 1–50, default 10) returned by `paper_account`, so the task's instructions reference it instead of a fixed number; time/budget/status edit the task (`tasks.update`). Setting `paper_auto_task` links the card to the task. 124 tests.
+
+## 9.2.0: flexibility (model per task)
+- Per-agent **Flexibility** (agent card): the agent's model is its ceiling and `flex_min` a cheaper floor. `pickModel()` (free, no model call) uses the floor for routine requests and the ceiling for plans, strategy, analysis, code, legal/money decisions, comparisons, "think hard"/"use opus", or requests over 1,500 chars. On the floor the agent also gets `use_stronger_model` (always loaded, taint-safe): called before acting, it ends the run and the request re-runs on the ceiling. James on by default: Sonnet 5 for routine work, Opus 5.5 when needed (about half the price on routine messages). Follow-up routing now recognises James answering on either model. 125 tests.

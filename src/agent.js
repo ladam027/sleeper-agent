@@ -15,7 +15,7 @@ const running = new Map(); // agent name -> AbortController of its in-flight run
 const SUB_AGENT_TOOLS = new Set(['remember', 'recall', 'link_memory', 'notify_owner', 'read_document', 'kalshi_markets', 'kalshi_backtest_data', 'weather_history', 'weather_forecast', 'save_site', 'get_site', 'list_sites', 'generate_image', 'draft_post', 'list_posts']); // ceiling for delegated runs
 // After a run has read web content ("tainted"), only these run directly; anything else that changes state waits for the owner.
 // save_site / draft_post are private drafts (sanitized; publishing is separately approval-gated), so web research can feed them.
-const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account', 'list_capabilities', 'browser']); // browser gates submits itself // paper moves no money
+const TAINT_SAFE = new Set(['recall', 'list_reminders', 'list_secrets', 'delegate', 'escalate', 'notify_owner', 'trip_kill_switch', 'read_document', 'save_site', 'get_site', 'list_sites', 'draft_post', 'list_posts', 'paper_trade', 'paper_account', 'list_capabilities', 'browser', 'use_stronger_model']); // browser gates submits itself // paper moves no money
 const WEB_SEARCH_USES = 3; // per model request, keeps a research run from burning searches
 const WEB_FETCH_TOKENS = 3500; // cap on how much of each fetched page the model reads (Build 8: was 6000; ~2,600 words is enough for most pages, and new web content is Riley's biggest cost: ~26k cache-write tokens a call)
 
@@ -99,7 +99,7 @@ function push(msgs, role, content) {
 
 // Tools always in context; with more than DEFER_OVER tools the rest load on demand via tool search,
 // which keeps the cached prefix small (James: ~9k tokens of tool definitions -> ~2k).
-const CORE_TOOLS = new Set(['recall', 'remember', 'link_memory', 'delegate', 'escalate', 'notify_owner', 'set_reminder', 'list_reminders']);
+const CORE_TOOLS = new Set(['recall', 'remember', 'link_memory', 'delegate', 'escalate', 'notify_owner', 'set_reminder', 'list_reminders', 'use_stronger_model']);
 const DEFER_OVER = 20; // James (~35 tools) defers; Pete (~17 everyday tools) keeps them all loaded
 const TOOL_SEARCH = { type: 'tool_search_tool_bm25_20251119', name: 'tool_search_tool_bm25' };
 const WEB_TOOLS = new Set(['web_search', 'web_fetch']);
@@ -111,6 +111,7 @@ function toolsFor(a, depth, canEscalate) {
   const allowed = new Set(Object.keys(TOOLS).filter((k) => k !== 'escalate'
     && (own ? own.has(k) : !TOOLS[k].hidden) && (depth === 0 || SUB_AGENT_TOOLS.has(k))));
   if (canEscalate) allowed.add('escalate');
+  if (a.flex_min && a.model === a.flex_min && TIERS.indexOf(a.flex_min) < TIERS.indexOf(agent(a.name)?.model)) allowed.add('use_stronger_model'); // offered only on the cheaper model
   const defer = allowed.size > DEFER_OVER;
   const defs = [...allowed].map((k) => defer && !CORE_TOOLS.has(k) ? { ...TOOLS[k].def, defer_loading: true } : TOOLS[k].def);
   // Code execution (Anthropic's sandbox, no internet) for exact math on data already in the conversation.
@@ -172,11 +173,25 @@ async function exec(use, ctx, allowed) {
 // opts.thread: which chat history to read/write (Auto mode shares the orchestrator's thread across models).
 // opts.canEscalate: adds the escalate tool; the run then returns { escalated: reason } instead of a reply.
 // Every run is recorded (Runs view): request, steps, tokens, cost, time, outcome. Sub-agent runs link to their parent.
+// Model tiers, weakest first. An agent with flex_min set may run anywhere between flex_min and its own model.
+export const TIERS = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5'];
+const DEEP = /\b(plan|planning|strateg\w*|analy[sz]\w*|debug|code|coding|legal|contract|invest\w*|trad(e|ing)|decide|decision|should i|compare|evaluate|critique|negotiat\w*|think (hard|carefully)|use opus|deep dive|step[- ]by[- ]step|forecast|business plan|pros and cons|trade-?offs?)\b/i;
+export function pickModel(a, text, opts = {}) {
+  if (opts.forceModel) return opts.forceModel;
+  if (!a.flex_min || !TIERS.includes(a.flex_min) || TIERS.indexOf(a.flex_min) >= TIERS.indexOf(a.model)) return a.model;
+  return String(text).length > 1500 || DEEP.test(text) ? a.model : a.flex_min;
+}
+
 export async function runAgent(name, text, depth = 0, opts = {}) {
   const t0 = Date.now();
   const run = Number(db.prepare('insert into runs (agent, parent, depth, request) values (?, ?, ?, ?)').run(name, runId(), depth, redact(String(text)).slice(0, 300)).lastInsertRowid);
   let out;
-  try { out = await runCtx.run({ run }, () => runAgentInner(name, text, depth, opts)); return out; }
+  try {
+    out = await runCtx.run({ run }, () => runAgentInner(name, text, depth, opts));
+    // The cheaper model decided the task needs the stronger one: run it again there (nothing was saved; it was told to switch before acting).
+    if (out?.upgrade) { log(name, 'flex', `switching to ${agent(name).model}: ${out.upgrade}`); out = await runCtx.run({ run }, () => runAgentInner(name, text, depth, { ...opts, forceModel: agent(name).model })); }
+    return out;
+  }
   finally {
     const c = db.prepare("select count(*) steps, coalesce(sum(usd), 0) usd, coalesce(sum(input), 0) i, coalesce(sum(output), 0) o, coalesce(sum(cache_read), 0) cr, coalesce(sum(cache_write), 0) cw from costs where run_id = ? and input is not null").get(run);
     const extra = db.prepare("select coalesce(sum(usd), 0) u from costs where run_id = ? and input is null").get(run).u; // texts, images, calls
@@ -190,8 +205,11 @@ export async function runAgent(name, text, depth = 0, opts = {}) {
 async function runAgentInner(name, text, depth = 0, opts = {}) {
   text = redact(text); // before it is logged, saved to history, or sent
   const thread = opts.thread || name;
-  const a = agent(name);
-  if (!a) return `Unknown agent ${name}`;
+  const base = agent(name);
+  if (!base) return `Unknown agent ${name}`;
+  // Flexibility: the agent's model is its ceiling; routine requests run on its cheaper floor model.
+  const a = { ...base, model: pickModel(base, text, opts) };
+  if (a.model !== base.model) log(name, 'flex', `${a.model} for this request (stronger model available if needed)`);
   if (running.has(name)) return `${name} is busy with another task`;
   const ctrl = new AbortController();
   running.set(name, ctrl);
@@ -270,6 +288,7 @@ async function runAgentInner(name, text, depth = 0, opts = {}) {
       }
       const results = await Promise.all(uses.map(async (u) => ({ type: 'tool_result', tool_use_id: u.id, ...(await exec(u, ctx, allowed)) })));
       if (ctx.escalated) { log(name, 'escalated', ctx.escalated); return { escalated: ctx.escalated }; }
+      if (ctx.upgrade) return { upgrade: ctx.upgrade };
       messages.push({ role: 'user', content: results });
     }
     log(name, 'blocked', `hit ${MAX_STEPS}-step limit`);
@@ -337,7 +356,8 @@ export async function auto(text, { owner = false, onText } = {}) {
   const last = db.prepare("select model, ts from chat where agent = ? and role = 'assistant' order by id desc limit 1").get(thread);
   const r = pickRoute(text, {
     sessionOpen: openSessions().some((s) => s.agent === 'orchestrator'),
-    jamesAnsweredMsAgo: last?.model === agent('orchestrator')?.model ? Date.now() - Date.parse(`${last.ts}Z`) : Infinity,
+    // James may answer on either of his models (flexibility); Pete is the Haiku agent.
+    jamesAnsweredMsAgo: last?.model && [agent('orchestrator')?.model, agent('orchestrator')?.flex_min].includes(last.model) ? Date.now() - Date.parse(`${last.ts}Z`) : Infinity,
     available: (n) => !!agent(n) && !blocked(n),
   });
   return r.agent === 'orchestrator' ? toJames(r.why) : tryAgent(r.agent, r.why);

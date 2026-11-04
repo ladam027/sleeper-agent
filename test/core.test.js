@@ -18,6 +18,7 @@ const usage = { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens:
 const text = (t) => ({ stop_reason: 'end_turn', usage, content: [{ type: 'text', text: t }] });
 const toolUse = (name, input) => ({ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'tu_' + Math.random(), name, input }] });
 const reset = () => { db.exec("delete from costs; delete from approvals; delete from chat; delete from memory; update agents set status='idle'"); set('global_halt', 0); };
+db.exec("update agents set flex_min = '' where name = 'orchestrator'"); // these tests assume a fixed model; flexibility is tested separately
 
 test('cost math matches price table', () => {
   assert.equal(costOf('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
@@ -342,4 +343,27 @@ test('memory index: titles reach the agent after the cached prefix, so new memor
   await runAgent('orchestrator', 'hi again');
   assert.equal(calls[0].system[0].text, cached.text, 'cached prefix unchanged by a new memory');
   assert.match(calls[0].system[1].text, /Car: 2024 sedan/);
+});
+
+test('flexibility: routine work on the cheaper model, hard work on the stronger one; the agent can step up itself', async () => {
+  reset();
+  const { pickModel, auto } = await import('../src/agent.js');
+  db.exec("update agents set flex_min = 'claude-sonnet-5' where name = 'orchestrator'");
+  const james = db.prepare("select * from agents where name = 'orchestrator'").get();
+  assert.equal(pickModel(james, 'add the car now'), 'claude-sonnet-5');
+  assert.equal(pickModel(james, 'plan my week around the launch'), 'claude-opus-5-5');
+  assert.equal(pickModel(james, 'think hard about this'), 'claude-opus-5-5');
+  assert.equal(pickModel(james, 'x'.repeat(2000)), 'claude-opus-5-5', 'long requests');
+  assert.equal(pickModel({ ...james, flex_min: '' }, 'hi'), 'claude-opus-5-5', 'off = always its model');
+  // step up: Sonnet calls use_stronger_model before acting; the request re-runs on Opus
+  const calls = fake([toolUse('use_stronger_model', { reason: 'needs a multi-step plan' }), text('Opus answer')]);
+  assert.equal(await runAgent('orchestrator', 'help me with my wedding seating'), 'Opus answer');
+  assert.deepEqual(calls.map((c) => c.model), ['claude-sonnet-5', 'claude-opus-5-5']);
+  assert.ok(calls[0].tools.some((t) => t.name === 'use_stronger_model' && !t.defer_loading), 'offered (and loaded) on the cheaper model');
+  assert.ok(!calls[1].tools.some((t) => t.name === 'use_stronger_model'), 'not offered once on the strongest');
+  // follow-ups still stay with James when he answered on Sonnet
+  fake([text('Sonnet reply')]); await auto('remind me what you said');
+  const c2 = fake([text('ok')]); await auto('try again');
+  assert.notEqual(c2[0].model, 'claude-haiku-4-5', 'follow-up to a Sonnet James answer stays with James');
+  db.exec("update agents set flex_min = '' where name = 'orchestrator'");
 });

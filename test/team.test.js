@@ -21,6 +21,7 @@ function fake(byAgentModel) {
   return calls;
 }
 const reset = () => db.exec("delete from approvals; delete from memory; delete from links; delete from activity; delete from costs; update settings set value = '0' where key = 'global_halt'");
+db.exec("update agents set flex_min = '' where name = 'orchestrator'"); // these tests assume a fixed model; flexibility is tested separately
 
 test('team is seeded with names, models and least-privilege tools', () => {
   const a = Object.fromEntries(db.prepare('select * from agents').all().map((r) => [r.name, r]));

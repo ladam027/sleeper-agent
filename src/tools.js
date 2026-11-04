@@ -246,6 +246,10 @@ export const TOOLS = {
   cancel_task: tool('cancel_task', 'Cancel (or pause) a scheduled task by id.', { id: { type: 'integer' }, pause: { type: 'boolean', description: 'pause instead of cancel' } }, ['id'],
     ({ id, pause }) => tasks.setStatus(id, pause ? 'paused' : 'deleted')),
 
+  use_stronger_model: tool('use_stronger_model', 'You are on the cheaper model for this request. If it needs deep reasoning (a plan, strategy, analysis, code, a money or legal decision, many steps), call this FIRST, before taking any action, and the request restarts on the stronger model.',
+    { reason: str('why this needs the stronger model') }, ['reason'],
+    ({ reason }, ctx) => { ctx.upgrade = String(reason || 'needs deeper reasoning').slice(0, 200); return 'Switching to the stronger model. Stop here.'; }, 'low', true),
+
   paper_trade: tool('paper_trade', `PAPER trading on Kalshi (simulated money, real prices). Fills now at the live ask (buy) or bid (sell), Kalshi fee included; no resting orders. Code-enforced limits: max $ per order, max open positions, max daily loss. This is the default for any trading request; real money only via kalshi_order when the owner asks for live trading. Always give your reason. Never call this real trading.`,
     { ticker: str('market ticker from kalshi_markets'), side: { type: 'string', enum: ['yes', 'no'] }, action: { type: 'string', enum: ['buy', 'sell'] }, count: { type: 'integer', description: 'contracts' },
       limit_price: { type: 'number', description: 'optional worst acceptable price in dollars, e.g. 0.42' }, reason: str('why: the edge you think you have') }, ['ticker', 'side', 'count', 'reason'],

@@ -108,6 +108,11 @@ async function api(req, url) {
     if (action === 'restart') return restart(id), { ok: true };
     const b = await body(req), upd = (col, v) => db.prepare(`update agents set ${col} = ? where name = ?`).run(v, id);
     if (b.daily_budget_usd !== undefined) { if (!(b.daily_budget_usd >= 0 && b.daily_budget_usd <= 50)) throw new Error('Daily budget must be $0–50'); upd('daily_budget_usd', b.daily_budget_usd); }
+    if (b.flex_min !== undefined) {
+      const ag = db.prepare('select model from agents where name = ?').get(id), tiers = ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5-5'];
+      if (b.flex_min !== '' && !(tiers.includes(b.flex_min) && tiers.indexOf(b.flex_min) < tiers.indexOf(ag?.model))) throw new Error('Flexible model must be cheaper than the agent\'s model');
+      upd('flex_min', b.flex_min);
+    }
     if (b.effort !== undefined) { if (!['low', 'medium', 'high'].includes(b.effort)) throw new Error('Effort must be low, medium or high'); upd('effort', b.effort); }
     if (b.concise !== undefined) upd('concise', b.concise === true ? 1 : [0, 1, 2].includes(Number(b.concise)) ? Number(b.concise) : 0);
     if (b.tools !== undefined) {

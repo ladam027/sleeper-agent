@@ -1296,11 +1296,13 @@ async function refresh() {
         <span class="pill ${cls} right"><span class="dot ${a.status === 'running' ? 'live' : a.status === 'killed' ? 'bad' : 'idle'}"></span>${label}</span></div>
       <div class="budget"><b class="num">${money(sp)}</b><span class="muted num">/ ${money(cap)} today</span>${extra ? `<span class="pill warn" title="Raised for today only">+${money(extra)} today</span>` : ''}</div>
       <div class="progress ${p >= 90 ? 'bad' : p >= 70 ? 'warn' : ''}"><i style="width:${p}%"></i></div>
-      <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}<span class="pill ${a.concise ? 'brand' : ''}">${['full replies', 'concise', 'ultra concise'][Number(a.concise)] || 'concise'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
+      <div class="tags">${a.web ? `<span class="pill brand">web</span>` : ''}${isHaiku(a) ? '' : `<span class="pill">${esc(a.effort || 'medium')} effort</span>`}${a.flex_min ? `<span class="pill brand" title="${esc(MODEL_NAME[a.flex_min])} for routine work, ${esc(MODEL_NAME[a.model])} when needed">flexible</span>` : ''}<span class="pill ${a.concise ? 'brand' : ''}">${['full replies', 'concise', 'ultra concise'][Number(a.concise)] || 'concise'}</span><span class="pill">${Math.round((a.max_tokens || 16000) / 1000)}k max</span></div>
       <div class="actions"><button class="btn sm" onclick="agentCfg('${esc(a.name)}')">${icon('sliders')}Settings</button><button class="btn sm" onclick="raiseLimit('${esc(a.name)}', ${a.daily_budget_usd})" title="Raise today's limit">${icon('trend')}Raise limit</button><button class="btn sm" onclick="agentAct('${esc(a.name)}','restart')">${icon('rotate')}Restart</button><button class="btn sm danger" onclick="agentAct('${esc(a.name)}','kill')">${icon('power')}Kill</button></div>
       <form class="cfg" data-agent="${esc(a.name)}" hidden onsubmit="agentSave(event)">
         <div><label class="f">Effort</label><select name="effort" ${isHaiku(a) ? 'disabled' : ''}>${['low', 'medium', 'high'].map((e) => `<option ${(a.effort || 'medium') === e ? 'selected' : ''}>${e}</option>`).join('')}</select>
           <div class="help">${isHaiku(a) ? "Haiku doesn't think, so effort doesn't apply." : 'How hard it thinks. Thinking is billed as output.'}</div></div>
+        ${['claude-sonnet-5', 'claude-opus-5-5'].includes(a.model) ? `<div><label class="f">Flexibility</label><select name="flex_min"><option value="">Off: always ${esc(MODEL_NAME[a.model])}</option>${['claude-haiku-4-5', 'claude-sonnet-5'].filter((m) => m !== a.model && !(a.model === 'claude-sonnet-5' && m === 'claude-sonnet-5')).map((m) => `<option value="${m}" ${a.flex_min === m ? 'selected' : ''}>${esc(MODEL_NAME[m])} for routine work, ${esc(MODEL_NAME[a.model])} when needed</option>`).join('')}</select>
+          <div class="help">Plans, analysis, code, money or legal decisions and long requests use ${esc(MODEL_NAME[a.model])}; it can also step up itself. Say "think hard" to force it.</div></div>` : ''}
         <div><label class="f">Max reply length</label><select name="max_tokens">${[1024, 2048, 4096, 8000, 16000, 32000].map((t) => `<option value="${t}" ${(a.max_tokens || 16000) === t ? 'selected' : ''}>${t >= 1000 ? Math.round(t / 1000) + 'k' : t} tokens</option>`).join('')}</select>
           <div class="help">${isHaiku(a) ? '1k is plenty for quick answers.' : 'Includes thinking. Keep 8k+ for Opus.'}</div></div>
         <div><label class="f">Daily budget (USD)</label><input name="daily_budget_usd" type="number" min="0" max="50" step="0.25" value="${a.daily_budget_usd}"></div>
@@ -1425,7 +1427,7 @@ window.agentSave = async (e) => {
   const perms = f.dataset.agent === 'orchestrator' ? {} : { tools: [...f.querySelectorAll('[name=tool]:checked')].map((c) => c.value), web: f.web.checked };
   const r = await call(`agents/${encodeURIComponent(f.dataset.agent)}`, 'POST', { ...perms,
     ...(f.effort.disabled ? {} : { effort: f.effort.value }), max_tokens: +f.max_tokens.value,
-    daily_budget_usd: +f.daily_budget_usd.value, concise: +f.concise.value });
+    daily_budget_usd: +f.daily_budget_usd.value, concise: +f.concise.value, ...(f.flex_min ? { flex_min: f.flex_min.value } : {}) });
   if (r.error) return alert(r.error);
   agentCfg(null);
 };

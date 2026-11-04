@@ -111,6 +111,7 @@ const MIGRATIONS = [
   `create table if not exists tasks (id integer primary key, title text not null, instructions text not null, agent text not null default 'orchestrator',
      local_time text not null, due_at text not null, repeat text not null, notify text not null default 'news', max_usd real not null default 0.15,
      status text not null default 'active', last_run text, last_result text, runs integer not null default 0, created_by text, created_at text default current_timestamp);`,
+  `alter table agents add column flex_min text;`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
@@ -140,6 +141,8 @@ db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_bu
 // Build 3 team. Names are editable in Settings; ids are what agents delegate to.
 const seed = db.prepare(`insert or ignore into agents (name, model, effort, purpose, daily_budget_usd, max_tokens, tools, web, display_name) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 seed.run('researcher', 'claude-sonnet-5', 'low', 'Researches anything that needs current information: searches the web, reads pages and PDF/CSV/Excel files, and reports back a short sourced summary with links. Never takes actions.', 1, 8000, 'read_document,kalshi_markets,kalshi_backtest_data,weather_history', 1, 'Riley');
+// Flexibility (Build 10 prep): James uses Sonnet for routine work and Opus when a task needs it. '' = the owner turned it off.
+db.prepare("update agents set flex_min = 'claude-sonnet-5' where name = 'orchestrator' and flex_min is null").run();
 // Build 8: exact math moved off James (the code-execution tool added ~2.6k tokens to every James request) to a cheaper analyst.
 if (seed.run('analyst', 'claude-sonnet-5', 'low', 'Does exact math and data work with code execution (Python): backtests, statistics, totals, projections, spreadsheet-style calculations on data it is given or fetches with its tools. Shows the numbers and the method in a few lines. Never takes actions.', 1, 8000, 'recall,kalshi_backtest_data,weather_history,paper_account', 0, 'Theo').changes)
   db.prepare("update agents set code = 1 where name = 'analyst'").run();
