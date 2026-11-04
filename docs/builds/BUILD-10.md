@@ -30,3 +30,14 @@
 
 ## Cost per 1-minute edit (estimate)
 - Contact sheets ~7k image tokens + transcript text, on Sonnet: ~$0.02; planning + one review pass: ~$0.03–0.06; transcript $0.006; rendering free. About **$0.05–0.10**, revisions ~$0.02–0.05 each.
+
+## 10.2.0 (phase 10.3): images
+- `src/images.js`: **image_view** (a Drive image or a generated one, scaled to ≤1568 px before the model sees it; the API caps an image at ~1.6k tokens; taints the run) and **image_edit** (resize contain/cover-crop, 320 px thumbnail, convert jpg/png/webp; ffmpeg; ≤25 MB in, ≤8000 px; saved as a **new** file in a Drive's Sleeper Agent folder via `drive.saveBuffer`). Generated images to Drive already work through `drive_upload` (image source).
+- Mia gets image_view, image_edit and drive_upload (migration + seed); both image tools are taint-safe (output stays private in Drive).
+- Server check: a 3000×2000 image viewed at 1568×1045 (82 KB); a cover crop to 1200×630 gave exactly 1200×630.
+- 133 tests.
+
+## Build 10 summary
+- Shipped: Drive for James (full) and the owner (read-only + app folder), approval-gated share/trash, Studio Drive card; video editing (inspect via contact sheets + transcript, validated edit spec, render to Drive, Videos card); image view/edit; plus per-tab dashboard addresses and agent flexibility (built alongside).
+- Skipped / later: whisper.cpp on the server (OpenAI speech-to-text instead, $0.006/min); AI-generated B-roll; resumable uploads for files over 200 MB.
+- Known gaps: Drive features are tested against a fake Google and on the server with local files, not yet end to end with the owner's real Drive (needs the Reconnect step). Video music ducking uses one fixed curve. Contact sheets show 36 frames at most (one every ~17 s for a 10-minute video).

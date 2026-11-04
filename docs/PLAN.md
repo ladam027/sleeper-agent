@@ -111,7 +111,7 @@ Ideas from OpenJarvis (scheduled and continuous agents, skills), thevickypedia/J
 - **Result cards:** James can post sanitized tables/charts in chat.
 - Phone voice (Telnyx + ElevenLabs clone, Build 7 part 3) uses the same lessons: sentence-chunked speech, barge-in, permissions decided before the call (read-only on calls, anything risky goes to approvals).
 
-### Build 10: Google Drive + media
+### Build 10: Google Drive + media ✅
 - **10.1 Drive:** James's own Drive (full, his Gmail account) and the owner's Drive (read-only, plus writes only inside a "Sleeper Agent" folder). Search/list, read Docs/Sheets/PDFs as text (tainting), create folders/Docs/Sheets, upload, rename/move, trash, share (approval). Studio shows recent Drive files. Tools load on demand (no per-message cost).
 - **10.2 Video:** ffmpeg on the server; the agent inspects a video through frame contact sheets + a transcript (whisper.cpp on the server), writes a structured edit spec (trim, cut, concat, speed, vertical crop, captions, text, fades, music ducking; never raw commands), the server renders, the agent reviews frames of the result and saves to Drive. Limits in code (≤10 min, ≤1 GB, render timeout, format allowlist). Done by Mia (Sonnet). Expected ~$0.05–0.10 per 1-minute edit, ~$0.02–0.05 per revision.
 - **10.3 Images:** upload/convert/resize/thumbnails; generated images to Drive.
