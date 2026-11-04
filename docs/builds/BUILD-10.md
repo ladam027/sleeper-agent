@@ -18,3 +18,15 @@
 
 ## 10.0.1: each tab has its own address
 - /overview (or /), /memory, /vault, /money, /markets, /clients, /browser, /studio, /stats, /integrations, /guide, /settings all serve the dashboard and open that tab; switching tabs updates the address and the page title ("Vault · Sleeper Agent"), and back/forward work (history.pushState + popstate). Unknown paths get 404. Verified in Chrome on the demo copy.
+
+## 10.1.0 (phase 10.2): video editing
+- `src/video.js`. **Inspect:** downloads the Drive video into a scratch job folder (streamed, ≤1 GB, ≤10 min), probes it, makes up to 3 contact sheets (12 frames each, 512×288 tiles, timestamps described in text) and a timestamped transcript. Returns images to the model (the agent loop now passes `{ blocks }` tool results through, redacting the text parts). Inspecting taints the run.
+- **Transcript:** OpenAI speech-to-text (`whisper-1`, the owner's OpenAI key from the vault, ~$0.006/min, cost recorded). Deviation from the plan (whisper.cpp on the server): far less server setup for under a cent per video; swap later if volume grows.
+- **Edit:** the agent writes a spec (clips with start/end/speed 0.5–2 in output order, crop none/vertical/square, captions, up to 10 text overlays, fades, music with ducking); `plan()` validates it and builds the ffmpeg filter itself. Agent text goes into files (`textfile=`, captions.srt), never into the filter string. Render with `nice`, 2 threads, 10-minute timeout, output ≤200 MB mp4, saved as a **new** file in the Sleeper Agent Drive folder (originals untouched). Scratch job folders are deleted after a day.
+- **Mia** (Sonnet) gets video_inspect, video_edit and drive_search (migration + seed) and the delegate tool points video work at her. Studio: **Videos** card.
+- ffmpeg 8 + DejaVu fonts installed on the server (deploy.sh installs them if missing).
+- Smoke test on the server: 20 s test clip → 10 s vertical edit with two cuts (one at 2×), burned captions, a title with an apostrophe, fades and ducked music; 1078×1920, correct duration, rendered in 8 s.
+- Schema v27. 132 tests.
+
+## Cost per 1-minute edit (estimate)
+- Contact sheets ~7k image tokens + transcript text, on Sonnet: ~$0.02; planning + one review pass: ~$0.03–0.06; transcript $0.006; rendering free. About **$0.05–0.10**, revisions ~$0.02–0.05 each.
