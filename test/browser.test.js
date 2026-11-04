@@ -230,3 +230,18 @@ test('accounts: the owner asking for a site\'s account skips approval; plans, ot
   await assert.rejects(b.newLogin({ session: id, ref: 2 }), /already has "fiverr-login"/, 'never overwrites a saved login');
   await b.close(id);
 });
+
+test('a real CAPTCHA texts the owner a link to the live page, once per page', async () => {
+  const sent = []; b.deps.notify = async (u, text) => sent.push([u, text]);
+  process.env.PUBLIC_DASHBOARD_URL = 'https://sleeper-agent.example.ts.net';
+  const real = page.evaluate;
+  page.evaluate = async () => ({ title: 'Verify', url: 'https://www.fiverr.com/join', text: '', captcha: true, elements });
+  const o = await b.act({ action: 'open', url: 'https://www.fiverr.com/join' });
+  const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  await b.act({ action: 'snapshot', session: id });
+  assert.equal(sent.length, 1, 'once per page, not on every look');
+  assert.match(sent[0][1], /CAPTCHA on www\.fiverr\.com.*https:\/\/sleeper-agent\.example\.ts\.net\/browser/);
+  assert.equal(sent[0][0], 'high', 'high = Telegram when the owner is on the phone');
+  page.evaluate = real; b.deps.notify = null;
+  await b.close(id);
+});

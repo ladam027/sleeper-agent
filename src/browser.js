@@ -16,6 +16,7 @@ import * as vault from './vault.js';
 
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= '/opt/ms-playwright'; // shared install (deploy.sh), readable by the service user
 export const deps = {
+  notify: null, // set by server.js (phone.notify); tests can swap it
   launch: async () => (await import('playwright-core')).chromium.launch(),
   lookup: async (host) => (await lookup(host, { all: true })).map((a) => a.address),
 };
@@ -118,6 +119,12 @@ async function snap(s, note, { full = false } = {}) {
   await s.page.waitForLoadState('networkidle', { timeout: 4e3 }).catch(() => {});
   const r = await s.page.evaluate(snapshotInPage, { textMax: TEXT_MAX, elementsMax: ELEMENTS_MAX });
   const prev = s.lastSnap; s.lastSnap = r; s.elements = r.elements;
+  // A real CAPTCHA: tell the owner right away, with a link straight to the live page (works on the phone over Tailscale).
+  if (r.captcha && s.captchaAt !== r.url) {
+    s.captchaAt = r.url;
+    const link = `${String(process.env.PUBLIC_DASHBOARD_URL || '').replace(/\/$/, '')}/browser`;
+    deps.notify?.('high', `CAPTCHA on ${new URL(r.url).hostname} while ${s.agent === 'orchestrator' ? 'James' : s.agent} works. Finish it here, then reply "done": ${link}`, { agent: s.agent }).catch(() => {});
+  }
   if (!prev || full || prev.url !== r.url || r.captcha) return format(r, note);
   const before = new Map(prev.elements.map((e) => [e.ref, line(e)]));
   const changed = r.elements.filter((e) => before.get(e.ref) !== line(e));

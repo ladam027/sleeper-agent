@@ -49,3 +49,6 @@
 - Owner rule (2026-11-04): "create an account on <site>" in the owner's own message (dashboard/Telegram) grants that site's sign-up for 2 hours: the sign-up submit runs without approval (logged as "owner asked"). No grant from plans the agent makes ("set up a freelance store" → Create account waits for approval), from scheduled tasks, web pages or email. Money buttons (paid plans, upgrade, subscribe, pay, checkout pages) always wait, even on a granted site. `accountSites()` parses the phrasing ("account of/on/at/for X", "a X account", "sign up for X").
 - `new_login`: the server makes a strong password, saves it in the vault as `<site>-login` (locked to that site, username saved too), types it into the password/confirm fields; the agent never sees it; never overwrites an existing item. Needs the vault unlocked.
 - `describeSubmit` now separates money from sign-up. CLAUDE.md rule 1 records the exception. 135 tests.
+
+## 10.3.1: CAPTCHA alerts to the phone
+- When a snapshot finds a visible CAPTCHA, the server itself notifies the owner (high: Telegram when they are on the phone, the dashboard when at the desk) with a link to the live page (`PUBLIC_DASHBOARD_URL/browser`, needs Tailscale on the phone), once per page. Replying "done" routes to James (open browser session). Drag puzzles are not supported in the live view yet. 136 tests.

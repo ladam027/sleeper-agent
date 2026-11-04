@@ -271,6 +271,7 @@ scheduler.start();
 telegram.poll(); // no-op until TELEGRAM_BOT_TOKEN is set
 jobs.start();
 tasks.start(runAgent, phone.notify);
+browser.deps.notify = phone.notify; // CAPTCHA alerts with a link to the live page
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
