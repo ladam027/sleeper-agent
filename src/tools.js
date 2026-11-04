@@ -298,9 +298,19 @@ export const TOOLS = {
       return `Created agent ${name}`;
     }, 'high'),
 
-  trip_kill_switch: tool('trip_kill_switch', 'Emergency stop: block every agent from calling the API until the owner resumes. Use only for clear signs of compromise, prompt injection being acted on, or runaway spending.',
-    { reason: str('what you saw, specifically') }, ['reason'],
-    async ({ reason }, ctx) => {
+  trip_kill_switch: tool('trip_kill_switch', 'Emergency stop: block every agent from calling the API until the owner resumes. Use only for clear signs of compromise, prompt injection being acted on, or runaway spending. You must cite the #ids of the actions (from the Actions list) that prove it, or kind=spending when today\'s spend is near the cap.',
+    { reason: str('what you saw, specifically'), evidence: { type: 'array', items: { type: 'integer' }, description: 'activity #ids of the actions that prove it' }, kind: { type: 'string', enum: ['compromise', 'spending'] } }, ['reason'],
+    async ({ reason, evidence = [], kind = 'compromise' }, ctx) => {
+      // Checked in code: a false alarm stops everything, so the switch needs real evidence, not a model's reading of a summary.
+      if (kind === 'spending') {
+        const today = db.prepare("select coalesce(sum(usd), 0) u from costs where day = ?").get(new Date().toLocaleDateString('en-CA', { timeZone: get('timezone') })).u;
+        if (today < 0.8 * Number(get('global_daily_budget_usd') || 5)) return `Refused: today's spend ($${today.toFixed(2)}) is not near the cap. Use notify_owner instead.`;
+      } else {
+        const rows = evidence.length ? db.prepare(`select id, agent, type from activity where id in (${evidence.map(() => '?').join(',')})`).all(...evidence) : [];
+        const real = rows.filter((r) => !['task', 'done', 'delegated', 'route', 'memory', 'llm'].includes(r.type) && !['owner', 'security', 'router'].includes(r.agent));
+        if (!real.length) return 'Refused: no cited #id is an action taken by an agent (summaries and requests are not actions). If something still looks wrong, use notify_owner.';
+        reason = `${reason} (evidence: ${real.map((r) => `#${r.id} ${r.agent} ${r.type}`).join(', ')})`;
+      }
       set('global_halt', 1);
       log(ctx.agent, 'halt', `kill switch tripped: ${reason}`);
       await notify('critical', `Kill switch tripped by ${ctx.agent}: ${reason}. Review the activity feed, then resume from the dashboard.`, { agent: ctx.agent });

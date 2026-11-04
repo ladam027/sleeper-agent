@@ -9,3 +9,8 @@
 - Saved playbooks (step-by-step guides for repeat jobs, owner-written or approved; saved from runs that worked).
 - Voice on the dashboard (push-to-talk + spoken replies, sentence by sentence; free, browser built-ins).
 - Result cards (sanitized tables/charts in chat).
+
+## 9.0.1: false kill-switch alarm fixed
+- 2026-11-04: Sam tripped the kill switch claiming the archivist "executed browser_submit to my.dmv.ca.gov". False: all 8 DMV submits were James's and owner-approved (#12–#19); the archivist can only remember/recall/link_memory (it used recall 21×, remember 10×). Sam had read the archivist's summary sentence ("The browser_submit worked") as an action.
+- The audit log now separates **Actions** (with #ids) from **Messages** (requests and summaries, marked "NOT evidence"). `trip_kill_switch` requires evidence checked in code: cited #ids that are real actions by an agent, or kind=spending with today's spend ≥ 80% of the cap; otherwise it refuses and Sam can notify the owner instead.
+- Also seen: Telnyx returned 403 "Account is disabled (D17)" for the alert call: an account issue on Telnyx's side.
