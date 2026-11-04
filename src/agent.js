@@ -5,7 +5,7 @@ import { TOOLS } from './tools.js';
 import { redact } from './vault.js';
 import * as vault from './vault.js';
 import { LIVE_RE } from './live.js';
-import { openSessions } from './browser.js';
+import { openSessions, describeSubmit } from './browser.js';
 import { notify } from './phone.js';
 
 export const deps = { client: null }; // tests swap in a fake
@@ -131,6 +131,22 @@ async function exec(use, ctx, allowed) {
   if (!t || !allowed.has(use.name)) return { content: `Tool ${use.name} is not available to you`, is_error: true };
   log(ctx.agent, 'tool', `${use.name} ${JSON.stringify(use.input).slice(0, 300)}`);
   const taintHold = ctx.tainted && !TAINT_SAFE.has(use.name);
+  // Routine browser steps (log in, continue, verify, fill a form for the owner's request) can be approved by Sam instead of
+  // the owner (owner decision 2026-11-03; toggle in the Browser tab). Money / irreversible / speaking-for-the-owner steps are
+  // flagged in code (describeSubmit) and always go to the owner, as does anything Sam won't clearly approve.
+  if (use.name === 'browser_submit' && get('browser_review') !== 'owner') {
+    let facts; try { facts = describeSubmit(use.input); } catch (e) { return { content: e.message, is_error: true }; }
+    const verdict = facts.ownerOnly ? null : await samReview(facts, use.input.reason, ctx).catch((e) => (log('security', 'error', `browser review: ${e.message}`), null));
+    if (verdict?.approve) {
+      const { lastInsertRowid: id } = db.prepare("insert into approvals (agent, tool, input, reason, status, decided_at) values (?, ?, ?, ?, 'approved by Sam', current_timestamp)")
+        .run(ctx.agent, use.name, JSON.stringify(use.input), `Sam: ${verdict.why}`);
+      let result; try { result = redact(String(await t.run(use.input, ctx))); } catch (e) { result = `failed: ${redact(e.message)}`; }
+      db.prepare('update approvals set result = ? where id = ?').run(result, id);
+      log('security', 'approval', `#${id} browser_submit "${facts.button}" on ${facts.host} approved by Sam: ${verdict.why}`);
+      return { content: `Approved by Sam (routine step): ${result}` };
+    }
+    if (verdict) use.input = { ...use.input, sam: verdict.why }; // shown on the owner's card
+  }
   if (t.risk === 'high' || taintHold) {
     let reason = taintHold && t.risk !== 'high' ? 'This task read web content, so this action needs your OK' : null;
     // Some high-risk tools check their rules before bothering the owner (e.g. live orders: opt-in + real limits) and describe the action.
@@ -376,6 +392,17 @@ function finish(ap, status, result) {
   // exactly what it needs (wrong password, CAPTCHA, code). Tainted: it's working on a web page.
   if (ap.tool === 'browser_submit' && ['approved', 'failed'].includes(status)) setImmediate(() => continueAfter(ap).catch((e) => log(ap.agent, 'error', `continue after #${id}: ${e.message}`)));
   return result;
+}
+// Sam (Haiku) reviews a routine browser step from facts only: no page text reaches him, so a page can't argue its case.
+async function samReview(facts, reason, ctx) {
+  const r = await runAgent('security', `Review one browser step before it runs. Approve ONLY if all are true: it plainly serves the owner's request; it is routine (log in, continue/next, verify a code, search, fill and confirm a form the owner asked for); it does not spend money, delete or cancel anything, sign or agree to anything, or message/post for the owner; the site fits the request. Otherwise escalate to the owner.
+Owner's request: ${JSON.stringify(String(ctx.root?.text || '(unknown)').slice(0, 400))}
+Agent's reason: ${JSON.stringify(String(reason || '').slice(0, 200))}
+Site: ${facts.host}${facts.path}   Button: ${JSON.stringify(facts.button)}   Fields filled: ${JSON.stringify(facts.filled)}
+Reply with exactly one line: APPROVE: <short why>  or  ESCALATE: <short why>`, 0, { ephemeral: true });
+  const text = typeof r === 'string' ? r : r?.reply || '';
+  const m = /^\s*(APPROVE|ESCALATE)\s*:\s*(.+)$/im.exec(text);
+  return m ? { approve: m[1].toUpperCase() === 'APPROVE', why: m[2].trim().slice(0, 160) } : null;
 }
 async function continueAfter(ap) {
   const r = await runAgent(ap.agent, `Approval #${ap.id} (${ap.tool}) ${ap.tool === 'browser_submit' ? 'was pressed' : 'ran'}; see the note above. Continue the task: take a browser snapshot to check what actually happened, then keep going. If it failed, or you need the owner (wrong login, CAPTCHA, a code), stop and say exactly what's needed.`, 0, { tainted: true });

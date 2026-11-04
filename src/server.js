@@ -48,7 +48,7 @@ async function body(req) {
   return s ? JSON.parse(s) : {};
 }
 
-const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit'];
+const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit', 'browser_review'];
 
 // Vault sessions: issued only for the passphrase, kept in memory, 1 hour sliding. The dashboard token
 // alone (which is on disk in .env) can list item names but never see or change vault contents.
@@ -126,6 +126,7 @@ async function api(req, url) {
     if (b.global_daily_budget_usd >= 0) set('global_daily_budget_usd', b.global_daily_budget_usd);
     for (const k of ['quiet_start', 'quiet_end']) if (b[k] !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b[k])) throw new Error('Quiet hours must be HH:MM'); set(k, b[k]); }
     if (b.history_limit !== undefined) { const n = Number(b.history_limit); if (!(n >= 2 && n <= 40)) throw new Error('History must be 2-40 messages'); set('history_limit', Math.round(n)); }
+    if (b.browser_review !== undefined) { if (!['sam', 'owner'].includes(b.browser_review)) throw new Error('browser_review must be sam or owner'); set('browser_review', b.browser_review); log('owner', 'settings', `browser steps reviewed by ${b.browser_review}`); }
     if (b.digest_time !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b.digest_time)) throw new Error('Briefing time must be HH:MM'); set('digest_time', b.digest_time); }
     if (b.sms_pin) { phone.setPin(b.sms_pin); log('owner', 'settings', 'SMS PIN changed'); }
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }

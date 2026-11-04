@@ -167,7 +167,7 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     if (info.commit || submitsNow) throw new Error(`[${ref}] "${info.label}" submits or commits. Use browser_submit (the owner approves it) after filling everything in.`);
     await loc.click({ timeout: 10e3 }); return snap(s);
   }
-  if (action === 'type') { await keys(loc, String(text ?? '')); return snap(s); }
+  if (action === 'type') { await keys(loc, String(text ?? '')); (s.typed ??= new Set()).add(info.label); return snap(s); }
   if (action === 'select') { await loc.selectOption({ label: String(option) }, { timeout: 10e3 }).catch(() => loc.selectOption(String(option), { timeout: 10e3 })); return snap(s); }
   if (action === 'press') {
     if (key === 'Enter' && info.inForm) throw new Error('Enter would submit this form. Use browser_submit on the submit button (the owner approves it).');
@@ -184,7 +184,7 @@ export async function act({ action, session: id, url, ref, text, secret, field =
     if (!fill) throw new Error(`"${secret}" has no ${field}. Parts you can type: value${item.username ? ', username' : ''}${Object.keys(parts).length ? ', ' + Object.keys(parts).join(', ') : ''}.`);
     await keys(loc, String(fill).replace(/[\r\n]+$/, ''));
     await loc.evaluate((e) => { e.dataset.saSecret = '1'; });
-    s.logins.add(secret);
+    s.logins.add(secret); (s.typed ??= new Set()).add(`${info.label} (from vault: ${secret})`);
     log(agent, 'browser', `typed ${secret} ${field} into "${info.label}" on ${host}`); // never the value
     return snap(s);
   }
@@ -207,6 +207,17 @@ export async function submit({ session: id, ref }, agent = 'orchestrator') {
   await saveSignIns(s).catch(() => {}); // stay signed in next time
   // One line only: approval results are saved into chat history, so no page text goes in here.
   return `Pressed "${info.label}". Now on: ${(await s.page.title().catch(() => '')).slice(0, 80)} — ${s.page.url().slice(0, 200)}. Use browser snapshot (session ${id}) to see the page.`;
+}
+
+// What a submit would do, as facts only (no page text): for Sam's review and the owner's approval card.
+// Money / irreversible / speaking-for-the-owner actions are flagged here in code, so they always go to the owner.
+const OWNER_ONLY = /\b(buy|pay|purchase|order|checkout|check out|place|donate|transfer|subscribe|upgrade|renew|delete|remove|cancel|close|agree|accept|sign(?! ?in| ?up)|apply|post|publish|send|share|invite|withdraw|deposit|book|reserve|bid|trade)\b/i;
+const OWNER_URL = /\/(checkout|cart|payment|pay|billing|order|purchase|buy)\b/i;
+export function describeSubmit({ session: id, ref }) {
+  const s = sessions.get(id); if (!s) throw new Error(`No open browser session "${id}"`);
+  const { info } = el(s, ref), url = s.page.url();
+  const ownerOnly = OWNER_ONLY.test(info.label) || OWNER_URL.test(new URL(url).pathname);
+  return { host: new URL(url).hostname, path: new URL(url).pathname.slice(0, 80), button: info.label, filled: [...(s.typed || [])].slice(-10), ownerOnly };
 }
 
 // For the approval card: what the page looks like right now, so the owner sees exactly what they're approving.

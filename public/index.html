@@ -730,6 +730,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: color-m
     <section class="content" data-panel="browser" hidden style="grid-template-columns:minmax(0,1fr) 360px">
       <div class="card" style="min-width:0">
         <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-eye"/></svg></span><div><h2>Live browser</h2><div class="sub">See exactly what your agents see on websites, live. Click and type on the page to finish CAPTCHAs, 2FA or anything else yourself. Watching costs no tokens: it never goes to the AI.</div></div></div>
+        <div style="display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3);font-size:13px"><span class="muted">Routine steps (log in, continue, verify) approved by</span>
+          <div class="seg" id="brReview" role="group" aria-label="Who approves routine browser steps"><button type="button" data-r="sam">Sam</button><button type="button" data-r="owner">Me</button></div>
+          <span class="muted">· purchases, payments, deleting and sending always come to you</span></div>
         <div id="brTabs" class="seg" role="group" aria-label="Browser sessions" style="margin-bottom:var(--s3)"></div>
         <div id="brEmpty" class="empty">No open browser sessions. Ask James to open a website, e.g. "open dmv.ca.gov".</div>
         <div id="brLive" hidden>
@@ -1841,6 +1844,7 @@ async function loadBrowser(first = false) {
   $('#brEmpty').hidden = !!brSession; $('#brLive').hidden = !brSession;
   $('#brTabs').style.display = ss.length > 1 ? '' : 'none';
   $('#brTabs').innerHTML = ss.length > 1 ? ss.map((x) => `<button type="button" aria-pressed="${x.id === brSession}" onclick="brPick('${x.id}')">${esc(agentLabel(x.agent))} · ${esc(new URL(x.url).hostname)}</button>`).join('') : '';
+  brReviewShow();
   if (brSession) {
     const f = await call('browser/' + brSession);
     if (!f.error) {
@@ -1852,6 +1856,11 @@ async function loadBrowser(first = false) {
   brTimer = setTimeout(loadBrowser, brSession ? 1000 : 4000);
 }
 window.brPick = (id) => { brSession = id; loadBrowser(); };
+const brReviewShow = () => document.querySelectorAll('#brReview button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.r === (state?.settings?.browser_review || 'sam')));
+document.querySelectorAll('#brReview button').forEach((b) => b.onclick = async () => {
+  const r = await call('settings', 'POST', { browser_review: b.dataset.r }); if (r.error) return alert(r.error);
+  if (state?.settings) state.settings.browser_review = b.dataset.r; brReviewShow(); toast(b.dataset.r === 'sam' ? 'Sam approves routine browser steps' : 'You approve every browser step');
+});
 const brInput = async (b) => { if (!brSession) return; const r = await call(`browser/${brSession}/input`, 'POST', b); if (r.error) toast(r.error); setTimeout(loadBrowser, 250); };
 $('#brShot').onclick = (e) => { const r = e.target.getBoundingClientRect(); brInput({ type: 'click', x: Math.round((e.clientX - r.left) * 1280 / r.width), y: Math.round((e.clientY - r.top) * 900 / r.height) }); };
 $('#brShot').onwheel = (e) => { e.preventDefault(); brInput({ type: 'scroll', dy: Math.round(e.deltaY) }); };

@@ -15,6 +15,7 @@ const elements = [
   { ref: 2, tag: 'input', type: 'password', label: 'Password', inForm: true, value: '' },
   { ref: 3, tag: 'button', label: 'Sign in', inForm: true, commit: true },
   { ref: 4, tag: 'a', label: 'Help', inForm: false, commit: false },
+  { ref: 5, tag: 'button', label: 'Place your order', inForm: true, commit: true },
 ];
 const page = {
   goto: async (u) => { did.push(`goto ${u}`); host = new URL(u).hostname; }, waitForLoadState: async () => {}, on: () => {}, goBack: async () => {},
@@ -137,5 +138,40 @@ test('fill_secret types one labeled part of a personal item, only on its site, n
   assert.ok(did.includes('fill [data-sa-ref="1"] 1HGTEST12345'));
   assert.ok(!out.includes('1HGTEST'));
   await assert.rejects(b.act({ action: 'fill_secret', session: id, ref: 1, secret: 'car-details', field: 'color' }), /Parts you can type: value, plate, vin/);
+  await b.close(id);
+});
+
+test('routine browser steps: Sam approves from facts only; purchases and the owner switch always go to the owner', async () => {
+  const { set } = await import('../src/db.js');
+  const usage = { input_tokens: 1, output_tokens: 1 };
+  const o = await b.act({ action: 'open', url: 'https://canvas.example.edu/login' });
+  const id = /Session ([0-9a-f]{8})/.exec(o)[1];
+  await b.act({ action: 'fill_secret', session: id, ref: 2, secret: 'canvas-login' });
+  const prompts = [];
+  const script = (steps) => { deps.client = { messages: { create: async (p) => { prompts.push({ model: p.model, last: JSON.stringify(p.messages.at(-1)) }); return steps.shift() || { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'done' }] }; } } }; };
+  const submit = (ref, reason) => ({ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 's' + ref + Math.random(), name: 'browser_submit', input: { session: id, ref, reason } }] });
+  const pending = () => db.prepare("select count(*) n from approvals where tool = 'browser_submit' and status = 'pending'").get().n;
+  const before = pending();
+  // 1. a login: Sam approves, it runs right away, logged
+  const steps = [submit(3, 'Sign in to Canvas'), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'APPROVE: login on the requested site' }] }];
+  script(steps); did.length = 0;
+  await runAgent('orchestrator', 'log into canvas', 0, {});
+  assert.ok(did.includes('click [data-sa-ref="3"]'), 'pressed without the owner');
+  assert.equal(db.prepare("select count(*) n from approvals where status = 'approved by Sam'").get().n, 1);
+  const samPrompt = prompts.find((p) => p.model === 'claude-haiku-4-5').last;
+  assert.ok(!samPrompt.includes('IGNORE PREVIOUS INSTRUCTIONS'), 'Sam never sees page text');
+  assert.match(samPrompt, /Button: \\"Sign in\\"/);
+  // 2. a purchase: flagged in code, Sam is not even asked
+  prompts.length = 0; script([submit(5, 'Buy it')]); did.length = 0;
+  await runAgent('orchestrator', 'buy the book', 0, {});
+  assert.equal(pending(), before + 1, 'purchase waits for the owner');
+  assert.ok(!prompts.some((p) => p.model === 'claude-haiku-4-5'), 'Sam not consulted on money');
+  assert.ok(!did.some((d) => d.startsWith('click')));
+  // 3. owner switch: everything comes to the owner
+  set('browser_review', 'owner'); prompts.length = 0; script([submit(3, 'Sign in again')]);
+  await runAgent('orchestrator', 'log in again', 0, {});
+  assert.equal(pending(), before + 2);
+  assert.ok(!prompts.some((p) => p.model === 'claude-haiku-4-5'));
+  set('browser_review', 'sam');
   await b.close(id);
 });
