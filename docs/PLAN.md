@@ -117,6 +117,13 @@ Ideas from OpenJarvis (scheduled and continuous agents, skills), thevickypedia/J
 - **10.3 Images:** upload/convert/resize/thumbnails; generated images to Drive.
 - Check first: Google OAuth app in Testing mode expires restricted-scope refresh tokens after 7 days (publish it to production for personal use).
 
+### Build 11: Income engine (agents earn money on their own)
+Goal: the owner's +$1,000/month, from the local-business website offer, with the agents doing the work and the owner only approving.
+- **11.1 Find → demo → pitch (daily, autonomous):** Riley finds independent businesses in the owner's area with no website; code validates and dedupes them (CRM + opt-out list) and adds them as leads; Mia builds a demo site per lead with a public email; a pitch is written from the owner's template (offer, name, mailing address, opt-out line). One approval per day publishes the demos and sends the emails from James's Gmail. Limits in code: leads/day ≤8, $/day ≤5, ≤10 sends/day, never the same address twice in 30 days, opt-outs forever. Money page card with settings, on/off, run now and every pitch.
+- **11.2 Replies + follow-ups:** opt-out replies are suppressed automatically (shipped in 11.1); interested replies get a drafted answer for approval; one follow-up after 5 days, batched like pitches; phone-only leads become a call list (later: Telnyx calls).
+- **11.3 Get paid:** payment link in the "yes" reply (Stripe Payment Links), paid → client stage + ledger income + hosting renewal reminders; ROI per lead on the Money page.
+- Not automatic: sending without the daily approval would need a written owner exception like rule 1's (offered once the pitch quality is proven).
+
 ## 5. Cost estimate (monthly, USD, verify vendor prices before buying)
 
 | Item | Lean | Typical | Notes |

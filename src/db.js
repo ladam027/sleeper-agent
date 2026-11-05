@@ -116,6 +116,10 @@ const MIGRATIONS = [
      duration real, width integer, height integer, has_audio integer, transcript text, status text, output_id text, output_link text, runs integer not null default 0);
    update agents set tools = tools || ',video_inspect,video_edit,drive_search', purpose = purpose || ' Also edits videos: video_inspect shows frames and the transcript, video_edit renders a structured edit (trims, cuts, speed, vertical crop, captions, text, fades, music) and saves it to Drive; always inspect the result before reporting.' where name = 'designer' and tools not like '%video_edit%';`,
   `update agents set tools = tools || ',image_view,image_edit,drive_upload' where name = 'designer' and tools not like '%image_edit%';`,
+  `alter table contacts add column source text default '';
+   create table if not exists pitches (id integer primary key, contact_id integer not null, slug text, subject text, body text, status text not null default 'ready',
+     created_at text default current_timestamp, sent_at text, followup_at text);
+   create table if not exists suppress (email text primary key, reason text, ts text default current_timestamp);`,
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

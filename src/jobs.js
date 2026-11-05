@@ -9,6 +9,7 @@ import { localNow } from './scheduler.js';
 import * as google from './google.js';
 import * as vault from './vault.js';
 import { status as integrationStatus } from './integrations.js';
+import * as income from './income.js';
 
 const AUDIT_EVERY_MS = 60 * 60e3;
 const ROUTINE = new Set(['llm', 'route', 'done', 'msg:out', 'reminder', 'notify:low']); // not worth an audit on their own
@@ -101,7 +102,8 @@ export async function checkJamesInbox() {
     const addr = (/<([^>]+)>/.exec(m.from)?.[1] || m.from).trim().toLowerCase();
     const c = addr ? db.prepare("select * from contacts where lower(email) = ?").get(addr) : null;
     log('james', 'email:in', `from ${m.from}: ${m.subject}`.slice(0, 200));
-    if (c) {
+    if (c && income.optOut(addr, `${m.subject}\n${m.snippet}`)) await notify('low', `${c.name} opted out ("${m.subject}"); they won't be emailed again.`, { agent: 'james' });
+    else if (c) {
       if (['lead', 'contacted'].includes(c.stage)) db.prepare("update contacts set stage = 'replied', last_touch = current_timestamp, updated_at = current_timestamp where id = ?").run(c.id);
       await notify('high', `${c.name}${c.company ? ` (${c.company})` : ''} replied to James: "${m.subject}" (${m.snippet.slice(0, 160)})`, { agent: 'james' });
     } else await notify('low', `New email to James from ${m.from}: ${m.subject}`, { agent: 'james' });
@@ -153,6 +155,7 @@ export function start() {
     try { await runWaiting(); } catch (e) { log('owner', 'error', `waiting orders: ${e.message}`); }
     try { await paper.settle(); } catch (e) { log('owner', 'error', `paper settle: ${e.message}`); }
     try { await morningDigest(); } catch (e) { log('quick', 'error', e.message); }
+    try { await income.runDay(); } catch (e) { log('orchestrator', 'error', `income engine: ${e.message}`); }
     for (const { agent: t } of db.prepare('select distinct agent from chat').all()) try { await compressThread(t); } catch (e) { log('archivist', 'error', e.message); }
   };
   setTimeout(tick, 60e3); // let the server settle first

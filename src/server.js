@@ -20,6 +20,7 @@ import * as captcha from './captcha.js';
 import * as tasks from './tasks.js';
 import * as drive from './drive.js';
 import * as video from './video.js';
+import * as income from './income.js';
 import { TOOLS, capabilities } from './tools.js';
 import { summary, PRICES, addBoost, boost, globalCap } from './budget.js';
 import { runAgent, auto, kill, restart, decide, getSummary, runWaiting } from './agent.js';
@@ -224,6 +225,11 @@ async function api(req, url) {
     if (m === 'POST') return { result: scheduler.addReminder(await body(req), 'owner') };
     if (m === 'DELETE') return { result: scheduler.cancelReminder(Number(id)) };
   }
+  if (route === 'income') { // owner's own page: settings and "run now"; sending still goes through the approval
+    if (m === 'GET') { const v = income.view(); return { ...v, previews: Object.fromEntries(v.pitches.filter((p) => p.url == null).map((p) => [p.slug, `/p/${p.slug}/${studio.previewToken(p.slug)}`])) }; }
+    if (m === 'POST' && id === 'run') { income.runDay({ force: true }).catch((e) => log('orchestrator', 'error', `income engine: ${e.message}`)); return { ok: true, note: 'Running. You will get a message when the pitches are ready (a few minutes).' }; }
+    if (m === 'POST') return { settings: income.saveSettings(await body(req)) };
+  }
   if (route === 'money') {
     if (m === 'GET') return { ...money.moneySummary(), contacts: money.listContacts(), drafts: money.listDrafts(), stages: money.STAGES };
     const b = await body(req);
@@ -275,6 +281,7 @@ tasks.start(runAgent, phone.notify);
 browser.deps.notify = phone.notify; // CAPTCHA alerts with a link to the live page
 browser.deps.onCaptcha = (id) => captcha.offer(id); // on the phone: solve it in Telegram
 captcha.deps.run = runAgent;
+income.deps.run = runAgent;
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');

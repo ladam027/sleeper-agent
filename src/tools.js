@@ -15,6 +15,7 @@ import * as tasks from './tasks.js';
 import * as drive from './drive.js';
 import * as video from './video.js';
 import * as images from './images.js';
+import * as income from './income.js';
 
 // risk 'high' = never runs directly; the agent loop queues it for owner approval instead.
 // Gating lives in code (agent.js), not in the prompt, so prompt injection can't talk past it.
@@ -393,6 +394,9 @@ export const TOOLS = {
   apply_memory_cleanup: tool('apply_memory_cleanup', 'Apply proposed memory merges/removals (owner-approved only).',
     { merges: { type: 'array' }, remove: { type: 'array' } }, [],
     (input) => applyCleanup(input), 'high', true),
+  // Build 11: the income engine's daily batch. No agent has it; only the owner's approval runs it (Netlify token is in the vault).
+  send_pitches: { ...tool('send_pitches', "Publish the day's demo sites and send their pitch emails from James's Gmail (owner-approved only).",
+    { ids: { type: 'array', items: { type: 'integer' } } }, ['ids'], (input) => income.sendPitches(input), 'high', true), needsVault: true },
 };
 
 // Merge duplicates into one memory (links move over) and remove stale ones. Pinned memories are never removed.
