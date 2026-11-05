@@ -40,7 +40,7 @@
 ## Build 10 summary
 - Shipped: Drive for James (full) and the owner (read-only + app folder), approval-gated share/trash, Studio Drive card; video editing (inspect via contact sheets + transcript, validated edit spec, render to Drive, Videos card); image view/edit; plus per-tab dashboard addresses and agent flexibility (built alongside).
 - Skipped / later: whisper.cpp on the server (OpenAI speech-to-text instead, $0.006/min); AI-generated B-roll; resumable uploads for files over 200 MB.
-- Known gaps: Drive features are tested against a fake Google and on the server with local files, not yet end to end with the owner's real Drive (needs the Reconnect step). Video music ducking uses one fixed curve. Contact sheets show 36 frames at most (one every ~17 s for a 10-minute video).
+- Known gaps: (PDF reading was in the plan but missing until 10.5.0.) Drive features are tested against a fake Google and on the server with local files, not yet end to end with the owner's real Drive (needs the Reconnect step). Video music ducking uses one fixed curve. Contact sheets show 36 frames at most (one every ~17 s for a 10-minute video).
 
 ## 10.2.1: account creation is owner-only
 - Found while answering "can James create accounts?": Sam's owner-only list missed sign-up/register/create-account/join buttons, so Sam could have approved creating an account (CLAUDE.md rule 1 says creating accounts needs the owner). Now those buttons and sign-up/registration pages always go to the owner. 134 tests.
@@ -58,3 +58,7 @@
 - Telegram now receives button presses (`callback_query`), accepted only from the paired private chat; photos go through `phone.telegramFile` (multipart).
 - Detection: the challenge window (reCAPTCHA bframe) counts once it is on screen; `captchaRect` locates it (real frames before wrapper divs). Checked in Chrome: invisible reCAPTCHA ignored, checkbox located at its 304×78 frame, challenge window at its position. The grid drawing is checked against the server's ffmpeg (the fake-ffmpeg tests had missed a variable name).
 - Drag puzzles are not supported. 139 tests.
+
+## 10.5.0: PDFs from Drive (closes Build 10)
+- The plan listed reading PDFs as text but 10.1 only handled Docs/Sheets/Slides/plain text. `drive_read` now downloads a PDF (≤25 MB) and extracts its text layer with `pdftotext` (poppler-utils, first 50 pages, 20k chars, tainting like any read). Scanned PDFs with no text layer say so. deploy.sh installs poppler-utils. 140 tests.
+- Build 10 is complete. Remaining items are owner steps: Settings → Google → Reconnect both accounts for Drive, and publish the OAuth app to production so tokens don't expire after 7 days.

@@ -5,8 +5,13 @@
 import { get, set, log, db } from './db.js';
 import * as google from './google.js';
 import { publicUrl } from './browser.js';
+import { execFile } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
-export const deps = { fetch: (...a) => fetch(...a) }; // for URL uploads; tests swap it
+export const deps = { fetch: (...a) => fetch(...a), // for URL uploads; tests swap it
+  exec: (cmd, args) => new Promise((res, rej) => execFile(cmd, args, { timeout: 60e3, maxBuffer: 8 << 20 }, (e, out) => e ? rej(e) : res(out))) };
 const D = 'https://www.googleapis.com/drive/v3', U = 'https://www.googleapis.com/upload/drive/v3';
 const FIELDS = 'id,name,mimeType,modifiedTime,webViewLink,size,parents';
 const FOLDER = 'application/vnd.google-apps.folder';
@@ -58,10 +63,23 @@ export async function read({ account = 'james', file_id }) {
   const f = await google.api(account, `${D}/files/${encodeURIComponent(file_id)}?fields=${FIELDS}`);
   const exportAs = { 'application/vnd.google-apps.document': 'text/plain', 'application/vnd.google-apps.spreadsheet': 'text/csv', 'application/vnd.google-apps.presentation': 'text/plain' }[f.mimeType];
   const textual = /^text\/|\/(json|csv|xml|markdown)$/.test(f.mimeType);
+  if (f.mimeType === 'application/pdf') return { ...slim(f), ...(await pdfText(account, f)) };
   if (!exportAs && !textual) return { ...slim(f), note: 'Not a text file, so only its details are shown.' };
   const res = await google.raw(account, exportAs ? `${D}/files/${encodeURIComponent(file_id)}/export?mimeType=${encodeURIComponent(exportAs)}` : `${D}/files/${encodeURIComponent(file_id)}?alt=media`);
   const text = (await res.text()).slice(0, MAX_READ);
   return { ...slim(f), text, truncated: text.length >= MAX_READ };
+}
+
+// PDFs: download (≤25 MB) and extract the text with pdftotext (poppler-utils, first 50 pages). Scanned PDFs have no text layer.
+async function pdfText(account, f) {
+  if (Number(f.size) > MAX_UPLOAD) return { note: 'PDF is over 25 MB, so only its details are shown.' };
+  const buf = Buffer.from(await (await google.raw(account, `${D}/files/${encodeURIComponent(f.id)}?alt=media`)).arrayBuffer());
+  const dir = mkdtempSync(join(tmpdir(), 'sa-pdf-'));
+  try {
+    writeFileSync(join(dir, 'in.pdf'), buf);
+    const text = String(await deps.exec('pdftotext', ['-l', '50', '-enc', 'UTF-8', '-layout', join(dir, 'in.pdf'), '-'])).replace(/[ \t]+\n/g, '\n').trim().slice(0, MAX_READ);
+    return text ? { text, truncated: text.length >= MAX_READ } : { note: 'This PDF has no text layer (probably a scan); try image_view on a page export instead.' };
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
 export async function createFolder({ account = 'james', name, folder_id }) {

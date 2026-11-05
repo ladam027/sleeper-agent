@@ -9,10 +9,10 @@ const drive = await import('../src/drive.js');
 const browser = await import('../src/browser.js');
 const { deps, runAgent } = await import('../src/agent.js');
 
-const files = new Map([['ownerdoc', { id: 'ownerdoc', name: 'Taxes 2026', mimeType: 'application/vnd.google-apps.document', parents: ['root'] }]]);
+const files = new Map([['ownerdoc', { id: 'ownerdoc', name: 'Taxes 2026', mimeType: 'application/vnd.google-apps.document', parents: ['root'] }], ['pdf1', { id: 'pdf1', name: 'Lease.pdf', mimeType: 'application/pdf', size: '2000', parents: ['root'] }]]);
 let n = 0; const uploads = [];
 google.deps.fetch = async (url, o = {}) => {
-  const ok = (j) => ({ ok: true, status: 200, json: async () => j, text: async () => (typeof j === 'string' ? j : JSON.stringify(j)) });
+  const ok = (j) => ({ ok: true, status: 200, json: async () => j, text: async () => (typeof j === 'string' ? j : JSON.stringify(j)), arrayBuffer: async () => new TextEncoder().encode('%PDF-1.4 fake').buffer });
   if (url.includes('oauth2.googleapis.com/token')) return ok({ access_token: 'at', expires_in: 3600 });
   const u = new URL(url), m = o.method || 'GET', id = decodeURIComponent(u.pathname.split('/files/')[1]?.split('/')[0] || '');
   if (u.pathname.startsWith('/upload/')) { uploads.push(o.body.toString()); const meta = JSON.parse(/\r\n\r\n(\{.*?\})\r\n/.exec(o.body.toString())[1]); const f = { id: `f${++n}`, ...meta }; files.set(f.id, f); return ok(f); }
@@ -43,6 +43,15 @@ test("owner's Drive: writes only inside the Sleeper Agent folder; reads export t
   await assert.rejects(drive.trash({ account: 'owner', file_id: 'ownerdoc' }), /only trash files inside/);
   const r = await drive.read({ account: 'owner', file_id: 'ownerdoc' });
   assert.match(r.text, /Line one/);
+});
+
+test('PDFs are read as text with pdftotext; a scan with no text says so', async () => {
+  let args; drive.deps.exec = async (cmd, a) => { args = [cmd, ...a]; return 'Monthly rent: $1,200   \n'; };
+  const r = await drive.read({ account: 'owner', file_id: 'pdf1' });
+  assert.equal(args[0], 'pdftotext'); assert.deepEqual(args.slice(1, 3), ['-l', '50']);
+  assert.equal(r.text, 'Monthly rent: $1,200');
+  drive.deps.exec = async () => '  \n';
+  assert.match((await drive.read({ account: 'owner', file_id: 'pdf1' })).note, /no text layer/);
 });
 
 test('uploads: generated images and text work; private URLs are blocked', async () => {
