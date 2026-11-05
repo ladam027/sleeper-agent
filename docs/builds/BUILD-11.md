@@ -17,3 +17,6 @@
 ## Known gaps / next (11.2)
 - Follow-ups and drafted answers to interested replies; call list for phone-only leads.
 - Riley's "no website" check is his judgment from search results; the preview link lets you catch mistakes before approving.
+
+## Updates
+- 11.1.0: ID/document uploads from the owner's phone. `browser` action `request_upload` on a file field asks the owner on Telegram (shows the site's host, Cancel button); the owner's photo/PDF goes straight into that field via `upload.js` → `browser.attachFile`, only if the page is still on that host. Kept in memory only: never saved, logged, in the DB, or shown to a model. One request = one file, 15-minute window, 10 MB, JPG/PNG/WebP/PDF. A submit after an owner file always goes to the owner, never Sam. Instead of storing license photos in Drive (owner asked 2026-11-04; advised against). Test: `test/upload.test.js`.

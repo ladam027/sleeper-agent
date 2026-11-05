@@ -6,6 +6,7 @@ import * as phone from './phone.js';
 import { auto, decide } from './agent.js';
 import { redact } from './vault.js';
 import * as captcha from './captcha.js';
+import * as upload from './upload.js';
 
 let pairing = null; // { code, exp } from the dashboard; one guess only
 export function startPairing() {
@@ -27,10 +28,16 @@ export async function handleUpdate(update) {
   if (cb) {
     if (!get('telegram_chat_id') || String(cb.message?.chat?.id) !== get('telegram_chat_id') || String(cb.from?.id) !== get('telegram_chat_id')) { log('phone', 'msg:blocked', 'button press from an unpaired Telegram chat'); return; }
     phone.ownerUsed('telegram');
-    const note = await captcha.onCallback(cb.data).catch((e) => `Failed: ${e.message}`.slice(0, 190));
+    const note = await (String(cb.data).startsWith('up:') ? upload.onCallback(cb.data) : captcha.onCallback(cb.data)).catch((e) => `Failed: ${e.message}`.slice(0, 190));
     return phone.telegram('answerCallbackQuery', { callback_query_id: cb.id, text: note }).catch(() => {});
   }
   const msg = update.message;
+  // A photo or file: only ever for an upload an agent asked for (upload.js). Never logged, saved, or shown to a model.
+  if ((msg?.photo || msg?.document) && msg.chat?.type === 'private') {
+    if (!get('telegram_chat_id') || String(msg.chat.id) !== get('telegram_chat_id')) { log('phone', 'msg:blocked', 'file from an unpaired Telegram chat'); return; }
+    phone.ownerUsed('telegram'); log('phone', 'msg:in', '[a file]');
+    return upload.onFile(msg).catch((e) => phone.message(`Nothing was uploaded: ${e.message}`.slice(0, 300)));
+  }
   if (!msg?.text || msg.chat?.type !== 'private') return;
   const chat = String(msg.chat.id), text = msg.text.trim().slice(0, 2000);
 

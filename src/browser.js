@@ -4,6 +4,7 @@
 // - Vault secrets are typed only on the site saved with that vault item, and never come back to the model (masked + redact()).
 // - Anything that submits or commits (submit buttons, Enter inside a form, buy/pay/send/confirm buttons) is refused here
 //   and only happens through browser_submit, which is risk 'high' (owner approval every time).
+// - File uploads (IDs, documents) come only from the owner's phone (upload.js); agents never see the file.
 // - CAPTCHAs are reported, never solved: the owner finishes them in the dashboard's Browser tab (ownerInput below).
 // - The Browser tab shows the live page and the agent's last action. Screenshots go only to the dashboard, never to a model.
 // - Staying signed in: after a vault login is used, that site's own cookies are saved ENCRYPTED in the vault as
@@ -18,6 +19,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ??= '/opt/ms-playwright'; // shared install
 export const deps = {
   notify: null, // set by server.js (phone.notify); tests can swap it
   onCaptcha: null, // set by server.js (Telegram CAPTCHA helper)
+  askUpload: null, // set by server.js (Telegram file hand-off, upload.js)
   launch: async () => (await import('playwright-core')).chromium.launch(),
   lookup: async (host) => (await lookup(host, { all: true })).map((a) => a.address),
 };
@@ -185,6 +187,13 @@ export async function act({ action, session: id, url, ref, text, secret, field =
   if (action === 'goto') { await publicUrl(url); await s.page.goto(url, { timeout: 25e3 }); return snap(s); }
   if (action === 'back') { await s.page.goBack({ timeout: 15e3 }).catch(() => {}); return snap(s); }
   const { info, loc } = el(s, ref);
+  if (action === 'request_upload') {
+    if (info.type !== 'file') throw new Error(`[${ref}] is not a file upload field.`);
+    if (!deps.askUpload) throw new Error('File hand-off is not available.');
+    const host = new URL(s.page.url()).hostname;
+    await deps.askUpload({ session: s.id, ref: Number(ref), what: String(arguments[0].what || 'a file').replace(/\s+/g, ' ').slice(0, 80), host, agent });
+    return `Asked the owner on Telegram to send "${arguments[0].what || 'a file'}" for [${ref}] on ${host}. Stop here: when they send it, the server attaches it and you'll be told to continue. You never see the file.`;
+  }
   if (action === 'click') {
     // Re-checked on the live element too, so a page can't swap a submit button in after the snapshot.
     // ponytail: a plain link/div whose own script calls form.submit() can't be detected; the taint rule still gates other tools.
@@ -248,7 +257,7 @@ export function describeSubmit({ session: id, ref }) {
   const { info } = el(s, ref), url = s.page.url(), path = new URL(url).pathname;
   const money = MONEY.test(info.label) || OWNER_URL.test(path);
   const signup = !money && (SIGNUP.test(info.label) || OWNER_URL_SIGNUP.test(path) || !!s.newLogin);
-  const ownerOnly = money || signup || OWNER_ONLY.test(info.label);
+  const ownerOnly = money || signup || !!s.ownerFile || OWNER_ONLY.test(info.label);
   return { host: new URL(url).hostname, path: path.slice(0, 80), button: info.label, filled: [...(s.typed || [])].slice(-10), ownerOnly, signup, money };
 }
 
@@ -288,6 +297,19 @@ export async function ownerInput(id, { type, x, y, text, key, dy }) {
   s.lastAction = 'you used the page';
   if (Date.now() - (s.ownerLogged || 0) > 60e3) { s.ownerLogged = Date.now(); log('owner', 'browser', `used session ${id}`); } // once a minute, never the text
   return { ok: true };
+}
+// The owner's file from Telegram goes straight into one file field, only if the page is still on the host they were
+// shown. Kept in memory only. A session with an owner file sends its submit to the owner, never to Sam.
+export async function attachFile(id, ref, host, file) {
+  const s = sessions.get(id);
+  if (!s) throw new Error('That browser session has closed');
+  if (new URL(s.page.url()).hostname !== host) throw new Error(`The page moved off ${host}; nothing was uploaded`);
+  const loc = s.page.locator(`[data-sa-ref="${Number(ref)}"]`);
+  if (!(await loc.evaluate((e) => e.tagName === 'INPUT' && e.type === 'file').catch(() => false))) throw new Error('That upload field is gone; nothing was uploaded');
+  await loc.setInputFiles(file, { timeout: 15e3 });
+  s.ownerFile = true; s.lastAction = 'you attached a file';
+  (s.typed ??= new Set()).add('file upload (sent by the owner)');
+  s.elements = []; s.lastSnap = null;
 }
 // A clipped screenshot of the CAPTCHA (plus a margin) for the owner's phone, and its place on the page.
 export async function captchaShot(id) {
