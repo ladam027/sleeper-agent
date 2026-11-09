@@ -90,6 +90,14 @@ test('James inbox watcher: a reply from a known lead moves them to replied and m
   assert.match(db.prepare("select detail from activity where type = 'notify:high' order by id desc").get().detail, /Dana replied to James/);
 });
 
+test('James inbox watcher: email from anyone else goes to the owner\'s phone (high), once, then marked read', async () => {
+  inbox = [{ id: 'm9', from: 'Stranger <s@x.com>', subject: 'Quote request', snippet: 'Can you build my site?' }];
+  calls = [];
+  assert.equal(await jobs.checkJamesInbox(), '1 new');
+  assert.match(db.prepare("select detail from activity where type = 'notify:high' order by id desc").get().detail, /New email to James from Stranger <s@x.com>: Quote request \(Can you build my site\?\)/);
+  assert.ok(calls.some((c) => c.url.endsWith('/messages/m9/modify')), 'marked read, so it is not sent twice');
+});
+
 test('morning digest: waits for the owner account and the time, runs once a day as a tainted, tool-less summary', async () => {
   assert.equal(await jobs.morningDigest(), 'not due', 'owner not connected');
   set('google_owner', JSON.stringify({ email: 'logan@example.com', refresh_token: 'rt-owner' }));

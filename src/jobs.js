@@ -94,7 +94,8 @@ export async function memoryCleanup(now = new Date()) {
   return 'submitted';
 }
 
-// James's inbox: every ~10 minutes. Replies from known contacts move them to "replied" and ping the owner.
+// James's inbox: every 5 minutes (owner request 2026-11-09: every new email goes to Telegram). Replies from known contacts
+// move them to "replied". The email text only goes to the owner's phone, never to a model.
 export async function checkJamesInbox() {
   if (!google.connected('james')) return 'not connected';
   const mail = await google.listMail('james', 'is:unread in:inbox', 10);
@@ -106,7 +107,7 @@ export async function checkJamesInbox() {
     else if (c) {
       if (['lead', 'contacted'].includes(c.stage)) db.prepare("update contacts set stage = 'replied', last_touch = current_timestamp, updated_at = current_timestamp where id = ?").run(c.id);
       await notify('high', `${c.name}${c.company ? ` (${c.company})` : ''} replied to James: "${m.subject}" (${m.snippet.slice(0, 160)})`, { agent: 'james' });
-    } else await notify('low', `New email to James from ${m.from}: ${m.subject}`, { agent: 'james' });
+    } else await notify('high', `New email to James from ${m.from}: ${m.subject}${m.snippet ? ` (${m.snippet.slice(0, 140)})` : ''}`, { agent: 'james' });
     await google.markRead('james', m.id);
   }
   return `${mail.length} new`;
@@ -145,13 +146,13 @@ export async function vaultNudge(now = Date.now()) {
   return 'sent';
 }
 
-let ticks = 0;
+
 export function start() {
   const tick = async () => {
     try { if (Date.now() - Number(get('security_last_audit') || 0) >= AUDIT_EVERY_MS) await securityAudit(); }
     catch (e) { log('security', 'error', e.message); }
     try { await memoryCleanup(); } catch (e) { log('memory', 'error', e.message); }
-    try { if (++ticks % 2 === 0) await checkJamesInbox(); } catch (e) { log('james', 'error', e.message); }
+    try { await checkJamesInbox(); } catch (e) { log('james', 'error', e.message); }
     try { await runWaiting(); } catch (e) { log('owner', 'error', `waiting orders: ${e.message}`); }
     try { await paper.settle(); } catch (e) { log('owner', 'error', `paper settle: ${e.message}`); }
     try { await morningDigest(); } catch (e) { log('quick', 'error', e.message); }
