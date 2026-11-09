@@ -90,12 +90,25 @@ test('James inbox watcher: a reply from a known lead moves them to replied and m
   assert.match(db.prepare("select detail from activity where type = 'notify:high' order by id desc").get().detail, /Dana replied to James/);
 });
 
-test('James inbox watcher: email from anyone else goes to the owner\'s phone (high), once, then marked read', async () => {
-  inbox = [{ id: 'm9', from: 'Stranger <s@x.com>', subject: 'Quote request', snippet: 'Can you build my site?' }];
+test('James inbox watcher: replies and business mail are texted; other mail stays on the dashboard; sort failure texts anyway', async () => {
+  const usage = { input_tokens: 1, output_tokens: 1 }, seen = [];
+  agentMod.deps.client = { messages: { create: async (p) => (seen.push(p), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: '[1]' }] }) } };
+  inbox = [{ id: 'm9', from: 'Stranger <s@x.com>', subject: 'Quote request', snippet: 'Can you build my site?' },
+    { id: 'm10', from: 'Shop <news@shop.com>', subject: 'Sale ends tonight', snippet: '50% off' },
+    { id: 'm11', from: 'Ana <ana@biz.com>', subject: 'Re: Your proposal', snippet: 'Looks good' }];
   calls = [];
-  assert.equal(await jobs.checkJamesInbox(), '1 new');
-  assert.match(db.prepare("select detail from activity where type = 'notify:high' order by id desc").get().detail, /New email to James from Stranger <s@x.com>: Quote request \(Can you build my site\?\)/);
-  assert.ok(calls.some((c) => c.url.endsWith('/messages/m9/modify')), 'marked read, so it is not sent twice');
+  assert.equal(await jobs.checkJamesInbox(), '3 new');
+  const notes = db.prepare("select type, detail from activity where type like 'notify:%' order by id desc limit 3").all();
+  assert.ok(notes.some((n) => n.type === 'notify:high' && /Reply to a sent email from Ana/.test(n.detail)), 'a reply is texted without asking the model');
+  assert.ok(notes.some((n) => n.type === 'notify:high' && /Business email from Stranger <s@x.com>: Quote request \(Can you build my site\?\)/.test(n.detail)));
+  assert.ok(notes.some((n) => n.type === 'notify:low' && /Sale ends tonight/.test(n.detail)), 'not business: dashboard only');
+  assert.equal(seen.length, 1); assert.match(JSON.stringify(seen[0].messages), /untrusted_content/, 'email is wrapped as untrusted data');
+  assert.doesNotMatch(JSON.stringify(seen[0].messages), /Your proposal/, 'replies never go to the model');
+  for (const id of ['m9', 'm10', 'm11']) assert.ok(calls.some((c) => c.url.endsWith(`/messages/${id}/modify`)), `${id} marked read`);
+  agentMod.deps.client = { messages: { create: async () => { throw new Error('API down'); } } };
+  inbox = [{ id: 'm12', from: 'Who <w@x.com>', subject: 'Hello', snippet: '' }];
+  await jobs.checkJamesInbox();
+  assert.match(db.prepare("select type || ' ' || detail d from activity where type like 'notify:%' order by id desc").get().d, /^notify:high Business email from Who/);
 });
 
 test('morning digest: waits for the owner account and the time, runs once a day as a tainted, tool-less summary', async () => {

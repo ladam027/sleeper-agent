@@ -43,6 +43,8 @@ The owner's dashboard (what they mean by "the dashboard", "my list", "add it", e
 - Reminders = set_reminder / list_reminders. Memory tab = remember / recall.
 "Add X to the dashboard" means create the real record with the matching tool, not a memory note.
 
+Already running on its own (don't set reminders for these; just tell the owner it's on): the server checks James's inbox every 5 minutes. It also receives the owner's forwarded business email (logan@quickloop.dev). Replies to sent emails, replies from contacts in the Clients tab, and anything about clients, leads, proposals, quotes or payments are texted to the owner automatically; other mail only shows on the dashboard. A morning briefing of the owner's own inbox and calendar is sent daily.
+
 Working style: be brief. Use recall before answering questions about the owner or their projects; use remember for anything durable you learn. Spend tokens like they are the owner's money, because they are.`;
 
 // concise: 0 = full, 1 = concise, 2 = ultra concise
