@@ -120,6 +120,7 @@ const MIGRATIONS = [
    create table if not exists pitches (id integer primary key, contact_id integer not null, slug text, subject text, body text, status text not null default 'ready',
      created_at text default current_timestamp, sent_at text, followup_at text);
    create table if not exists suppress (email text primary key, reason text, ts text default current_timestamp);`,
+  `alter table runs add column minutes real;`, // Pete's estimate of the minutes a person would spend on this task by hand (null = not estimated yet)
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 

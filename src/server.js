@@ -55,7 +55,7 @@ async function body(req) {
   return s ? JSON.parse(s) : {};
 }
 
-const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit', 'browser_review'];
+const SETTINGS = ['timezone', 'global_daily_budget_usd', 'global_halt', 'digest_time', 'history_limit', 'browser_review', 'time_saved'];
 
 // Vault sessions: issued only for the passphrase, kept in memory, 1 hour sliding. The dashboard token
 // alone (which is on disk in .env) can list item names but never see or change vault contents.
@@ -140,6 +140,7 @@ async function api(req, url) {
     for (const k of ['quiet_start', 'quiet_end']) if (b[k] !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b[k])) throw new Error('Quiet hours must be HH:MM'); set(k, b[k]); }
     if (b.history_limit !== undefined) { const n = Number(b.history_limit); if (!(n >= 2 && n <= 40)) throw new Error('History must be 2-40 messages'); set('history_limit', Math.round(n)); }
     if (b.browser_review !== undefined) { if (!['sam', 'owner'].includes(b.browser_review)) throw new Error('browser_review must be sam or owner'); set('browser_review', b.browser_review); log('owner', 'settings', `browser steps reviewed by ${b.browser_review}`); }
+    if (b.time_saved !== undefined) { set('time_saved', b.time_saved ? '1' : '0'); log('owner', 'settings', `time-saved estimates ${b.time_saved ? 'on' : 'off'}`); }
     if (b.digest_time !== undefined) { if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(b.digest_time)) throw new Error('Briefing time must be HH:MM'); set('digest_time', b.digest_time); }
     if (b.sms_pin) { phone.setPin(b.sms_pin); log('owner', 'settings', 'SMS PIN changed'); }
     if ('global_halt' in b) { set('global_halt', b.global_halt ? 1 : 0); log('owner', 'halt', b.global_halt ? 'ON' : 'off'); }
@@ -175,7 +176,7 @@ async function api(req, url) {
     const tree = `with recursive t(id) as (select ? union all select r.id from runs r join t on r.parent = t.id) select id from t`;
     if (id) return { steps: db.prepare(`select ts, agent, type, detail from activity where run_id in (${tree}) and type not in ('llm') order by id`).all(Number(id)),
       calls: db.prepare(`select ts, agent, model, input, output, cache_read, cache_write, usd from costs where run_id in (${tree}) order by id`).all(Number(id)) };
-    const rows = db.prepare("select * from runs where parent is null order by id desc limit 40").all();
+    const rows = db.prepare("select * from runs where parent is null and request not like 'Estimate time saved:%' order by id desc limit 40").all();
     return { runs: rows.map((r) => { const tot = db.prepare(`select count(*) steps, coalesce(sum(usd), 0) usd, coalesce(sum(input), 0) i, coalesce(sum(output), 0) o, coalesce(sum(cache_read), 0) cr, coalesce(sum(cache_write), 0) cw from costs where run_id in (${tree})`).get(r.id);
       const waiting = db.prepare(`select tool from approvals where status in ('pending', 'waiting_unlock') and run_id in (${tree}) limit 1`).get(r.id);
       return { ...r, steps: tot.steps, usd: tot.usd, input: tot.i, output: tot.o, cache_read: tot.cr, cache_write: tot.cw, waiting: waiting ? `your approval (${waiting.tool.replace(/_/g, ' ')})` : null }; }) };

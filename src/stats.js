@@ -36,7 +36,20 @@ export function stats(span = '7d') {
     daily: Object.entries(daily).sort().map(([day, by]) => ({ day, ...by })),
     routing: { to_james: routes.filter((d) => d.startsWith('orchestrator')).length, to_pete: routes.filter((d) => d.startsWith('quick')).length, escalated: routes.filter((d) => d.includes('escalated')).length } };
   out.insights = insights(out, names);
+  out.time = timeSaved(since, elapsed, total);
   return out;
+}
+
+// Pete's estimates (jobs.estimateTimeSaved). The estimator's own runs are excluded and their cost shown.
+const EST = "request like 'Estimate time saved:%'";
+function timeSaved(since, days, spent) {
+  const top = `parent is null and date(ts) >= ? and not ${EST}`;
+  const t = db.prepare(`select coalesce(sum(minutes), 0) m, count(minutes) n from runs where ${top}`).get(since);
+  return { on: get('time_saved') !== '0', minutes: t.m, tasks: t.n, per_month: t.m / days * 30, per_dollar: spent ? t.m / 60 / spent : null,
+    pending: db.prepare(`select count(*) n from runs where parent is null and status = 'done' and minutes is null and not ${EST}`).get().n,
+    cost: db.prepare(`select coalesce(sum(usd), 0) u from runs where date(ts) >= ? and ${EST}`).get(since).u,
+    agents: db.prepare(`select agent, sum(minutes) m, count(minutes) n from runs where ${top} and minutes > 0 group by agent order by m desc`).all(since),
+    top: db.prepare(`select id, ts, agent, request, minutes from runs where ${top} and minutes > 0 order by minutes desc, id desc limit 6`).all(since) };
 }
 
 const per30 = (usd, s) => usd / s.days * 30;

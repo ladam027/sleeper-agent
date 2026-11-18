@@ -800,9 +800,13 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
           <span class="muted" id="statSince" style="font-size:13px"></span>
         </div>
         <div class="kpis" id="statKpis"></div>
+        <div class="card" id="timeCard">
+          <div class="card-h"><div><h2>Time saved</h2><div class="sub">Pete's estimate of how long each finished task would take you by hand. Estimates, not measurements. Turn off in Settings.</div></div></div>
+          <div id="timeBody"></div>
+        </div>
         <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-route"/></svg></span><div><h2>Recent tasks</h2><div class="sub">Every request, with its steps, tokens and cost, including the agents it handed work to. Click one for its timeline.</div></div></div>
-          <table><thead><tr><th>When</th><th>Agent</th><th>Request</th><th class="r">Steps</th><th class="r">Tokens in / cached / out</th><th class="r">Cost</th><th class="r">Time</th><th>Status</th></tr></thead><tbody id="runRows"></tbody></table>
+          <table><thead><tr><th>When</th><th>Agent</th><th>Request</th><th class="r">Steps</th><th class="r">Tokens in / cached / out</th><th class="r">Cost</th><th class="r">Time</th><th class="r" title="Pete's estimate of the time this saved you">Saved</th><th>Status</th></tr></thead><tbody id="runRows"></tbody></table>
         </div>
         <div class="card">
           <div class="card-h"><span class="ibox brand"><svg class="i"><use href="#i-sparkles"/></svg></span><div><h2>How to spend less</h2><div class="sub">Worked out from your actual usage in this time span, biggest savings first</div></div></div>
@@ -1017,6 +1021,9 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
           <label class="f" for="sHistory">Recent messages sent with each request</label>
           <input id="sHistory" name="history_limit" type="number" min="2" max="40" step="1">
           <div class="help">Fewer = cheaper. Older messages are folded into a short summary and saved to memory automatically, so nothing important is lost.</div>
+          <label class="f" for="sTime">Estimate time saved</label>
+          <select id="sTime" name="time_saved"><option value="1">On</option><option value="0">Off</option></select>
+          <div class="help">Pete estimates how long each finished task would have taken you by hand, for the Time saved card in Statistics. About $0.003 per 25 tasks.</div>
           <label class="f" for="sTheme">Appearance</label>
           <select id="sTheme"><option value="">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>
           <div style="margin-top:var(--s5)"><button class="btn primary">Save settings</button></div>
@@ -1373,7 +1380,7 @@ async function refresh() {
   const nf = $('#namesForm');
   if (!nf.contains(document.activeElement)) $('#namesFields').innerHTML = agents.map((a) => `<label class="f" for="nm-${esc(a.name)}">${esc(roleOf(a.name))} <span class="muted">· ${esc(MODEL_NAME[a.model] || a.model)}</span></label><input id="nm-${esc(a.name)}" data-agent="${esc(a.name)}" value="${esc(a.display_name || '')}" maxlength="24" placeholder="Name">`).join('');
   $('#globalBoost').textContent = s.boosts?.global ? `Raised by ${money(s.boosts.global)} today` : '';
-  if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; f.history_limit.value = settings.history_limit || 12; $('#sTheme').value = store.get('theme'); }
+  if (!f.contains(document.activeElement)) { f.timezone.value = tz; f.global_daily_budget_usd.value = settings.global_daily_budget_usd; f.history_limit.value = settings.history_limit || 12; f.time_saved.value = settings.time_saved === "0" ? "0" : "1"; $('#sTheme').value = store.get('theme'); }
   if (view === 'money') drawCosts();
   if (view === 'money' || view === 'clients') loadMoney();
   const V = s.version;
@@ -1526,7 +1533,7 @@ $('#namesForm').onsubmit = async (e) => {
 $('#setForm').onsubmit = async (e) => {
   e.preventDefault();
   store.set('theme', $('#sTheme').value); applyTheme($('#sTheme').value);
-  const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value), history_limit: Number(e.target.history_limit.value) });
+  const r = await call('settings', 'POST', { timezone: e.target.timezone.value, global_daily_budget_usd: Number(e.target.global_daily_budget_usd.value), history_limit: Number(e.target.history_limit.value), time_saved: e.target.time_saved.value === "1" });
   if (r.error) alert(r.error); refresh();
 };
 
@@ -1839,6 +1846,7 @@ function renderStats() {
   $('#statKpis').innerHTML = [['wallet', 'Spent', money(s.total), `${s.calls} model calls`], ['clock', 'Per day', money(s.per_day), `over ${s.days} day${s.days > 1 ? 's' : ''} with activity`],
     ['trend', 'Projected month', money(s.projected_month), 'at this pace'], ['zap', 'Average call', money(s.calls ? s.total / s.calls : 0), 'all agents']]
     .map(([i, k, v, sub]) => `<div class="card kpi"><div class="k"><span class="ibox brand">${icon(i)}</span>${k}</div><div class="v num">${v}</div><div class="s">${esc(sub)}</div></div>`).join('');
+  renderTime(s.time);
   $('#statTips').innerHTML = s.insights.map((t, n) => `<div class="row" style="align-items:flex-start"><span class="ibox ${t.saves ? 'brand' : ''}">${icon(t.saves ? 'trend' : 'check')}</span>
       <div class="body"><div class="title">${esc(t.title)} ${t.saves >= 0.01 ? `<span class="pill ok">saves ~${money(t.saves)}/mo</span>` : ''}</div><div class="meta" style="font-size:13px;line-height:1.5">${esc(t.detail)}</div></div>
       ${t.apply ? `<button class="btn sm primary" onclick="applyTip(${n})">${icon('check')}${esc(t.apply.label)}</button>` : ''}</div>`).join('');
@@ -1855,6 +1863,16 @@ function renderStats() {
   $('#statAgents').innerHTML = `<thead><tr><th>Agent</th><th>Model</th><th class="r">Calls</th><th class="r">Spend</th><th style="min-width:120px">Share</th><th class="r">Per call</th><th class="r" title="Share of input served from cache">Cache hits</th></tr></thead><tbody>`
     + s.agents.map((a) => `<tr><td><b>${esc(agentLabel(a.agent))}</b></td><td class="muted">${esc(a.models.map((m) => MODEL_NAME[m] || m).join(', '))}</td><td class="r num">${a.calls}</td><td class="r num"><b>${money(a.usd)}</b></td>
       <td><div class="progress"><i style="width:${a.share * 100}%;background:${color(a.agent)}"></i></div></td><td class="r num">${money(a.per_call)}</td><td class="r num">${a.cache_hit == null ? '—' : Math.round(a.cache_hit * 100) + '%'}</td></tr>`).join('') + '</tbody>';
+}
+const fmtMin = (m) => m >= 60 ? `${(m / 60).toFixed(m >= 600 ? 0 : 1)} h` : `${Math.round(m)} min`;
+function renderTime(t) {
+  if (!t.on) { $('#timeBody').innerHTML = `<div class="empty">Time-saved estimates are off. Turn them on in Settings.</div>`; return; }
+  const figs = [['Saved', fmtMin(t.minutes), `${t.tasks} task${t.tasks === 1 ? '' : 's'} estimated`], ['Per month', fmtMin(t.per_month), 'at this pace'],
+    ['Per $1 of AI', t.per_dollar == null ? '–' : fmtMin(t.per_dollar * 60), 'saved for each dollar spent'], ['Estimating', money(t.cost), t.pending ? `${t.pending} task${t.pending === 1 ? '' : 's'} still to estimate` : 'what Pete\'s estimates cost']];
+  $('#timeBody').innerHTML = `<div class="kpis">${figs.map(([k, v, sub]) => `<div class="kpi"><div class="k">${k}</div><div class="v num">${v}</div><div class="s">${esc(sub)}</div></div>`).join('')}</div>`
+    + (t.top.length ? `<div class="grid2" style="margin-top:var(--s4)"><table><thead><tr><th>Biggest time savers</th><th class="r">Saved</th></tr></thead><tbody>${t.top.map((x) => `<tr><td style="width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.request)}">${esc(String(x.request).replace(/^\[Sent from Telegram[^\]]*\]\s*/, ''))}<div class="muted" style="font-size:12px">${esc(agentLabel(x.agent))} · ${esc(ago(x.ts))}</div></td><td class="r num">${fmtMin(x.minutes)}</td></tr>`).join('')}</tbody></table>
+      <table><thead><tr><th>By agent</th><th class="r">Tasks</th><th class="r">Saved</th></tr></thead><tbody>${t.agents.map((a) => `<tr><td>${esc(agentLabel(a.agent))}</td><td class="r num">${a.n}</td><td class="r num"><b>${fmtMin(a.m)}</b></td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty" style="margin-top:var(--s3)">${t.pending ? 'Pete estimates finished tasks every 5 minutes; numbers appear shortly.' : 'No time-saving tasks in this span yet.'}</div>`);
 }
 window.applyTip = async (n) => {
   const t = ST.insights[n].apply;
@@ -1932,10 +1950,10 @@ async function loadRuns() {
   const r = await call('runs'); if (r.error) return;
   $('#runRows').innerHTML = r.runs.map((x) => { const [cls, label] = x.waiting ? ['warn', 'Waiting on you'] : RUN_STATUS[x.status] || ['', x.status];
     return `<tr style="cursor:pointer" onclick="toggleRun(${x.id})" title="${esc(x.result || '')}"><td class="muted">${esc(ago(x.ts))}</td><td>${esc(agentLabel(x.agent))}</td><td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(x.request).replace(/^\[Sent from Telegram[^\]]*\]\s*/, ''))}</td>
-      <td class="r num">${x.steps}</td><td class="r num">${fmtK(x.input)} / ${fmtK(x.cache_read)} / ${fmtK(x.output)}</td><td class="r num">${money(x.usd)}</td><td class="r num">${x.ms ? (x.ms / 1000).toFixed(x.ms < 10000 ? 1 : 0) + 's' : '…'}</td>
+      <td class="r num">${x.steps}</td><td class="r num">${fmtK(x.input)} / ${fmtK(x.cache_read)} / ${fmtK(x.output)}</td><td class="r num">${money(x.usd)}</td><td class="r num">${x.ms ? (x.ms / 1000).toFixed(x.ms < 10000 ? 1 : 0) + 's' : '…'}</td><td class="r num">${x.minutes == null ? '<span class="muted">–</span>' : fmtMin(x.minutes)}</td>
       <td><span class="pill ${cls}">${label}</span>${x.waiting ? `<div class="muted" style="font-size:12px">${esc(x.waiting)}</div>` : ''}</td></tr>
-      ${openRun === x.id ? `<tr><td colspan="8" id="runDetail" style="background:var(--sunken)"><span class="muted">Loading…</span></td></tr>` : ''}`; }).join('')
-    || '<tr><td colspan="8" class="muted">No tasks recorded yet. New requests show up here.</td></tr>';
+      ${openRun === x.id ? `<tr><td colspan="9" id="runDetail" style="background:var(--sunken)"><span class="muted">Loading…</span></td></tr>` : ''}`; }).join('')
+    || '<tr><td colspan="9" class="muted">No tasks recorded yet. New requests show up here.</td></tr>';
   if (openRun) loadRunDetail(openRun);
 }
 window.toggleRun = (id) => { openRun = openRun === id ? null : id; loadRuns(); };
