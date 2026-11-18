@@ -206,7 +206,8 @@ code { font: 12.5px ui-monospace, 'SF Mono', Menlo, monospace; background: var(-
 .agent .budget b { font-size: 17px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .agent .actions { display: flex; gap: 6px; margin-top: var(--s3); flex-wrap: wrap; }
 .agent .actions .btn { min-height: 30px; padding: 0 var(--s3); font-size: 13px; }
-.agent .actions .btn svg.i { display: none; }
+.agent .actions .btn:not(.icon) svg.i { display: none; }
+.btn.sm.icon { width: 30px; }
 .agent .cfg { margin-top: var(--s3); padding: var(--s3); background: var(--surface-2); border-radius: var(--r-md); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .agent .cfg label.f { margin: 0 0 4px; }
 .agent .cfg .full { grid-column: 1 / -1; }
@@ -1642,6 +1643,7 @@ $('#memForm').onsubmit = async (e) => {
 $('#memDel').onclick = async () => { const id = $('#memForm').id.value; if (id && confirm('Delete this memory?')) { await call('memory/' + id, 'DELETE'); editMem(null); loadMemory(); } };
 
 function drawCosts() {
+  if (!state?.costs) return; // the page can open before the first load finishes
   const days = [...state.costs.daily].reverse(), svg = $('#costChart'), W = svg.clientWidth || 600, H = 240, pad = 22;
   const max = Math.max(.01, ...days.map((d) => d.usd)), bw = (W - 8) / Math.max(days.length, 1);
   $('#costMax').textContent = `peak ${money(max)}/day`;

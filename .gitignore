@@ -5,3 +5,4 @@ node_modules/
 .vps-host
 .build-info.json
 brag-output*/
+showcase/
