@@ -2,6 +2,7 @@
 
 A 24/7 personal AI assistant: one orchestrator plus sub-agents, long-term memory, cost caps, human approval for anything risky, and a dashboard.
 
+- **Setup guide: [docs/SETUP.md](docs/SETUP.md)**
 - Plan & roadmap: [docs/PLAN.md](docs/PLAN.md)
 - Rules for AI sessions: [CLAUDE.md](CLAUDE.md)
 - Next-session prompt: [docs/KICKOFF_PROMPT.md](docs/KICKOFF_PROMPT.md)

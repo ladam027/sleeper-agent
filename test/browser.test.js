@@ -34,14 +34,14 @@ b.deps.launch = async () => ({ newContext: async () => ({ route: async () => {},
 b.deps.lookup = async (h) => ({ 'canvas.example.edu': ['93.184.216.34'], 'evil.example.com': ['93.184.216.35'], 'sneaky.example.com': ['127.0.0.1'], 'www.fiverr.com': ['93.184.216.36'] })[h] || [];
 
 test('only public http(s) hosts: localhost, LAN, tailnet and names that resolve privately are blocked', async () => {
-  for (const u of ['http://127.0.0.1:8787/api/state', 'http://localhost/', 'https://sleeper-agent.tailcdfa9.ts.net/', 'http://192.168.1.1/', 'http://100.101.1.2/', 'file:///etc/passwd', 'https://sneaky.example.com/', 'http://[::1]/'])
+  for (const u of ['http://127.0.0.1:8787/api/state', 'http://localhost/', 'https://my-machine.my-tailnet.ts.net/', 'http://192.168.1.1/', 'http://100.101.1.2/', 'file:///etc/passwd', 'https://sneaky.example.com/', 'http://[::1]/'])
     await assert.rejects(b.publicUrl(u), /Blocked|Only http|private/, u);
   assert.ok(await b.publicUrl('https://canvas.example.edu/login'));
 });
 
 test('secrets: typed only on their saved site, never returned; submits refused outside browser_submit', async () => {
   vault.setup('correct horse battery');
-  vault.save({ name: 'canvas-login', kind: 'password', value: 'Hunter2-pw!', username: 'logan', url: 'https://canvas.example.edu' });
+  vault.save({ name: 'canvas-login', kind: 'password', value: 'Hunter2-pw!', username: 'alex', url: 'https://canvas.example.edu' });
   const opened = await b.act({ action: 'open', url: 'https://canvas.example.edu/login' }, 'orchestrator');
   const id = /Session ([0-9a-f]{8})/.exec(opened)[1];
   assert.match(opened, /\(submits\/commits: browser_submit only\)/);

@@ -34,9 +34,9 @@ test('plain reply is saved to history and costed', async () => {
 });
 
 test('memory tool round-trips', async () => {
-  reset(); fake([toolUse('remember', { title: 'Owner name', body: 'Logan', pinned: true }), text('saved')]);
-  await runAgent('orchestrator', 'my name is Logan');
-  assert.equal(db.prepare('select body from memory').get().body, 'Logan');
+  reset(); fake([toolUse('remember', { title: 'Owner name', body: 'Alex', pinned: true }), text('saved')]);
+  await runAgent('orchestrator', 'my name is Alex');
+  assert.equal(db.prepare('select body from memory').get().body, 'Alex');
 });
 
 test('high-risk tool is queued, not executed, until approved', async () => {
@@ -88,10 +88,10 @@ test('sub-agents cannot use orchestrator-only tools', async () => {
 test('recall never reports empty when memories exist (synonyms, empty query)', async () => {
   reset();
   const { TOOLS } = await import('../src/tools.js');
-  db.prepare("insert into memory (kind, title, body) values ('person', 'Me - The User', 'Logan Adams')").run();
-  assert.match(TOOLS.recall.run({ query: 'owner name' }), /Logan Adams/);
-  assert.match(TOOLS.recall.run({ query: 'person' }), /Logan Adams/);
-  assert.match(TOOLS.recall.run({}), /Logan Adams/);
+  db.prepare("insert into memory (kind, title, body) values ('person', 'Me - The User', 'Alex Rivera')").run();
+  assert.match(TOOLS.recall.run({ query: 'owner name' }), /Alex Rivera/);
+  assert.match(TOOLS.recall.run({ query: 'person' }), /Alex Rivera/);
+  assert.match(TOOLS.recall.run({}), /Alex Rivera/);
   db.exec('delete from memory');
   assert.match(TOOLS.recall.run({ query: 'x' }), /Memory is empty/);
 });
@@ -102,8 +102,8 @@ test('auto mode: simple question stays on Haiku, heavy request goes to Opus, esc
   assert.equal(isHeavy('what is my name'), false);
   assert.equal(isHeavy('plan my week around the Etsy launch'), true);
 
-  let calls = fake([text('Logan')]);
-  assert.equal(await auto('what is my name'), 'Logan');
+  let calls = fake([text('Alex')]);
+  assert.equal(await auto('what is my name'), 'Alex');
   assert.equal(calls[0].model, 'claude-haiku-4-5');
   assert.ok(calls[0].tools.some((t) => t.name === 'escalate'));
   assert.ok(!calls[0].tools.some((t) => t.name === 'create_agent'), 'quick agent has a restricted tool set');
@@ -128,7 +128,7 @@ test('follow-ups to James stay with James; a fresh question still goes to Pete; 
   calls = fake([text('Done')]);
   await auto('add the car now');
   assert.equal(calls[0].model, 'claude-opus-5-5', 'short instruction right after James answered');
-  calls = fake([text('Logan')]);
+  calls = fake([text('Alex')]);
   await auto('what is my name?');
   assert.equal(calls[0].model, 'claude-haiku-4-5', 'a new question is still cheap');
   for (const t of ["I see the car-details in your vault, but I can't read it", 'You need to pull the details from the vault and give me the VIN']) assert.ok(CANT.test(t), t);
@@ -136,13 +136,13 @@ test('follow-ups to James stay with James; a fresh question still goes to Pete; 
 
 test('system prompt stays identical within a run even when a tool edits a pinned memory', async () => {
   reset();
-  const calls = fake([toolUse('remember', { title: 'Owner profile', body: 'Logan, 18', pinned: true }), text('saved')]);
+  const calls = fake([toolUse('remember', { title: 'Owner profile', body: 'Alex, 30', pinned: true }), text('saved')]);
   assert.equal(await runAgent('orchestrator', 'here is my profile'), 'saved');
   assert.equal(calls.length, 2);
   assert.equal(sysText(calls[0]), sysText(calls[1]), 'changing it mid-run invalidates Opus thinking blocks (400)');
   const next = fake([text('hi')]);
   await runAgent('orchestrator', 'hello');
-  assert.match(sysText(next[0]), /Logan, 18/, 'the new pinned fact applies from the next message');
+  assert.match(sysText(next[0]), /Alex, 30/, 'the new pinned fact applies from the next message');
 });
 
 test('concise mode, effort and max reply length reach the API; a cut-off reply says so', async () => {

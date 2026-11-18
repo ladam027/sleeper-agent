@@ -18,7 +18,7 @@ test('locked until a passphrase is set; nothing works without it', () => {
 });
 
 test('values are encrypted at rest; the key is not stored anywhere on disk', () => {
-  vault.save({ name: 'schwab', kind: 'password', value: 'hunter2-Secret!', username: 'logan' });
+  vault.save({ name: 'schwab', kind: 'password', value: 'hunter2-Secret!', username: 'alex' });
   const raw = db.prepare('select * from secrets').get();
   assert.ok(!Buffer.from(raw.data).toString('utf8').includes('hunter2'));
   const settings = JSON.stringify(db.prepare('select * from settings').all());
@@ -40,7 +40,7 @@ test('lock wipes the key; wrong passphrase fails; right one unlocks', () => {
 
 test('list shows a summary only for a passphrase session', () => {
   assert.equal(vault.list(false)[0].summary, undefined);
-  assert.equal(vault.list(true)[0].summary, 'logan');
+  assert.equal(vault.list(true)[0].summary, 'alex');
 });
 
 test('redact scrubs vault values, card numbers, SSNs, but leaves normal numbers', () => {
@@ -67,8 +67,8 @@ test('nothing sensitive reaches the API: message, history, system prompt, tool r
 });
 
 test('cards keep expiry/CVV encrypted; the summary shows only the last 4 digits', () => {
-  vault.save({ name: 'visa', kind: 'card', value: '4111 1111 1111 1111', username: 'Logan Adams', expiry: '12/29', cvv: '123' });
-  assert.equal(vault.list(true).find((i) => i.name === 'visa').summary, 'Logan Adams · •••• 1111 · exp 12/29');
+  vault.save({ name: 'visa', kind: 'card', value: '4111 1111 1111 1111', username: 'Alex Rivera', expiry: '12/29', cvv: '123' });
+  assert.equal(vault.list(true).find((i) => i.name === 'visa').summary, 'Alex Rivera · •••• 1111 · exp 12/29');
   assert.ok(!JSON.stringify(vault.list(true)).includes('4111 1111'));
   assert.equal(vault.reveal('visa').cvv, '123');
   assert.throws(() => vault.save({ name: 'bad', kind: 'card', value: '4111111111111111', expiry: '13/29' }), /MM\/YY/);

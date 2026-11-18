@@ -48,6 +48,6 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const r = await setupTelnyx({ apiKey: process.env.TELNYX_API_KEY, from: process.env.TELNYX_FROM });
     writeFileSync('.env', upsertEnv(readFileSync('.env', 'utf8'), { TELNYX_CONNECTION_ID: r.connectionId, TELNYX_FROM: r.from }));
     console.log(`Telnyx ready: calls will come from ${r.from} (TeXML app ${r.connectionId}). Wrote TELNYX_CONNECTION_ID and TELNYX_FROM to .env.`);
-    if (!/^\+\d{8,15}$/.test(process.env.OWNER_PHONE || '')) console.log('Next: set OWNER_PHONE in .env to your cell, e.g. +19515551234.');
+    if (!/^\+\d{8,15}$/.test(process.env.OWNER_PHONE || '')) console.log('Next: set OWNER_PHONE in .env to your cell, e.g. +15555551234.');
   } catch (e) { console.error(e.message); process.exit(1); }
 }

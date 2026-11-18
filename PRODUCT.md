@@ -7,7 +7,7 @@
 web
 
 ## Users
-One owner, Logan (18, UCR student), running a personal team of AI agents 24/7. He uses the dashboard about equally on a laptop (long sessions: chatting with James, reviewing memory, money, clients) and on his phone over Tailscale (quick status checks and approvals).
+One owner, running a personal team of AI agents 24/7. They use the dashboard about equally on a laptop (long sessions: chatting with James, reviewing memory, money, clients) and on his phone over Tailscale (quick status checks and approvals).
 
 ## Product Purpose
 Sleeper Agent is a private control room for the owner's agents (James the orchestrator, plus Pete, Riley, Theo, Cleo, Mia, Sam and others). The dashboard is where he talks to them, sees what they did and what it cost, approves risky actions, and manages memory, the vault, money, markets, clients, the live browser, the studio, integrations and settings. Success: he can trust what the agents are doing and act on anything that needs him within seconds. The current goal is +$1,000/month from local-business websites.

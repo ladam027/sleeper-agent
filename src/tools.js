@@ -145,7 +145,7 @@ export const TOOLS = {
     (input, ctx) => saveDraft(input, ctx.agent)),
 
   send_email: { ...tool('send_email', "Send an email FROM James's own Gmail (never the owner's). Always needs owner approval. Prefer sending an existing draft by draft_id. Write and sign it as James, whoever drafted it. Every sent email is saved to memory (recall 'email to <name>').",
-    { draft_id: { type: 'integer' }, to: str('recipient email'), subject: str('subject'), body: str('plain text, signed as James, assistant to Logan') }, [],
+    { draft_id: { type: 'integer' }, to: str('recipient email'), subject: str('subject'), body: str('plain text, signed as James, assistant to the owner (use their name from memory)') }, [],
     async ({ draft_id, to, subject, body }) => {
       const d = draft_id ? db.prepare("select * from drafts where id = ? and status = 'draft'").get(draft_id) : null;
       if (draft_id && !d) throw new Error(`No unsent draft #${draft_id}`);

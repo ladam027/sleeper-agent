@@ -126,11 +126,11 @@ test('Telegram: only the paired chat gets through; approvals need the PIN', asyn
 test('a normal Telegram message goes to the agents and the reply comes back', async () => {
   reset();
   const usage = { input_tokens: 1, output_tokens: 1 }, calls = [];
-  agentMod.deps.client = { messages: { create: async (p) => (calls.push(p), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Your name is Logan.' }] }) } };
+  agentMod.deps.client = { messages: { create: async (p) => (calls.push(p), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Your name is Alex.' }] }) } };
   await tg.handleUpdate(tgMsg('what is my name'));
   assert.equal(calls[0].model, 'claude-haiku-4-5', 'Auto routing: simple message goes to Pete');
   assert.match(JSON.stringify(calls[0].messages), /Sent from Telegram/);
-  assert.equal(sent.at(-1).body.text, 'Your name is Logan.');
+  assert.equal(sent.at(-1).body.text, 'Your name is Alex.');
 });
 
 test('Telnyx setup creates profile + app, attaches the number, and reuses them on a rerun', async () => {

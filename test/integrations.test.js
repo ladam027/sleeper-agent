@@ -19,15 +19,15 @@ integ.deps.fetch = async (url, o) => {
   if (url.includes('/courses?')) return ok([{ name: 'MATH 9C', enrollments: [{ type: 'student', computed_current_score: 91.2, computed_current_grade: 'A-' }] }]);
   if (url.includes('/portfolio/balance')) return ok({ balance: 12345 });
   if (url.includes('/portfolio/positions')) return ok({ market_positions: [{ ticker: 'KXFED-26DEC', position: 10, market_exposure: 450, realized_pnl: 0 }, { ticker: 'OLD', position: 0 }] });
-  if (url.includes('/users/self')) return ok({ name: 'Logan Adams', echo: CANVAS_TOKEN }); // a service echoing the token back
+  if (url.includes('/users/self')) return ok({ name: 'Alex Rivera', echo: CANVAS_TOKEN }); // a service echoing the token back
   return ok({});
 };
 
 test('saving needs an unlocked vault; credentials are stored only in the vault', () => {
-  assert.throws(() => integ.save('canvas', { url: 'elearn.ucr.edu', value: CANVAS_TOKEN }), /locked/);
+  assert.throws(() => integ.save('canvas', { url: 'canvas.example.edu', value: CANVAS_TOKEN }), /locked/);
   vault.setup('correct horse battery');
-  assert.match(integ.save('canvas', { url: 'elearn.ucr.edu', value: CANVAS_TOKEN }), /saved to the vault/);
-  assert.equal(vault.reveal('canvas').url, 'https://elearn.ucr.edu', 'address normalized to https origin');
+  assert.match(integ.save('canvas', { url: 'canvas.example.edu', value: CANVAS_TOKEN }), /saved to the vault/);
+  assert.equal(vault.reveal('canvas').url, 'https://canvas.example.edu', 'address normalized to https origin');
   assert.deepEqual({ ...integ.status().canvas }, { saved: true });
   assert.ok(!JSON.stringify(db.prepare('select * from settings').all()).includes('SuperSecret'));
   assert.throws(() => integ.save('canvas', { url: 'http://evil.example', value: 'x' }), /https/);
@@ -73,7 +73,7 @@ test('agents use integrations without ever seeing the key, even if the service e
   deps.client = { messages: { create: async (p) => (sent.push(JSON.stringify(p)), replies.shift()) } };
   assert.equal(await runAgent('quick', 'what are my grades'), 'You have an A- in MATH 9C.');
   assert.match(sent[1], /A-/);
-  assert.equal(await integ.test('canvas'), 'Connected as Logan Adams');
+  assert.equal(await integ.test('canvas'), 'Connected as Alex Rivera');
   const { redact } = vault;
   assert.ok(!redact(`echo ${CANVAS_TOKEN}`).includes('SuperSecret'), 'a token echoed by a service is redacted before the model');
   assert.ok(!sent.join('').includes('SuperSecret'));

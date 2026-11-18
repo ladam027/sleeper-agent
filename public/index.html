@@ -593,7 +593,7 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
             <label>Runs daily at<input class="input" name="income_time" type="time"></label>
             <label>Your name in emails<input class="input" name="income_sender"></label>
             <label style="grid-column:1/-1">Your offer (finishes "If you like it, …")<input class="input" name="income_offer"></label>
-            <label style="grid-column:1/-1">Mailing address (required by law in sales emails; a P.O. box works)<input class="input" name="income_address" placeholder="PO Box 123, Riverside, CA 92521"></label>
+            <label style="grid-column:1/-1">Mailing address (required by law in sales emails; a P.O. box works)<input class="input" name="income_address" placeholder="PO Box 123, Springfield, ST 02521"></label>
             <div style="grid-column:1/-1;display:flex;gap:var(--s2);flex-wrap:wrap"><button class="btn sm primary">Save</button><button type="button" class="btn sm" id="incToggle"></button><button type="button" class="btn sm" id="incRun">Run now</button></div>
           </form>
           <div id="incPitches" style="margin-top:var(--s4);display:grid;gap:var(--s2)"></div>
@@ -937,7 +937,7 @@ dialog.preview iframe { border: 0; background: #fff; display: block; margin: 0 a
             <ul>
               <li><b>Memory</b> (agent reads it, and it's sent to Anthropic): name, job, city, birth <i>year</i>, goals, projects, allergies, which bank or broker you use.</li>
               <li><b>Vault</b> (encrypted, never sent): anything that would let someone log in as you, pay as you, or steal your identity.</li>
-              <li><b>Don't vault what the agent should know.</b> Every vault value is swapped for <code>{{secret:name}}</code> before sending, even inside memory. Vault "Logan Adams" and your name disappears from everything the agent sees.</li>
+              <li><b>Don't vault what the agent should know.</b> Every vault value is swapped for <code>{{secret:name}}</code> before sending, even inside memory. Vault "Jane Doe" and your name disappears from everything the agent sees.</li>
               <li>Card numbers and SSNs are stripped from chat automatically, even if you never saved them.</li>
             </ul>
           </div>

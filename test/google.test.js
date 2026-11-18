@@ -113,7 +113,7 @@ test('James inbox watcher: replies and business mail are texted; other mail stay
 
 test('morning digest: waits for the owner account and the time, runs once a day as a tainted, tool-less summary', async () => {
   assert.equal(await jobs.morningDigest(), 'not due', 'owner not connected');
-  set('google_owner', JSON.stringify({ email: 'logan@example.com', refresh_token: 'rt-owner' }));
+  set('google_owner', JSON.stringify({ email: 'alex@example.com', refresh_token: 'rt-owner' }));
   set('timezone', 'UTC'); set('digest_time', '00:00'); set('digest_day', '');
   const usage = { input_tokens: 1, output_tokens: 1 }, seen = [];
   agentMod.deps.client = { messages: { create: async (p) => (seen.push(structuredClone(p)), { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: '9am class. Reply to Dana.' }] }) } };
@@ -128,7 +128,7 @@ test('emails: written as James or refused before approval; every sent email is r
   const { TOOLS } = await import('../src/tools.js');
   const { decide } = await import('../src/agent.js');
   const usage = { input_tokens: 1, output_tokens: 1 };
-  const replies = [{ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'p1', name: 'send_email', input: { to: 'milo@example.com', subject: 'Hey', body: "Hey Milo,\nLogan's AI overlord here (I'm Pete, his assistant)." } }] },
+  const replies = [{ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 'p1', name: 'send_email', input: { to: 'milo@example.com', subject: 'Hey', body: "Hey Milo,\nAlex's AI overlord here (I'm Pete, his assistant)." } }] },
     { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'ok' }] }];
   agentMod.deps.client = { messages: { create: async () => replies.shift() } };
   const before = db.prepare("select count(*) n from approvals where tool = 'send_email'").get().n;

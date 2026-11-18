@@ -9,9 +9,9 @@ import * as google from './google.js';
 import { publishSite } from './studio.js';
 
 export const deps = { run: null, publish: publishSite, send: (m) => google.sendAsJames(m) }; // run = runAgent, set by server.js (avoids an import cycle); tests swap them
-export const DEFAULTS = { income_on: '0', income_time: '10:00', income_area: 'Riverside, CA', income_niches: 'barbershops, taquerias, auto repair, nail salons',
+export const DEFAULTS = { income_on: '0', income_time: '10:00', income_area: '', income_niches: 'barbershops, taquerias, auto repair, nail salons',
   income_leads: '3', income_usd: '1.50', income_offer: 'a one-page site is $300 one-time, plus $15/month for hosting and edits',
-  income_sender: 'Logan', income_address: '' };
+  income_sender: '', income_address: '' };
 export const LIMITS = { leads: 8, usd: 5, sends_per_day: 10 };
 const cfg = (k) => get(k) ?? DEFAULTS[k];
 const EMAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i;
@@ -75,7 +75,7 @@ const today = () => localNow(get('timezone')).slice(0, 10);
 export async function runDay({ force = false } = {}) {
   if (!force && (cfg('income_on') !== '1' || get('income_last') === today() || localNow(get('timezone')).slice(11) < cfg('income_time'))) return null;
   set('income_last', today());
-  if (!cfg('income_address')) { await notify('high', 'Income engine paused: add a mailing address on Money → Income engine (US law requires one in sales emails).'); return 'no address'; }
+  if (!cfg('income_address') || !cfg('income_sender') || !cfg('income_area')) { await notify('high', 'Income engine paused: add your name, area and a mailing address on Money → Income engine (US law requires the address in sales emails).'); return 'not set up'; }
   const n = Number(cfg('income_leads')), usd = Number(cfg('income_usd'));
   const skip = db.prepare("select company from contacts where source = 'engine' order by id desc limit 60").all().map((r) => r.company).join('; ');
   const found = await deps.run('researcher', `Find ${n + 2} independent local businesses in ${cfg('income_area')} (types: ${cfg('income_niches')}) that do NOT have their own website: only a Google/Yelp/Facebook/Instagram listing, or nothing. Skip chains and franchises${skip ? ` and these: ${skip}` : ''}.
@@ -111,7 +111,7 @@ Use only these facts; leave clear placeholders for anything missing. No generate
 
 // The approved batch. Re-checks every rule at send time (an approval can sit for a while).
 export async function sendPitches({ ids }) {
-  if (!cfg('income_address')) throw new Error('Add a mailing address on Money → Income engine first');
+  if (!cfg('income_address') || !cfg('income_sender')) throw new Error('Add your name and a mailing address on Money → Income engine first');
   const out = [];
   for (const id of (ids || []).map(Number)) {
     const p = db.prepare("select p.*, c.email, c.name from pitches p join contacts c on c.id = p.contact_id where p.id = ?").get(id);

@@ -94,7 +94,7 @@ export async function memoryCleanup(now = new Date()) {
   return 'submitted';
 }
 
-// James's inbox: every 5 minutes. It also receives the owner's forwarded business mail (logan@quickloop.dev, 2026-11-09).
+// James's inbox: every 5 minutes. It also receives the owner's forwarded business mail (since 2026-11-09).
 // Owner request: text only what's about the business. Known contacts and replies ("Re:") are picked out in code; the
 // rest is sorted by Pete (Haiku, tool-less, tainted) from sender/subject/snippet. Everything else shows on the dashboard.
 // If sorting fails, the email is texted anyway: missing a client is worse than one extra text.

@@ -13,7 +13,7 @@ export const INTEGRATIONS = {
   canvas: {
     name: 'Canvas', vault: 'canvas', category: 'School',
     blurb: "Upcoming assignments, due dates and current grades from your school's Canvas.",
-    fields: [{ key: 'url', label: 'Canvas address', placeholder: 'https://elearn.ucr.edu' }, { key: 'value', label: 'Access token', secret: true }],
+    fields: [{ key: 'url', label: 'Canvas address', placeholder: 'https://canvas.instructure.com' }, { key: 'value', label: 'Access token', secret: true }],
     help: 'In Canvas: Account → Settings → "+ New Access Token". Give it a purpose like "Sleeper Agent" and an expiry date, then paste it here.',
     tools: ['canvas_upcoming', 'canvas_grades'],
   },
@@ -49,7 +49,7 @@ export const INTEGRATIONS = {
     name: 'Charles Schwab', vault: 'schwab', category: 'Markets',
     blurb: 'Stores your Schwab developer app credentials now. Read-only portfolio access comes in Build 6, once Schwab approves your app.',
     fields: [{ key: 'username', label: 'App key' }, { key: 'value', label: 'App secret', secret: true }],
-    help: 'Apply at developer.schwab.com → create an app for "Accounts and Trading Production" with callback URL https://sleeper-agent.tailcdfa9.ts.net/oauth/schwab. Approval takes a few days.',
+    help: 'Apply at developer.schwab.com → create an app for "Accounts and Trading Production" with callback URL <your PUBLIC_DASHBOARD_URL>/oauth/schwab. Approval takes a few days.',
     tools: [], comingSoon: 'Build 6',
   },
 };
@@ -94,7 +94,7 @@ async function getJson(url, headers, what) {
 
 // ── Canvas ──
 function canvasBase(url) {
-  let u; try { u = new URL(/^https?:\/\//.test(url) ? url : `https://${url}`); } catch { throw new Error('Enter your Canvas address, e.g. https://elearn.ucr.edu'); }
+  let u; try { u = new URL(/^https?:\/\//.test(url) ? url : `https://${url}`); } catch { throw new Error('Enter your Canvas address, e.g. https://canvas.instructure.com'); }
   if (u.protocol !== 'https:') throw new Error('Canvas address must start with https://');
   return u.origin;
 }

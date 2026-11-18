@@ -20,7 +20,7 @@
 2. **Google Cloud project** (sign in as yourself at console.cloud.google.com): New project "Sleeper Agent".
 3. **APIs & Services → Library**: enable **Gmail API** and **Google Calendar API**.
 4. **OAuth consent screen** (Google Auth Platform): External, app name "Sleeper Agent", your email as support/developer contact. **Audience → Test users**: add your Gmail and James's Gmail. Then **Publish app** ("In production"): otherwise Google expires the sign-in every 7 days. It stays unverified (you'll click "Advanced → Go to Sleeper Agent" once), which is fine for personal use.
-5. **Clients → Create client → Web application**. Authorized redirect URI: `https://sleeper-agent.tailcdfa9.ts.net/oauth/google`. Copy the client ID and secret into `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); Claude pushes it with `npm run deploy -- --env`.
+5. **Clients → Create client → Web application**. Authorized redirect URI: `PUBLIC_DASHBOARD_URL` + `/oauth/google` (e.g. `https://your-machine.your-tailnet.ts.net/oauth/google`). Copy the client ID and secret into `.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`); Claude pushes it with `npm run deploy -- --env`.
 6. Dashboard → Settings → Google → **Connect James's Gmail** (sign in as James) and optionally **Connect my Google**.
 
 ## Integrations (v4.2.0)
